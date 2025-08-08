@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
+
+body {
+    font-family: "Geist";
+    margin: 20px;
+    background-color: #0c0c0d;
+    color: #e6e6e6;
+}
+
+canvas {
+    background-color: #808080;
+    padding: 10px;
+    border-radius: 10px;
+    width: calc(100% - 20px);
+    image-rendering: pixelated;
+}
+
+label, b {
+    font-weight: 1000;
+}
+
+#details {
+    text-align: center;
+}
+
+.container {
+    max-width: 600px;
+    margin: auto;
+    padding: 20px;
+    background: #191919;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 1);
+}
+
+h1 {
+    margin-top: 0;
+    text-align: center;
+}
+
+input, option {
+    font-family: "Geist";
+    width: calc(100% - 22px);
+    padding: 10px;
+    margin: 10px 0;
+    background-color: black;
+    color: white;
+    border: 1px solid #333;
+    border-radius: 8px;
+}
+
+img {
+    width: 2ch;
+    height: 2ch;
+}
+
+
+button {
+    font-family: "Geist";
+    font-weight: bold;
+    border: 1px solid #333;
+    width: 100%;
+    padding: 10px;
+    background-color: hsl(215, 94%, 52%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 10px;
+}
+
+.coordinates {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.coordinates input {
+    width: calc(25% - 10px);
+    margin: 0;
+    padding: 10px;
+}
+
+button:hover, button:disabled, button[disabled] {
+    background-color: hsl(214, 87%, 26%);
+}
