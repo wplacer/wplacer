@@ -35,17 +35,22 @@ export class WPlacer {
         this.template = template;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
-        this.cookie = null;
+        this.cookies = null;
         this.browser = null;
         this.me = null;
         this.userInfo = null;
         this.tile = null;
+        this.token = null;
+        this._resolveToken = null;
+        this.tokenPromise = new Promise((resolve) => {
+            this._resolveToken = resolve;
+        });
     };
-    async login(cookie) {
-        this.cookie = cookie;
+    async login(cookies) {
+        this.cookies = cookies;
         puppeteer.use(StealthPlugin());
         this.browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-        await this.browser.setCookie({ name: 's', value: this.cookie, domain: 'backend.wplace.live' });
+        for (const cookie of Object.keys(this.cookies)) await this.browser.setCookie({ name: cookie, value: this.cookies[cookie], domain: 'backend.wplace.live' });
         await this.loadUserInfo();
         log(this.userInfo.id, `✅ Logged in as ${this.userInfo.name}!`);
         return this.userInfo;
@@ -57,21 +62,22 @@ export class WPlacer {
         this.userInfo = JSON.parse(await this.me.evaluate(() => document.querySelector('body').innerText));
         return true;
     };
+    cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
     async post(url, body) {
-        const response = await this.me.evaluate((url, header, body) => new Promise(async (resolve) => {
+        const response = await this.me.evaluate((url, cookies, body) => new Promise(async (resolve) => {
             const request = await fetch(url, {
                 method: "POST",
                 headers: {
                     "Accept": "*/*",
                     "Content-Type": "text/plain;charset=UTF-8",
-                    "Cookie": header,
+                    "Cookie": cookies,
                     "Referer": "https://wplace.live/"
                 },
                 body: JSON.stringify(body)
             });
             const response = await request.json();
             resolve(response);
-        }), url, `s=${this.cookie}`, body);
+        }), url, this.cookieStr(this.cookies), body);
         return response;
     };
     async loadTile() {
@@ -102,11 +108,23 @@ export class WPlacer {
         this.tile = imageData;
         return true;
     };
+    setToken(t) {
+        if (this._resolveToken) {
+            this._resolveToken(t);
+            this._resolveToken = null;
+            this.token = t;
+        };
+    };
     async paint() {
         await this.loadTile();
         const [tx, ty, px, py] = this.coords;
-        const body = { colors: [], coords: [] };
         let pixelsUsed = 0;
+        if (!this.token) {
+            log(this.userInfo.id, "⚠️ No CAPTCHA token, please paint any pixel to retrieve one and continue");
+            await this.tokenPromise;
+            log(this.userInfo.id, "✅ Got CAPTCHA token!");
+        };
+        const body = { colors: [], coords: [], t: this.token };
         log(this.userInfo.id, "🎨 Painting...");
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
