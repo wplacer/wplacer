@@ -1,10 +1,11 @@
 {
   "name": "wplacer",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "main": "index.js",
   "type": "module",
   "dependencies": {
     "express": "^5.1.0",
+    "open": "^10.2.0",
     "puppeteer": "^24.16.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"

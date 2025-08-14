@@ -5,9 +5,25 @@ body {
     margin: 20px;
     background-color: #0c0c0d;
     color: #e6e6e6;
+    text-align: center;
+}
+
+a {
+    color: #777;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+}
+
+a img {
+    width: 2ch;
+    height: 2ch;
+    display: block;
 }
 
 canvas {
+    margin: 0;
     background-color: #808080;
     padding: 10px;
     border-radius: 10px;
@@ -15,12 +31,42 @@ canvas {
     image-rendering: pixelated;
 }
 
-label, b {
+label,
+b {
     font-weight: 1000;
 }
 
-#details {
-    text-align: center;
+#userList {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+}
+
+.user {
+    background-color: #050505;
+    padding: 10px;
+    border-radius: 10px;
+    width: calc(100% - 20px);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.user .left {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.user .right button {
+    margin: 0;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .container {
@@ -32,14 +78,18 @@ label, b {
     box-shadow: 0 0 10px rgba(0, 0, 0, 1);
 }
 
-h1 {
+
+
+h1,
+h2 {
     margin-top: 0;
-    text-align: center;
+    color: white;
 }
 
-input, option {
+input,
+option,
+select {
     font-family: "Geist";
-    width: calc(100% - 22px);
     padding: 10px;
     margin: 10px 0;
     background-color: black;
@@ -48,25 +98,18 @@ input, option {
     border-radius: 8px;
 }
 
+input,
+option {
+    width: calc(100% - 20px);
+}
+
+select {
+    width: 100%;
+}
+
 img {
     width: 2ch;
     height: 2ch;
-}
-
-
-button {
-    font-family: "Geist";
-    font-weight: bold;
-    border: 1px solid #333;
-    width: 100%;
-    padding: 10px;
-    background-color: hsl(215, 94%, 52%);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-bottom: 10px;
 }
 
 .coordinates {
@@ -82,6 +125,146 @@ button {
     padding: 10px;
 }
 
-button:hover, button:disabled, button[disabled] {
+h1 {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+}
+
+h1 img {
+    width: 2ch;
+    height: 2ch;
+    display: block;
+}
+
+button {
+    font-family: "Geist";
+    font-weight: bold;
+    border: 1px solid #333;
+    text-align: center;
+    width: 100%;
+    padding: 10px;
+    background-color: hsl(215, 94%, 52%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-bottom: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 1em;
+}
+
+button img {
+    width: 2ch;
+    height: 2ch;
+    display: block;
+}
+
+button:hover,
+button:disabled,
+button[disabled] {
     background-color: hsl(214, 87%, 26%);
+}
+
+.return {
+    background-color: hsl(0, 0%, 47%);
+}
+
+.return:hover,
+.return:disabled,
+.return[disabled] {
+    background-color: hsl(0, 0%, 23%);
+}
+
+#templateList {
+    gap: 10px;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.template {
+    background-color: #050505;
+    padding: 10px;
+    border-radius: 10px;
+    width: calc(100% - 20px);
+}
+
+.template canvas {
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.template button {
+    margin: 0;
+}
+
+.buttons {
+    gap: 10px;
+    display: flex;
+}
+
+/* from https://uiverse.io/guilhermeyohan/great-snake-42, slightly changed */
+.checkbox {
+    position: relative;
+    width: 100%;
+    height: 25px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    text-align: center;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.checkbox label {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, 0%);
+    width: 50px;
+    height: 25px;
+    border-radius: 50px;
+    background: linear-gradient(to bottom, hsl(0, 0%, 70%), hsl(0, 0%, 80%));
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.checkbox label:after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: 23px;
+    height: 23px;
+    border-radius: 50%;
+    background-color: #fff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    transition: all 0.3s ease;
+}
+
+.checkbox input[type="checkbox"] {
+    display: none;
+}
+
+.checkbox input[type="checkbox"]:checked+label {
+    background: linear-gradient(to bottom, #4cd964, #5de24e);
+}
+
+.checkbox input[type="checkbox"]:checked+label:after {
+    transform: translateX(25px);
+}
+
+.checkbox label:hover:after {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.input {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 50px;
+    height: 25px;
 }

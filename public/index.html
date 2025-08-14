@@ -7,31 +7,71 @@
     <link rel="icon" type="image/x-icon" href="icons/favicon.png">
     <link rel="stylesheet" href="styles/index.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <title>wplacer</title>
+    <title>Wplacer - Automate the world</title>
 </head>
 
 <body>
     <div class="container">
-        <h1>wplacer</h1>
-        <button id="convert" onclick="document.getElementById('convertInput').click()">convert image</button>
-        <div id="details" style="display: none;">
-            <b for="size">Size:</b> <span id="size"></span><br>
-            <b for="ink">Ink needed:</b> <span id="ink"></span><br>
-            <canvas id="templateCanvas"></canvas>
+        <h1><img src="icons/favicon.png">Wplacer</h1>
+        <div id="main">
+            <button id="openAddUser"><img src="icons/addUser.svg">Add User</button>
+            <button id="openManageUsers"><img src="icons/manageUsers.svg">Manage Users</button>
+            <button id="openAddTemplate"><img src="icons/addTemplate.svg">Add Template</button>
+            <button id="openManageTemplates"><img src="icons/manageTemplates.svg">Manage Templates</button>
         </div>
-        <form id="form">
-            <input type="file" style="display: none;" accept="image/png" id="convertInput">
-            <b>Coordinates:</b>
-            <div class="coordinates">
-                <input type="number" id="tx" min="0" max="2047" placeholder="Tile X">
-                <input type="number" id="ty" min="0" max="2047" placeholder="Tile Y">
-                <input type="number" id="px" min="0" max="999" placeholder="Pixel X">
-                <input type="number" id="py" min="0" max="999" placeholder="Pixel Y">
+        <div id="addUser" style="display: none;">
+            <h2>Add User</h2>
+            <form id="userForm">
+                <label for="scookie">Cookies:</label> <input type="password" placeholder="Session Cookie (s)"
+                    id="scookie">
+                <input type="password" placeholder="JWT Cookie (j)" id="jcookie">
+                <button type="submit" id="submitUser"><img src="icons/addUser.svg">Add</button>
+            </form>
+            <button onclick="changeTab(main);" class="return"><img src="icons/return.svg">Return</button>
+        </div>
+        <div id="manageUsers" style="display: none;">
+            <h2>Manage Users</h2>
+            <div id="userList"></div>
+            <button onclick="changeTab(main);" class="return"><img src="icons/return.svg">Return</button>
+        </div>
+        <div id="addTemplate" style="display: none;">
+            <h2>Add Template</h2>
+            <button id="convert" onclick="document.getElementById('convertInput').click()"><img
+                    src="icons/convert.svg">Convert Image</button>
+            <div id="details" style="display: none;">
+                <b for="size">Size:</b> <span id="size"></span><br>
+                <b for="ink">Ink needed:</b> <span id="ink"></span><br>
+                <canvas id="templateCanvas"></canvas>
             </div>
-            <label for="scookie">Cookies:</label> <input type="password" placeholder="Session Cookie (s)" id="scookie"> <input type="password" placeholder="JWT Cookie (j)" id="jcookie">
-            <label for="canBuyCharges">Can buy paint charges when running out:</label> <input type="checkbox" id="canBuyCharges">
-            <button type="submit" id="submit">start</button>
-        </form>
+            <form id="templateForm">
+                <input type="file" style="display: none;" accept="image/png" id="convertInput">
+                <b>Coordinates:</b>
+                <div class="coordinates">
+                    <input type="number" id="tx" min="0" max="2047" placeholder="Tile X">
+                    <input type="number" id="ty" min="0" max="2047" placeholder="Tile Y">
+                    <input type="number" id="px" min="0" max="999" placeholder="Pixel X">
+                    <input type="number" id="py" min="0" max="999" placeholder="Pixel Y">
+                </div>
+                <label for="userSelect">User:</label> <select id="userSelect"></select>
+                <label for="canBuyCharges">Can buy paint charges when running out:</label>
+                <div class="checkbox">
+                    <input class="input" id="canBuyCharges" type="checkbox">
+                    <label for="canBuyCharges"></label>
+                </div>
+                <button type="submit" id="submitTemplate"><img src="icons/addTemplate.svg">Add</button>
+            </form>
+            <button onclick="changeTab(main);" class="return"><img src="icons/return.svg">Return</button>
+        </div>
+        <div id="manageTemplates" style="display: none;">
+            <h2>Manage Templates</h2>
+            <div class="buttons">
+                <button id="startAll"><img src="icons/playAll.svg">Start All Templates</button>
+                <button id="stopAll"><img src="icons/pauseAll.svg">Stop All Templates</button>
+            </div>
+            <div id="templateList"></div>
+            <button onclick="changeTab(main);" class="return"><img src="icons/return.svg">Return</button>
+        </div>
+        <a href="https://github.com/luluwaffless/wplacer">Made by luluwaffless <img src="icons/github.svg"></a>
     </div>
     <script type="text/javascript" src="scripts/index.js"></script>
 </body>

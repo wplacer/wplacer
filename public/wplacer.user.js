@@ -1,12 +1,13 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.0.0
+// @version      1.2.0
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
+// @homepageURL  https://github.com/luluwaffless/wplacer
 // @author       luluwaffless
 // @icon         https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/icons/favicon.png
-// @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/client.js
-// @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/client.js
+// @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
+// @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
 // @connect      localhost
 // @grant        GM_xmlhttpRequest
@@ -29,10 +30,17 @@
         });
     });
 
-    // inject script to hear for post requests
-    const script = document.createElement('script');
-    script.id = "wplacer";
-    script.textContent = `(() => {
+    // check if local server is on
+    GM_xmlhttpRequest({
+        method: "GET",
+        url: "http://localhost/ping",
+        onload: (res) => {
+            console.log("Server response:", res.responseText)
+            if (res.responseText === "Pong!") {
+                // inject script to hear for post requests
+                const script = document.createElement('script');
+                script.id = "wplacer";
+                script.textContent = `(() => {
     console.log("✅ Hello Wplace!");
     const origFetch = window.fetch;
     window.fetch = async (url, options) => {
@@ -50,5 +58,11 @@
         return origFetch(url, options);
     };
 })();`;
-    document.documentElement.appendChild(script);
+                document.documentElement.appendChild(script);
+            }
+        },
+        onerror: (err) => {
+            console.error("Request failed (server is most-likely offline):", err)
+        }
+    });
 })();
