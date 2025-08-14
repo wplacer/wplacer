@@ -7,7 +7,7 @@ const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "
 const saveUsers = () => writeFileSync("users.json", JSON.stringify(users));
 const app = express();
 app.use(express.static("public"));
-app.use(express.json());
+app.use(express.json({ limit: Infinity }));
 
 // frontend endpoints
 app.get("/users", (_, res) => res.json(users));
@@ -68,7 +68,7 @@ app.get("/ping", (_, res) => res.send("Pong!"));
 app.post("/t", async (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
-    Object.keys(instances).forEach(i => instances[i].setToken(t));
+    Object.keys(templates).forEach(i => templates[i].setToken(t));{ limit: Infinity }
     res.sendStatus(200);
 });
 
