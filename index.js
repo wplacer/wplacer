@@ -68,7 +68,7 @@ app.get("/ping", (_, res) => res.send("Pong!"));
 app.post("/t", async (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
-    Object.keys(templates).forEach(i => templates[i].setToken(t));{ limit: Infinity }
+    Object.keys(templates).forEach(i => templates[i].setToken(t));
     res.sendStatus(200);
 });
 
