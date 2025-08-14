@@ -72,7 +72,18 @@ app.post("/t", async (req, res) => {
     res.sendStatus(200);
 });
 
-app.listen(80, "127.0.0.1", () => {
-    console.log("✅ http://localhost/");
-    open("http://localhost/");
-});
+// starting
+const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
+(async () => {
+    const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+    console.log(`🌐 Wplace by luluwaffless (${version})`);
+    // check for updates
+    const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+    const githubVersion = (await githubPackage.json()).version;
+    const diff = diffVer(version, githubVersion);
+    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update!" : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    app.listen(80, "127.0.0.1", () => {
+        console.log("✅ http://localhost/");
+        open("http://localhost/");
+    });
+})();

@@ -127,9 +127,9 @@ export class WPlacer {
         const [tx, ty, px, py] = this.coords;
         let pixelsUsed = 0;
         if (!this.token) {
-            log(this.userInfo.id, "⚠️ No CAPTCHA token, please paint any pixel to retrieve one and continue");
+            log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
             await this.tokenPromise;
-            log(this.userInfo.id, "✅ Got CAPTCHA token!");
+            log(this.userInfo.id, "✅ Got Turnstile token!");
         };
         const body = { colors: [], coords: [], t: this.token };
         log(this.userInfo.id, "🎨 Painting...");
