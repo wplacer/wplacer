@@ -157,7 +157,7 @@ export class WPlacer {
         };
     };
     async buyCharges(amount) {
-        const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, { product: { id: 80, amount: amount } });
+        const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: 80, amount: amount } });
         if (response.data.success) {
             log(this.userInfo.id, `🛒 Bought ${amount * 30} pixels for ${amount * 500} droplets`);
             return true;
