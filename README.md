@@ -2,7 +2,8 @@
 
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a></p>
+<a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
+<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a><//p>
 
 An auto-drawing bot for [wplace.live](https://wplace.live/)
 

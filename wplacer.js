@@ -126,11 +126,6 @@ export class WPlacer {
         await this.loadTile();
         const [tx, ty, px, py] = this.coords;
         let pixelsUsed = 0;
-        if (!this.token) {
-            log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
-            await this.tokenPromise;
-            log(this.userInfo.id, "✅ Got Turnstile token!");
-        };
         const body = { colors: [], coords: [], t: this.token };
         log(this.userInfo.id, "🎨 Painting...");
         for (let y = 0; y < this.template.height; y++) {
@@ -140,6 +135,11 @@ export class WPlacer {
                 body.coords.push((px + x), (py + y))
                 pixelsUsed++;
                 if (pixelsUsed === Math.floor(this.userInfo.charges.count)) {
+                    if (!this.token) {
+                        log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
+                        await this.tokenPromise;
+                        log(this.userInfo.id, "✅ Got Turnstile token!");
+                    };
                     const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
                     if (response.data.painted && response.data.painted == pixelsUsed) {
                         log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
@@ -153,7 +153,13 @@ export class WPlacer {
             if (response.data.painted && response.data.painted == pixelsUsed) {
                 log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
                 return pixelsUsed;
-            } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
+            } else {
+                if (response.status === 403) {
+                    log(this.userInfo.id, "⚠️ Turnstile token expired.");
+                    this.token = null;
+                    return null;
+                } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
+            }
         };
     };
     async buyCharges(amount) {
@@ -192,7 +198,8 @@ export class WPlacer {
                 } else {
                     await this.sleep(2500);
                     const pixelsLeft = await this.pixelsLeft();
-                    if (pixelsLeft === 0) {
+                    if (pixelsLeft === null) continue;
+                    else if (pixelsLeft === 0) {
                         this.running = false;
                         log(this.userInfo.id, "🖼 Finished!");
                         this.status = "Finished.";

@@ -2,6 +2,7 @@
 
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
+<a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Suporte-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
 <a href="README.md"><img src="https://img.shields.io/badge/translation-english-red"></a></p>
 
 Um bot de desenho automático para [wplace.live](https://wplace.live/)
