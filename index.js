@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { WPlacer, log } from "./wplacer-1.2.3.js";
+import { WPlacer, log } from "./wplacer.js";
 import express from "express";
 import open from "open";
 const templates = {};
