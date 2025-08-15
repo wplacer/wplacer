@@ -30,7 +30,7 @@ Um bot de desenho automático para [wplace.live](https://wplace.live/)
 1. Para iniciar o bot, basta usar `node .`
 2. Após iniciar o bot, o navegador deve abrir automaticamente a interface web (se não abrir, acesse http://localhost).
 3. Você pode adicionar quantos usuários quiser.
-   - No [wplace.live](https://wplace.live/), abra o DevTools (Inspecionar elemento), vá em Aplicativo > Cookies e copie os valores dos cookies chamados `s` e `j` (se não aparecerem, tente clicar/pintar um pixel para gerar uma requisição ao backend).
+   - No [wplace.live](https://wplace.live/), abra o DevTools (Inspecionar elemento), vá em Aplicativo > Cookies e copie os valores dos cookies chamados `s` e `j` (se não aparecerem, tente clicar/pintar um pixel para gerar uma requisição ao backend) (apenas contas antigas possuem o cookie `s`, então você pode pular ele).
    - Cole-os nos campos correspondentes no formulário "Adicionar Usuário".
 4. Após adicionar os usuários desejados, vá em "Adicionar Modelo" e preencha o formulário para todos os usuários que deseja usar.
    - As coordenadas são para o canto superior esquerdo da sua imagem. Recomendo usar o [BlueMarble](https://github.com/SwingTheVine/Wplace-BlueMarble) para obtê-las; as coordenadas aparecerão automaticamente ao clicar em um pixel. Alternativamente, você pode ir na aba Network do DevTools, clicar em qualquer pixel e procurar por uma requisição GET para `https://backend.wplace.live/s0/pixel/{TX}/{TY}?x={PX}&y={PY}`.

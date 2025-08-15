@@ -122,19 +122,17 @@ export class WPlacer {
             this.token = t;
         };
     };
-    async checkToken() {
-        if (!this.token) {
-            log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
-            await this.tokenPromise;
-            log(this.userInfo.id, "✅ Got Turnstile token!");
-        };
-        return;
-    };
     async paint() {
         await this.loadTile();
         const [tx, ty, px, py] = this.coords;
         let pixelsUsed = 0;
         const body = { colors: [], coords: [], t: this.token };
+        if (!this.token) {
+            log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
+            this.status = "Waiting for Turnstile token.";
+            await this.tokenPromise;
+            log(this.userInfo.id, "✅ Got Turnstile token!");
+        };
         log(this.userInfo.id, "🎨 Painting...");
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
@@ -143,32 +141,30 @@ export class WPlacer {
                 body.coords.push((px + x), (py + y))
                 pixelsUsed++;
                 if (pixelsUsed === Math.floor(this.userInfo.charges.count)) {
-                    await this.checkToken();
                     const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
                     if (response.data.painted && response.data.painted == pixelsUsed) {
                         log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
                         return pixelsUsed;
                     } else {
-                        if (response.status === 403) {
-                            log(this.userInfo.id, "⚠️ Turnstile token expired.");
-                            this.token = null;
-                            return null;
+                        if (response.status === 403 && response.data.error === "refresh") {
+                            log(this.userInfo.id, "⌛ Turnstile token expired.");
+                            this.setToken(null);
+                            return "turnstile";
                         } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
                     };
                 };
             };
         };
         if (pixelsUsed > 0) {
-            await this.checkToken();
             const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
             if (response.data.painted && response.data.painted == pixelsUsed) {
                 log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
                 return pixelsUsed;
             } else {
-                if (response.status === 403) {
-                    log(this.userInfo.id, "⚠️ Turnstile token expired.");
-                    this.token = null;
-                    return null;
+                if (response.status === 403 && response.data.error === "refresh") {
+                    log(this.userInfo.id, "⌛ Turnstile token expired.");
+                    this.setToken(null);
+                    return "turnstile";
                 } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
             };
         };
@@ -201,8 +197,9 @@ export class WPlacer {
         while (true) {
             if (this.running) {
                 const pixelsUsed = await this.paint();
-                if (pixelsUsed === null) continue;
-                else if (pixelsUsed === this.template.ink) {
+                if (pixelsUsed === "turnstile") {
+                    continue;
+                } else if (pixelsUsed === this.template.ink) {
                     this.running = false;
                     log(this.userInfo.id, "🖼 Finished!");
                     this.status = "Finished.";
@@ -210,8 +207,7 @@ export class WPlacer {
                 } else {
                     await this.sleep(2500);
                     const pixelsLeft = await this.pixelsLeft();
-                    if (pixelsLeft === null) continue;
-                    else if (pixelsLeft === 0) {
+                    if (pixelsLeft === 0) {
                         this.running = false;
                         log(this.userInfo.id, "🖼 Finished!");
                         this.status = "Finished.";

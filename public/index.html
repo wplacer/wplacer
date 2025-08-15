@@ -22,9 +22,9 @@
         <div id="addUser" style="display: none;">
             <h2>Add User</h2>
             <form id="userForm">
-                <label for="scookie">Cookies:</label> <input type="password" placeholder="Session Cookie (s)"
-                    id="scookie">
-                <input type="password" placeholder="JWT Cookie (j)" id="jcookie">
+                <label for="jcookie">Cookies:</label>
+                <input type="password" placeholder="JWT Cookie (j)" id="jcookie" required>
+                <input type="password" placeholder="Session Cookie (s) [not required]" id="scookie">
                 <button type="submit" id="submitUser"><img src="icons/addUser.svg">Add</button>
             </form>
             <button onclick="changeTab(main);" class="return"><img src="icons/return.svg">Return</button>
@@ -44,18 +44,18 @@
                 <canvas id="templateCanvas"></canvas>
             </div>
             <form id="templateForm">
-                <input type="file" style="display: none;" accept="image/png" id="convertInput">
+                <input type="file" style="display: none;" accept="image/png" id="convertInput" required>
                 <b>Coordinates:</b>
                 <div class="coordinates">
-                    <input type="number" id="tx" min="0" max="2047" placeholder="Tile X">
-                    <input type="number" id="ty" min="0" max="2047" placeholder="Tile Y">
-                    <input type="number" id="px" min="0" max="999" placeholder="Pixel X">
-                    <input type="number" id="py" min="0" max="999" placeholder="Pixel Y">
+                    <input type="number" id="tx" min="0" max="2047" placeholder="Tile X" required>
+                    <input type="number" id="ty" min="0" max="2047" placeholder="Tile Y" required>
+                    <input type="number" id="px" min="0" max="999" placeholder="Pixel X" required>
+                    <input type="number" id="py" min="0" max="999" placeholder="Pixel Y" required>
                 </div>
-                <label for="userSelect">User:</label> <select id="userSelect"></select>
+                <label for="userSelect">User:</label> <select id="userSelect" required></select>
                 <label for="canBuyCharges">Can buy paint charges when running out:</label>
                 <div class="checkbox">
-                    <input class="input" id="canBuyCharges" type="checkbox">
+                    <input class="input" id="canBuyCharges" type="checkbox" required>
                     <label for="canBuyCharges"></label>
                 </div>
                 <button type="submit" id="submitTemplate"><img src="icons/addTemplate.svg">Add</button>

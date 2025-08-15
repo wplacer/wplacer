@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { WPlacer, log } from "./wplacer.js";
+import { WPlacer, log } from "./wplacer-1.2.3.js";
 import express from "express";
 import open from "open";
 const templates = {};
@@ -13,7 +13,7 @@ app.use(express.json({ limit: Infinity }));
 app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => res.json(templates));
 app.post("/user", async (req, res) => {
-    if (!req.body.cookies.s || !req.body.cookies.j) return res.sendStatus(400);
+    if (!req.body.cookies || !req.body.cookies.j) return res.sendStatus(400);
     try {
         const wplacer = new WPlacer(req.body.template, req.body.coords, req.body.canBuyCharges);
         const userInfo = await wplacer.login(req.body.cookies);
