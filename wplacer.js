@@ -201,7 +201,8 @@ export class WPlacer {
         while (true) {
             if (this.running) {
                 const pixelsUsed = await this.paint();
-                if (pixelsUsed === this.template.ink) {
+                if (pixelsUsed === null) continue;
+                else if (pixelsUsed === this.template.ink) {
                     this.running = false;
                     log(this.userInfo.id, "🖼 Finished!");
                     this.status = "Finished.";
