@@ -122,6 +122,14 @@ export class WPlacer {
             this.token = t;
         };
     };
+    async checkToken() {
+        if (!this.token) {
+            log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
+            await this.tokenPromise;
+            log(this.userInfo.id, "✅ Got Turnstile token!");
+        };
+        return;
+    };
     async paint() {
         await this.loadTile();
         const [tx, ty, px, py] = this.coords;
@@ -135,20 +143,23 @@ export class WPlacer {
                 body.coords.push((px + x), (py + y))
                 pixelsUsed++;
                 if (pixelsUsed === Math.floor(this.userInfo.charges.count)) {
-                    if (!this.token) {
-                        log(this.userInfo.id, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
-                        await this.tokenPromise;
-                        log(this.userInfo.id, "✅ Got Turnstile token!");
-                    };
+                    await this.checkToken();
                     const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
                     if (response.data.painted && response.data.painted == pixelsUsed) {
                         log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
                         return pixelsUsed;
-                    } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
+                    } else {
+                        if (response.status === 403) {
+                            log(this.userInfo.id, "⚠️ Turnstile token expired.");
+                            this.token = null;
+                            return null;
+                        } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
+                    };
                 };
             };
         };
         if (pixelsUsed > 0) {
+            await this.checkToken();
             const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
             if (response.data.painted && response.data.painted == pixelsUsed) {
                 log(this.userInfo.id, `🎨 Painted ${pixelsUsed} pixels`);
@@ -159,7 +170,7 @@ export class WPlacer {
                     this.token = null;
                     return null;
                 } else throw Error(`Unexpected response: ${JSON.stringify(response)}`);
-            }
+            };
         };
     };
     async buyCharges(amount) {
