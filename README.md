@@ -20,15 +20,17 @@ An auto-drawing bot for [wplace.live](https://wplace.live/)
 
 ## Installation and Usage 💻
 ### Requirements:
-- [Node.js and NPM](https://nodejs.org/)
+- [Node.js and NPM](https://nodejs.org/en/download)
 - [Tampermonkey](https://www.tampermonkey.net/)
+- [git](https://git-scm.com/downloads) (not required)
 ### Installation:
 1. [Install the userscript to manually solve Turnstiles (CAPTCHAs)](https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js)
-2. Download the repository directly from GitHub or using git (`git clone https://github.com/luluwaffless/wplacer.git`)
+2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download directly from GitHub (not recommended) 
 3. In the terminal, install the dependencies with `npm i`
+- If you'd like, you can change the host (local host only or all interfaces) and port of the local server in `.env`
 ### Usage:
-1. To start the bot, simply use `node .`
-2. After starting the bot, the browser should automatically open the web UI (if not, go to http://localhost).
+1. To start the bot, simply use `npm start`
+2. After starting the bot, open the printed URL in your browser.
 3. You can add as many users as you want.
    - In [wplace.live](https://wplace.live/), open DevTools (Inspect Element), go to Application > Cookies, and copy the values of the cookies named `s` and `j` (if they don't appear, try clicking/painting a pixel to trigger a request to the backend) (only older accounts have the `s` cookie so you can skip it).
    - Paste them into their respective spots on the "Add User" form.

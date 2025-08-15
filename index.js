@@ -1,7 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { WPlacer, log } from "./wplacer.js";
 import express from "express";
-import open from "open";
 const templates = {};
 const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
 const saveUsers = () => writeFileSync("users.json", JSON.stringify(users));
@@ -81,9 +80,12 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
-    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update!" : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
-    app.listen(80, "127.0.0.1", () => {
-        console.log("✅ http://localhost/");
-        open("http://localhost/");
+    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    
+    // start server
+    const port = Number(process.env.PORT) || 80;
+    const host = process.env.HOST || "127.0.0.1";
+    app.listen(port, host, () => {
+        console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
     });
 })();

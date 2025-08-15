@@ -1,11 +1,13 @@
 {
   "name": "wplacer",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "main": "index.js",
   "type": "module",
+  "scripts": {
+    "start": "node . --env-file=.env"
+  },
   "dependencies": {
     "express": "^5.1.0",
-    "open": "^10.2.0",
     "puppeteer": "^24.16.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2"
