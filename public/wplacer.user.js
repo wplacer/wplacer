@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.3.0
+// @version      1.3.1
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -9,13 +9,14 @@
 // @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
+// @connect      localhost
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @run-at       document-start
 // ==/UserScript==
 
-(async () => {
+(() => {
     const host = GM_getValue("wplacer_server_host", "localhost");
     // listener and sender of the token to the server
     window.addEventListener("message", (event) => {
