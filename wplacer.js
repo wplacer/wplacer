@@ -122,6 +122,12 @@ export class WPlacer {
             this.token = t;
         };
     };
+    hasColor(id) {
+        if (id < 32) {
+            return true;
+        }
+        return (this.userInfo.extraColorsBitmap & (1 << (id - 32)));
+    }
     async paint() {
         await this.loadTile();
         const [tx, ty, px, py] = this.coords;
@@ -137,6 +143,7 @@ export class WPlacer {
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 if (this.template.data[x][y] === 0 || this.template.data[x][y] === this.tile.data[px + x][py + y]) continue;
+                if (!this.hasColor(this.template.data[x][y])) continue;
                 body.colors.push(this.template.data[x][y]);
                 body.coords.push((px + x), (py + y))
                 pixelsUsed++;
