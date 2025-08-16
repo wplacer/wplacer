@@ -1,270 +1,437 @@
-@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&display=swap');
+
+:root {
+    --background-primary: #121212;
+    --background-secondary: #1A1A1A;
+    --background-tertiary: #242424;
+    --accent-primary: hsl(25, 95%, 55%);
+    --accent-hover: hsl(25, 95%, 48%);
+    --text-primary: #E0E0E0;
+    --text-secondary: #B3B3B3;
+    --border-color: #282828;
+    --success-color: hsl(145, 63%, 42%);
+    --warning-color: hsl(39, 100%, 50%);
+    --error-color: hsl(0, 65%, 51%);
+    --destructive-color: hsl(0, 0%, 25%);
+    --destructive-hover: hsl(0, 0%, 35%);
+    --font-family: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+}
 
 body {
-    font-family: "Geist";
-    margin: 20px;
-    background-color: #0c0c0d;
-    color: #e6e6e6;
+    font-family: var(--font-family);
+    margin: 0;
+    padding: 40px 20px;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 680px;
+    background: var(--background-secondary);
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    padding: 32px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
     text-align: center;
 }
 
+h1, h2 {
+    color: var(--text-primary);
+    margin-top: 0;
+    font-weight: 700;
+}
+
+h1 {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    font-size: 3rem;
+    margin-bottom: 24px;
+}
+
+h1 img {
+    width: 1.5em;
+    height: 1.5em;
+}
+
+h2 {
+    font-size: 1.75rem;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 16px;
+}
+
+h2.section-title {
+    margin-top: 40px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.credits {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
 a {
-    color: #777;
+    color: var(--text-secondary);
     text-decoration: none;
     display: inline-flex;
     align-items: center;
     gap: 0.25em;
+    margin-top: 24px;
+    transition: color 0.2s ease;
+}
+
+a.credit {
+    margin-top: 8px;
+}
+
+a:hover {
+    color: var(--text-primary);
 }
 
 a img {
-    width: 2ch;
-    height: 2ch;
+    width: 1.5em;
+    height: 1.5em;
+}
+
+button {
+    font-family: var(--font-family);
+    font-weight: 500;
+    font-size: 1rem;
+    width: 100%;
+    padding: 12px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75em;
+    border: none;
+    margin-bottom: 12px;
+}
+
+button img {
+    width: 1.5em;
+    height: 1.5em;
+    filter: brightness(0) invert(1);
+}
+
+button:disabled, button[disabled] {
+    cursor: not-allowed;
+    background-color: #333 !important;
+    color: #888 !important;
+}
+
+.primary-button {
+    background-color: var(--accent-primary);
+    color: white;
+}
+
+.primary-button:hover:not(:disabled) {
+    background-color: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.secondary-button {
+    background-color: #3A3A3A;
+    color: var(--text-primary);
+    border: 1px solid #4F4F4F;
+}
+
+.secondary-button:hover:not(:disabled) {
+    background-color: #4F4F4F;
+    border-color: #666;
+}
+
+.destructive-button {
+    background-color: var(--destructive-color);
+    color: var(--text-primary);
+    border: 1px solid hsl(0, 0%, 30%);
+}
+
+.destructive-button:hover:not(:disabled) {
+    background-color: var(--destructive-hover);
+    border-color: hsl(0, 0%, 40%);
+}
+
+#main button {
+    margin-bottom: 16px;
+}
+
+input, select {
+    font-family: var(--font-family);
+    font-size: 1rem;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    background-color: var(--background-primary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    width: 100%;
+    box-sizing: border-box;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+input:focus, select:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px hsla(25, 95%, 55%, 0.3);
+}
+
+label {
     display: block;
+    text-align: left;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-secondary);
 }
 
-canvas {
-    margin: 0;
-    background-color: #808080;
-    padding: 10px;
-    border-radius: 10px;
-    width: calc(100% - 20px);
-    image-rendering: pixelated;
-}
-
-label,
-b {
-    font-weight: 1000;
+.coordinates {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
 }
 
 #userList {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 10px;
-    width: 100%;
-    box-sizing: border-box;
-    margin-bottom: 10px;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
 }
 
 .user {
-    background-color: #050505;
-    padding: 10px;
-    border-radius: 10px;
-    width: calc(100% - 20px);
+    background-color: var(--background-tertiary);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
     align-items: center;
+    transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
 .user .left {
     display: flex;
     flex-direction: column;
     text-align: left;
+    gap: 4px;
+}
+
+.user .left span:first-child {
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.user .left span:last-child {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
 }
 
 .user .right button {
-    margin: 0;
+    padding: 8px;
+    background: none;
     border: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    margin: 0;
 }
 
-.container {
-    max-width: 600px;
-    margin: auto;
-    padding: 20px;
-    background: #191919;
-    border-radius: 10px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 1);
+.user .right button img {
+    filter: none;
+    opacity: 0.6;
+    transition: opacity 0.2s ease;
 }
 
-
-
-h1,
-h2 {
-    margin-top: 0;
-    color: white;
+.user .right button:hover img {
+    opacity: 1;
 }
 
-input,
-option,
-select {
-    font-family: "Geist";
+#userSelectList {
+    background-color: var(--background-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
     padding: 10px;
+    text-align: left;
     margin: 10px 0;
-    background-color: black;
-    color: white;
-    border: 1px solid #333;
-    border-radius: 8px;
+    max-height: 180px;
+    overflow-y: auto;
 }
 
-input,
-option {
-    width: calc(100% - 20px);
-}
-
-select {
-    width: 100%;
-}
-
-img {
-    width: 2ch;
-    height: 2ch;
-}
-
-.coordinates {
+.user-select-item {
     display: flex;
-    gap: 10px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+    align-items: center;
+    padding: 8px;
+    border-radius: 6px;
 }
 
-.coordinates input {
-    width: calc(25% - 10px);
+.user-select-item:hover {
+    background-color: var(--background-tertiary);
+}
+
+.user-select-item input[type="checkbox"] {
+    width: auto;
+    margin: 0 12px 0 0;
+}
+
+.user-select-item label {
     margin: 0;
-    padding: 10px;
+    color: var(--text-primary);
+    font-weight: 400;
 }
 
-h1 {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25em;
-}
-
-h1 img {
-    width: 2ch;
-    height: 2ch;
-    display: block;
-}
-
-button {
-    font-family: "Geist";
-    font-weight: bold;
-    border: 1px solid #333;
-    text-align: center;
-    width: 100%;
-    padding: 10px;
-    background-color: hsl(215, 94%, 52%);
-    color: white;
-    border: none;
+canvas {
+    background-color: #808080;
     border-radius: 8px;
-    cursor: pointer;
-    transition: background-color 0.3s ease;
-    margin-bottom: 10px;
-    display: inline-flex;
-    align-items: center;
-    gap: 1em;
-}
-
-button img {
-    width: 2ch;
-    height: 2ch;
-    display: block;
-}
-
-button:hover,
-button:disabled,
-button[disabled] {
-    background-color: hsl(214, 87%, 26%);
-}
-
-.return {
-    background-color: hsl(0, 0%, 47%);
-}
-
-.return:hover,
-.return:disabled,
-.return[disabled] {
-    background-color: hsl(0, 0%, 23%);
+    width: 100%;
+    image-rendering: pixelated;
+    margin: 16px 0;
 }
 
 #templateList {
-    gap: 10px;
-    width: 100%;
-    margin-bottom: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin: 24px 0;
 }
 
 .template {
-    background-color: #050505;
-    padding: 10px;
-    border-radius: 10px;
-    width: calc(100% - 20px);
+    background-color: var(--background-tertiary);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    text-align: left;
 }
 
-.template canvas {
-    margin-top: 10px;
-    margin-bottom: 10px;
+.template span {
+    display: block;
+    line-height: 1.6;
+    color: var(--text-secondary);
 }
 
-.template button {
+.template span b {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.template .status-running { color: var(--success-color); }
+.template .status-waiting { color: var(--warning-color); }
+.template .status-stopped { color: var(--error-color); }
+
+.template .buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+}
+
+.checkbox {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 20px 0;
+}
+
+.checkbox label[for] {
     margin: 0;
 }
 
-.buttons {
-    gap: 10px;
-    display: flex;
-}
-
-/* from https://uiverse.io/guilhermeyohan/great-snake-42, slightly changed */
-.checkbox {
+.switch {
     position: relative;
-    width: 100%;
-    height: 25px;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    text-align: center;
-    -webkit-user-select: none;
-    -moz-user-select: none;
-    -ms-user-select: none;
-    user-select: none;
-}
-
-.checkbox label {
-    position: absolute;
-    top: 0;
-    left: 50%;
-    transform: translate(-50%, 0%);
+    display: inline-block;
     width: 50px;
-    height: 25px;
-    border-radius: 50px;
-    background: linear-gradient(to bottom, hsl(0, 0%, 70%), hsl(0, 0%, 80%));
+    height: 28px;
+}
+
+.switch input { display: none; }
+
+.slider {
+    position: absolute;
     cursor: pointer;
-    transition: all 0.3s ease;
-}
-
-.checkbox label:after {
-    content: '';
-    position: absolute;
-    top: 1px;
-    left: 1px;
-    width: 23px;
-    height: 23px;
-    border-radius: 50%;
-    background-color: #fff;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-    transition: all 0.3s ease;
-}
-
-.checkbox input[type="checkbox"] {
-    display: none;
-}
-
-.checkbox input[type="checkbox"]:checked+label {
-    background: linear-gradient(to bottom, #4cd964, #5de24e);
-}
-
-.checkbox input[type="checkbox"]:checked+label:after {
-    transform: translateX(25px);
-}
-
-.checkbox label:hover:after {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-}
-
-.input {
-    position: absolute;
     top: 0;
     left: 0;
-    width: 50px;
-    height: 25px;
+    right: 0;
+    bottom: 0;
+    background-color: #333;
+    transition: .4s;
+    border-radius: 28px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 20px;
+    width: 20px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: var(--accent-primary);
+}
+
+input:checked + .slider:before {
+    transform: translateX(22px);
+}
+
+#messageBoxOverlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+#messageBox {
+    background: var(--background-secondary);
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+}
+
+#messageBoxTitle {
+    margin-top: 0;
+    color: var(--text-primary);
+}
+
+#messageBoxContent {
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.message-box-buttons {
+    display: flex;
+    gap: 12px;
+    margin-top: 24px;
+    justify-content: center;
+}
+
+.message-box-buttons button {
+    width: auto;
+    min-width: 100px;
+    margin-bottom: 0;
+}
+
+.hidden {
+    display: none !important;
 }
