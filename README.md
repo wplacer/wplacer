@@ -54,4 +54,5 @@ This version is a complete rewrite of the original bot, introducing a host of ne
 
 ### License 📜
 
+
 [GNU AGPL v3](LICENSE)
