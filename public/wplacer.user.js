@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.3.1
+// @version      1.4.0
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -10,6 +10,7 @@
 // @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
 // @connect      localhost
+// @connect      127.0.0.1
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -36,8 +37,8 @@
     // check if local server is on
     // prompt function
     const p = () => {
-        const newHost = prompt("Please enter your server's IP and port (example: \"127.0.0.1:80\"):", host);
-        if (newHost && newHost.match(/^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d):(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|\d{1,4})$/)) {
+        const newHost = prompt("Please enter your server's IP and port (example: \"localhost\", \"192.168.0.1\", \"127.0.0.1:3000\"):", host);
+        if (newHost && newHost.match(/^(localhost(?::\d{1,5})?|\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?)$/)) {
             GM_setValue("wplacer_server_host", newHost);
             location.reload();
         } else {
