@@ -18,59 +18,59 @@
 // ==/UserScript==
 
 (() => {
-    const host = GM_getValue("wplacer_server_host", "localhost");
+  const host = GM_getValue("wplacer_server_host", "localhost");
 
-    const sent = new Set();
+  const sent = new Set();
 
-    function sendTokenToServer(token) {
-        if (!token || sent.has(token)) return;
-        sent.add(token);
-        console.log("✅ CAPTCHA Token Received");
-        GM_xmlhttpRequest({
-            method: "POST",
-            url: `http://${host}/t`,
-            data: JSON.stringify({ t: token }),
-            headers: { "Content-Type": "application/json" },
-            onload: (res) => console.log("Server response:", res.responseText),
-            onerror: (err) => console.error("Request failed:", err)
-        });
-    }
-
-    window.addEventListener("message", (event) => {
-        const d = event?.data;
-        if (!d || d.type !== "WPLACER_TOKEN" || !d.token) return;
-        sendTokenToServer(d.token);
-    });
-
-    const promptForHost = () => {
-        const newHost = prompt(
-            'Please enter your server\'s IP and port (example: "127.0.0.1:80"):',
-            host
-        );
-        if (
-            newHost &&
-            newHost.match(
-                /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d):(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|\d{1,4})$/
-            )
-        ) {
-            GM_setValue("wplacer_server_host", newHost);
-            location.reload();
-        } else {
-            alert("Invalid IP address or port. Please try again.");
-            promptForHost();
-        }
-    };
-
+  function sendTokenToServer(token) {
+    if (!token || sent.has(token)) return;
+    sent.add(token);
+    console.log("✅ CAPTCHA Token Received");
     GM_xmlhttpRequest({
-        method: "GET",
-        url: `http://${host}/ping`,
-        onload: (res) => {
-            console.log("Server response:", res.responseText);
-            if (res.responseText !== "Pong!") return;
+      method: "POST",
+      url: `http://${host}/t`,
+      data: JSON.stringify({ t: token }),
+      headers: { "Content-Type": "application/json" },
+      onload: (res) => console.log("Server response:", res.responseText),
+      onerror: (err) => console.error("Request failed:", err)
+    });
+  }
 
-            const script = document.createElement("script");
-            script.id = "wplacer";
-            script.textContent = `(function () {
+  window.addEventListener("message", (event) => {
+    const d = event?.data;
+    if (!d || d.type !== "WPLACER_TOKEN" || !d.token) return;
+    sendTokenToServer(d.token);
+  });
+
+  const promptForHost = () => {
+    const newHost = prompt(
+      'Please enter your server\'s IP and port (example: "127.0.0.1:80"):',
+      host
+    );
+    if (
+      newHost &&
+      newHost.match(
+        /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d):(6553[0-5]|655[0-2]\d|65[0-4]\d{2}|6[0-4]\d{3}|[1-5]\d{4}|\d{1,4})$/
+      )
+    ) {
+      GM_setValue("wplacer_server_host", newHost);
+      location.reload();
+    } else {
+      alert("Invalid IP address or port. Please try again.");
+      promptForHost();
+    }
+  };
+
+  GM_xmlhttpRequest({
+    method: "GET",
+    url: `http://${host}/ping`,
+    onload: (res) => {
+      console.log("Server response:", res.responseText);
+      if (res.responseText !== "Pong!") return;
+
+      const script = document.createElement("script");
+      script.id = "wplacer";
+      script.textContent = `(function () {
   console.log("✅ Hello Wplace!");
 
   const postToken = (t, from, extra) => {
@@ -145,14 +145,15 @@ try {
     }, true);
   })();
 })();`;
-            document.documentElement.appendChild(script);
-        },
-        onerror: () => {
-            const userConfirm = confirm(
-                "Is your Wplacer local server running? Click OK if yes, otherwise Cancel."
-            );
-            if (userConfirm) promptForHost();
-            else console.warn("Wplacer server is not running. Please start your local server.");
-        }
-    });
+      document.documentElement.appendChild(script);
+    },
+    onerror: () => {
+      const userConfirm = confirm(
+        "Is your Wplacer local server running? Click OK if yes, otherwise Cancel."
+      );
+      if (userConfirm) promptForHost();
+      else console.warn("Wplacer server is not running. Please start your local server.");
+    }
+  });
 })();
+
