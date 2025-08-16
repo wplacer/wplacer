@@ -1,4 +1,4 @@
-<h1 align="center"><p style="display: inline-flex; align-items: center; gap: 0.25em"><img style="width: 1.5em; height: 1.5em;" src="public/icons/favicon.png">wplacer++</p></h1>
+<h1 align="center"><p style="display: inline-flex; align-items: center; gap: 0.25em"><img style="width: 1.5em; height: 1.5em;" src="https://oyster-app-iejbw.ondigitalocean.app/assets/wplacer.png">wplacer++</p></h1>
 
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
@@ -56,3 +56,4 @@ This version is a complete rewrite of the original bot, introducing a host of ne
 
 
 [GNU AGPL v3](LICENSE)
+
