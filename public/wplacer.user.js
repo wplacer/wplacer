@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.4.0
+// @version      1.4.1
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -9,7 +9,8 @@
 // @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
-// @connect      *
+// @connect      localhost
+// @connect      127.0.0.1
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
