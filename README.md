@@ -3,7 +3,6 @@
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a></p>
 
 An auto-drawing bot for [wplace.live](https://wplace.live/), massively overhauled and expanded from the original [wplacer](https://github.com/luluwaffless/wplacer) by luluwaffless.
 
@@ -56,5 +55,3 @@ This version is a complete rewrite of the original bot, introducing a host of ne
 
 
 [GNU AGPL v3](LICENSE)
-
-

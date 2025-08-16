@@ -66,15 +66,25 @@ export class WPlacer {
         if (!this.me) this.me = await this.browser.newPage();
         await this.me.goto('https://backend.wplace.live/me');
         await this.me.waitForSelector('body');
-        const userInfo = JSON.parse(await this.me.evaluate(() => document.querySelector('body').innerText));
-        if (userInfo.error) {
-            throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
+        const bodyText = await this.me.evaluate(() => document.body.innerText);
+
+        if (bodyText.includes('1015')) {
+            throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
         }
-        if (userInfo.id && userInfo.name) {
-            this.userInfo = userInfo;
-            return true;
-        } else {
-            throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
+
+        try {
+            const userInfo = JSON.parse(bodyText);
+            if (userInfo.error) {
+                throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
+            }
+            if (userInfo.id && userInfo.name) {
+                this.userInfo = userInfo;
+                return true;
+            } else {
+                throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
+            }
+        } catch (e) {
+            throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText}"`);
         }
     };
     cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
