@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.4.1
+// @version      1.4.1 
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
