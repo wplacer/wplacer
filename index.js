@@ -9,9 +9,6 @@ const saveUsers = () => writeFileSync("users.json", JSON.stringify(users));
 const app = express();
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
-
-
-
 const sseClients = new Set();
 let needToken = true;
 
