@@ -1,633 +1,433 @@
-// elements
-const $ = (id) => document.getElementById(id);
-const main = $("main");
-const openManageUsers = $("openManageUsers");
-const openAddTemplate = $("openAddTemplate");
-const openManageTemplates = $("openManageTemplates");
-const openSettings = $("openSettings");
-const userForm = $("userForm");
-const scookie = $("scookie");
-const jcookie = $("jcookie");
-const submitUser = $("submitUser");
-const manageUsers = $("manageUsers");
-const userList = $("userList");
-const checkUserStatus = $("checkUserStatus");
-const addTemplate = $("addTemplate");
-const convert = $("convert");
-const details = $("details");
-const size = $("size");
-const ink = $("ink");
-const templateCanvas = $("templateCanvas");
-const templateForm = $("templateForm");
-const convertInput = $("convertInput");
-const replaceInput = $("replaceInput");
-const templateName = $("templateName");
-const tx = $("tx");
-const ty = $("ty");
-const px = $("px");
-const py = $("py");
-const userSelectList = $("userSelectList");
-const selectAllUsers = $("selectAllUsers");
-const canBuyMaxCharges = $("canBuyMaxCharges");
-const canBuyCharges = $("canBuyCharges");
-const antiGriefMode = $("antiGriefMode");
-const submitTemplate = $("submitTemplate");
-const manageTemplates = $("manageTemplates");
-const templateList = $("templateList");
-const startAll = $("startAll");
-const stopAll = $("stopAll");
-const settings = $("settings");
-const drawingModeSelect = $("drawingModeSelect");
-const turnstileNotifications = $("turnstileNotifications");
-const accountCooldown = $("accountCooldown");
-const dropletReserve = $("dropletReserve");
-const antiGriefStandby = $("antiGriefStandby");
-const totalCharges = $("totalCharges");
-const totalMaxCharges = $("totalMaxCharges");
-const messageBoxOverlay = $("messageBoxOverlay");
-const messageBoxTitle = $("messageBoxTitle");
-const messageBoxContent = $("messageBoxContent");
-const messageBoxConfirm = $("messageBoxConfirm");
-const messageBoxCancel = $("messageBoxCancel");
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { WPlacer, log, duration } from "./wplacer.js";
+import express from "express";
 
-// Message Box
-let confirmCallback = null;
+// User data handling
+const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
+const saveUsers = () => writeFileSync("users.json", JSON.stringify(users));
 
-const showMessage = (title, content) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
-    messageBoxCancel.classList.add('hidden');
-    messageBoxConfirm.textContent = 'OK';
-    messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = null;
-};
-
-const showConfirmation = (title, content, onConfirm) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
-    messageBoxCancel.classList.remove('hidden');
-    messageBoxConfirm.textContent = 'Confirm';
-    messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = onConfirm;
-};
-
-const closeMessageBox = () => {
-    messageBoxOverlay.classList.add('hidden');
-    confirmCallback = null;
-};
-
-messageBoxConfirm.addEventListener('click', () => {
-    if (confirmCallback) {
-        confirmCallback();
-    }
-    closeMessageBox();
-});
-
-messageBoxCancel.addEventListener('click', () => {
-    closeMessageBox();
-});
-
-const handleError = (error) => {
-    console.error(error);
-    let message = "An unknown error occurred. Check the console for details.";
-
-    if (error.code === 'ERR_NETWORK') {
-        message = "Could not connect to the server. Please ensure the bot is running and accessible.";
-    } else if (error.response && error.response.data && error.response.data.error) {
-        const errMsg = error.response.data.error;
-        if (errMsg.includes("(1015)")) {
-            message = "You are being rate-limited by the server. Please wait a moment before trying again.";
-        } else if (errMsg.includes("(500)")) {
-            message = "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
-        } else {
-            message = errMsg; // Show the full error if it's not a known one
-        }
-    }
-    showMessage("Error", message);
-};
-
-
-// users
-const loadUsers = async (f) => {
-    try {
-        const users = await axios.get("/users");
-        if (f) f(users.data);
-    } catch (error) {
-        handleError(error);
-    };
-};
-userForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    try {
-        const response = await axios.post('/user', { cookies: { s: scookie.value, j: jcookie.value } });
-        if (response.status === 200) {
-            showMessage("Success", `Logged in as ${response.data.name} (#${response.data.id})!`);
-            userForm.reset();
-            openManageUsers.click(); // Refresh the view
-        }
-    } catch (error) {
-        handleError(error);
-    };
-});
-
-// templates
-const colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
-const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-const closest = color => {
-    const [tr, tg, tb] = color.split(',').map(Number);
-    return colors[Object.keys(colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
-};
-const drawTemplate = (template, canvas) => {
-    canvas.width = template.width;
-    canvas.height = template.height;
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, template.width, template.height);
-    const imageData = new ImageData(template.width, template.height);
-    for (let x = 0; x < template.width; x++) {
-        for (let y = 0; y < template.height; y++) {
-            const color = template.data[x][y];
-            if (color === 0) continue;
-            const i = (y * template.width + x) * 4;
-            const [r, g, b] = colorById(color).split(',').map(Number);
-            imageData.data[i] = r;
-            imageData.data[i + 1] = g;
-            imageData.data[i + 2] = b;
-            imageData.data[i + 3] = 255;
+// Template data handling
+const templates = {};
+const saveTemplates = () => {
+    const templatesToSave = {};
+    for (const id in templates) {
+        const t = templates[id];
+        templatesToSave[id] = {
+            name: t.name,
+            template: t.template,
+            coords: t.coords,
+            canBuyCharges: t.canBuyCharges,
+            canBuyMaxCharges: t.canBuyMaxCharges,
+            antiGriefMode: t.antiGriefMode,
+            userIds: t.userIds
         };
-    };
-    ctx.putImageData(imageData, 0, 0);
+    }
+    writeFileSync("templates.json", JSON.stringify(templatesToSave, null, 4));
 };
-const loadTemplates = async (f) => {
-    try {
-        const templates = await axios.get("/templates");
-        if (f) f(templates.data);
-    } catch (error) {
-        handleError(error);
-    };
+
+const app = express();
+app.use(express.static("public"));
+app.use(express.json({ limit: Infinity }));
+
+let currentSettings = {
+    turnstileNotifications: false,
+    accountCooldown: 20000,
+    dropletReserve: 0,
+    antiGriefStandby: 300000,
+    drawingMethod: 'linear'
 };
-let currentTemplate = { width: 0, height: 0, data: [] };
-const processImageFile = (file, callback) => {
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const image = new Image();
-            image.src = e.target.result;
-            image.onload = async () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = image.width;
-                canvas.height = image.height;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(image, 0, 0);
-                const template = { width: canvas.width, height: canvas.height, ink: 0, data: Array.from({ length: canvas.width }, () => []) };
-                const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                for (let x = 0; x < canvas.width; x++) {
-                    for (let y = 0; y < canvas.height; y++) {
-                        const i = (y * canvas.width + x) * 4;
-                        const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                        if (a === 255) {
-                            template.data[x][y] = closest(`${r},${g},${b}`);
-                            template.ink += 1;
-                        } else template.data[x][y] = 0;
-                    };
-                };
-                canvas.remove();
-                callback(template);
-            };
-        };
-        reader.readAsDataURL(file);
-    }
-};
-convertInput.addEventListener('change', async () => {
-    processImageFile(convertInput.files[0], (template) => {
-        currentTemplate = template;
-        drawTemplate(template, templateCanvas);
-        size.innerHTML = `${template.width}x${template.height}px`;
-        ink.innerHTML = template.ink;
-        details.style.display = "block";
-    });
-});
-replaceInput.addEventListener('change', async () => {
-    const templateId = replaceInput.dataset.templateId;
-    if (!templateId) return;
-
-    processImageFile(replaceInput.files[0], async (newTemplate) => {
-        try {
-            await axios.put(`/template/image/${templateId}`, { template: newTemplate });
-            showMessage("Success", "Template image has been replaced!");
-            openManageTemplates.click();
-        } catch (error) {
-            handleError(error);
-        } finally {
-            delete replaceInput.dataset.templateId;
-            replaceInput.value = '';
-        }
-    });
-});
-
-canBuyMaxCharges.addEventListener('change', () => {
-    if (canBuyMaxCharges.checked) {
-        canBuyCharges.checked = false;
-    }
-});
-
-canBuyCharges.addEventListener('change', () => {
-    if (canBuyCharges.checked) {
-        canBuyMaxCharges.checked = false;
-    }
-});
-
-templateForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    
-    if (!currentTemplate || currentTemplate.width === 0) {
-        showMessage("Error", "Please convert an image before creating a template.");
-        return;
-    }
-    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(cb => cb.value);
-    if (selectedUsers.length === 0) {
-        showMessage("Error", "Please select at least one user.");
-        return;
-    }
-    try {
-        const response = await axios.post('/template', {
-            templateName: templateName.value,
-            template: currentTemplate,
-            coords: [tx.value, ty.value, px.value, py.value].map(Number),
-            userIds: selectedUsers,
-            canBuyCharges: canBuyCharges.checked,
-            canBuyMaxCharges: canBuyMaxCharges.checked,
-            antiGriefMode: antiGriefMode.checked
-        });
-        if (response.status === 200) {
-            showMessage("Success", "Created! Go to \"Manage Templates\" to start and check console for details.");
-            templateForm.reset();
-            document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => cb.checked = false);
-        }
-    } catch (error) {
-        handleError(error);
-    };
-});
-startAll.addEventListener('click', async () => {
-    for (const child of templateList.children) {
-        try {
-            await axios.put(`/template/${child.id}`, { running: true });
-        } catch (error) {
-            handleError(error);
-        };
-    };
-    showMessage("Success", "Finished! Check console for details.");
-    openManageTemplates.click();
-});
-stopAll.addEventListener('click', async () => {
-    for (const child of templateList.children) {
-        try {
-            await axios.put(`/template/${child.id}`, { running: false });
-        } catch (error) {
-            handleError(error);
-        };
-    };
-    showMessage("Success", "Finished! Check console for details.");
-    openManageTemplates.click();
-});
+if (existsSync("settings.json")) {
+    currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
+}
+const saveSettings = () => writeFileSync("settings.json", JSON.stringify(currentSettings, null, 4));
 
 
-// tabs
-let currentTab = main;
-const changeTab = (el) => {
-    currentTab.style.display = "none";
-    el.style.display = "block";
-    currentTab = el;
-};
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-openManageUsers.addEventListener("click", () => {
-    userList.innerHTML = "";
-    userForm.reset();
-    totalCharges.textContent = "?";
-    totalMaxCharges.textContent = "?";
-    loadUsers(users => {
-        for (const id of Object.keys(users)) {
-            const user = document.createElement('div');
-            user.className = 'user';
-            user.id = `user-${id}`;
-            user.innerHTML = `
-                <div class="left">
-                    <span>${users[id].name}</span>
-                    <span>(#${id})</span>
-                    <div class="user-stats">
-                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span>
-                    </div>
-                </div>
-                <div class="right">
-                    <button title="Delete User"><img src="icons/remove.svg"></button>
-                </div>`;
-            
-            user.querySelector('button').addEventListener("click", () => {
-                showConfirmation(
-                    "Delete User",
-                    `Are you sure you want to delete ${users[id].name} (#${id})?`,
-                    async () => {
-                        try {
-                            await axios.delete(`/user/${id}`);
-                            showMessage("Success", "User deleted.");
-                            openManageUsers.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    }
-                );
-            });
-            userList.appendChild(user);
-        };
-    });
-    changeTab(manageUsers);
-});
+const sseClients = new Set();
+let needToken = true;
 
-async function processInParallel(tasks, concurrency) {
-    const queue = [...tasks];
-    const workers = [];
-
-    const runTask = async () => {
-        while (queue.length > 0) {
-            const task = queue.shift();
-            if (task) await task();
-        }
-    };
-
-    for (let i = 0; i < concurrency; i++) {
-        workers.push(runTask());
-    }
-
-    await Promise.all(workers);
+function sseBroadcast(event, data) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sseClients) res.write(payload);
 }
 
-checkUserStatus.addEventListener("click", async () => {
-    checkUserStatus.disabled = true;
-    checkUserStatus.innerHTML = "Checking...";
-    const userElements = Array.from(document.querySelectorAll('.user'));
-    
-    let totalCurrent = 0;
-    let totalMax = 0;
-
-    const tasks = userElements.map(userEl => async () => {
-        const id = userEl.id.split('-')[1];
-        const leftSpans = userEl.querySelectorAll('.left > span');
-        const currentChargesEl = userEl.querySelector('.current-charges');
-        const maxChargesEl = userEl.querySelector('.max-charges');
-
-        leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
-        try {
-            const response = await axios.get(`/user/status/${id}`);
-            const userInfo = response.data;
-            
-            const current = Math.floor(userInfo.charges.count);
-            const max = userInfo.charges.max;
-
-            currentChargesEl.textContent = current;
-            maxChargesEl.textContent = max;
-            totalCurrent += current;
-            totalMax += max;
-
-            leftSpans.forEach(span => span.style.color = 'var(--success-color)');
-        } catch (error) {
-            currentChargesEl.textContent = "ERR";
-            maxChargesEl.textContent = "ERR";
-            leftSpans.forEach(span => span.style.color = 'var(--error-color)');
-        }
-    });
-
-    await processInParallel(tasks, 5);
-
-    totalCharges.textContent = totalCurrent;
-    totalMaxCharges.textContent = totalMax;
-
-    checkUserStatus.disabled = false;
-    checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
-});
-openAddTemplate.addEventListener("click", () => {
-    userSelectList.innerHTML = "";
-    loadUsers(users => {
-        if (Object.keys(users).length === 0) {
-            userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
-            return;
-        }
-        for (const id of Object.keys(users)) {
-            const userDiv = document.createElement('div');
-            userDiv.className = 'user-select-item';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `user_${id}`;
-            checkbox.name = 'user_checkbox';
-            checkbox.value = id;
-            const label = document.createElement('label');
-            label.htmlFor = `user_${id}`;
-            label.textContent = `${users[id].name} (#${id})`;
-            userDiv.appendChild(checkbox);
-            userDiv.appendChild(label);
-            userSelectList.appendChild(userDiv);
-        }
-    });
-    changeTab(addTemplate);
-});
-selectAllUsers.addEventListener('click', () => {
-    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
-});
-openManageTemplates.addEventListener("click", () => {
-    templateList.innerHTML = "";
-    loadUsers(users => {
-        loadTemplates(templates => {
-            for (const id of Object.keys(templates)) {
-                const t = templates[id];
-                const userListFormatted = t.userIds.map(userId => {
-                    const user = users[userId];
-                    return user ? `${user.name}#${userId}` : `Unknown#${userId}`;
-                }).join(", ");
-
-                const template = document.createElement('div');
-                template.id = id;
-                template.className = "template";
-                template.innerHTML = `<span><b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
-
-                const canvas = document.createElement("canvas");
-                drawTemplate(t.template, canvas);
-                const buttons = document.createElement('div');
-                buttons.className = "buttons";
-                
-                if (t.running) {
-                    const stopButton = document.createElement('button');
-                    stopButton.className = 'destructive-button';
-                    stopButton.innerHTML = `<img src="icons/pause.svg">Stop Template`;
-                    stopButton.addEventListener('click', async () => {
-                        try {
-                            await axios.put(`/template/${id}`, { running: false });
-                            openManageTemplates.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    });
-                    buttons.append(stopButton);
-                } else {
-                    const startButton = document.createElement('button');
-                    startButton.className = 'primary-button';
-                    startButton.innerHTML = `<img src="icons/play.svg">Start Template`;
-                    startButton.addEventListener('click', async () => {
-                        try {
-                            await axios.put(`/template/${id}`, { running: true });
-                            openManageTemplates.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    });
-                    buttons.append(startButton);
-                }
-
-                const restartButton = document.createElement('button');
-                restartButton.className = 'secondary-button';
-                restartButton.innerHTML = '<img src="icons/restart.svg">Restart Template';
-                restartButton.addEventListener('click', async () => {
-                    showConfirmation(
-                        "Restart Template",
-                        `Are you sure you want to restart template "${t.name}"? This will stop it and start it from the beginning.`,
-                        async () => {
-                            try {
-                                await axios.put(`/template/restart/${id}`);
-                                showMessage("Success", "Restarting template! Check console for details.");
-                                openManageTemplates.click();
-                            } catch (error) {
-                                handleError(error);
-                            };
-                        }
-                    );
-                });
-                const replaceButton = document.createElement('button');
-                replaceButton.className = 'secondary-button';
-                replaceButton.innerHTML = '<img src="icons/replaceImage.svg">Replace Image';
-                replaceButton.addEventListener('click', () => {
-                    replaceInput.dataset.templateId = id;
-                    replaceInput.click();
-                });
-                const delButton = document.createElement('button');
-                delButton.className = 'destructive-button';
-                delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
-                delButton.addEventListener("click", () => {
-                    showConfirmation(
-                        "Delete Template",
-                        `Are you sure you want to delete template "${t.name}"?`,
-                        async () => {
-                            try {
-                                await axios.delete(`/template/${id}`);
-                                openManageTemplates.click();
-                            } catch (error) {
-                                handleError(error);
-                            };
-                        }
-                    );
-                });
-                buttons.append(restartButton);
-                buttons.append(replaceButton);
-                buttons.append(delButton);
-                template.append(canvas);
-                template.append(buttons);
-                templateList.append(template);
-            };
-        });
-    });
-    changeTab(manageTemplates);
-});
-openSettings.addEventListener("click", async () => {
-    try {
-        const response = await axios.get('/settings');
-        const currentSettings = response.data;
-        drawingModeSelect.value = currentSettings.drawingMethod;
-        turnstileNotifications.checked = currentSettings.turnstileNotifications;
-        accountCooldown.value = currentSettings.accountCooldown / 1000;
-        dropletReserve.value = currentSettings.dropletReserve;
-        antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
-    } catch (error) {
-        handleError(error);
+function requestTokenFromClients(reason = "unknown") {
+    if (sseClients.size === 0) {
+        needToken = true;
+        return;
     }
-    changeTab(settings);
-});
+    sseBroadcast("request-token", { reason });
+}
 
-// Settings
-drawingModeSelect.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { drawingMethod: drawingModeSelect.value });
-        showMessage("Success", "Drawing mode saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-turnstileNotifications.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
-        showMessage("Success", "Notification setting saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-accountCooldown.addEventListener('change', async () => {
-    try {
-        const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
-        if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number for the cooldown.");
-            return;
-        }
-        await axios.put('/settings', { accountCooldown: newCooldown });
-        showMessage("Success", "Account cooldown saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-dropletReserve.addEventListener('change', async () => {
-    try {
-        const newReserve = parseInt(dropletReserve.value, 10);
-        if (isNaN(newReserve) || newReserve < 0) {
-            showMessage("Error", "Please enter a valid non-negative number for the droplet reserve.");
-            return;
-        }
-        await axios.put('/settings', { dropletReserve: newReserve });
-        showMessage("Success", "Droplet reserve saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-antiGriefStandby.addEventListener('change', async () => {
-    try {
-        const newStandby = parseInt(antiGriefStandby.value, 10) * 60000;
-        if (isNaN(newStandby) || newStandby < 60000) {
-            showMessage("Error", "Please enter a valid number (at least 1 minute).");
-            return;
-        }
-        await axios.put('/settings', { antiGriefStandby: newStandby });
-        showMessage("Success", "Anti-grief standby time saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-tx.addEventListener('blur', () => {
-    const value = tx.value.trim();
-    const parts = value.split(/\s+/);
-    if (parts.length === 4) {
-        tx.value = parts[0].replace(/[^0-9]/g, '');
-        ty.value = parts[1].replace(/[^0-9]/g, '');
-        px.value = parts[2].replace(/[^0-9]/g, '');
-        py.value = parts[3].replace(/[^0-9]/g, '');
+function logUserError(error, id, name, context) {
+    const message = error.message || "An unknown error occurred.";
+    if (message.includes("(500)") || message.includes("(1015)")) {
+        log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
-        tx.value = value.replace(/[^0-9]/g, '');
+        log(id, name, `❌ Failed to ${context}`, error);
     }
-});
+}
 
-[ty, px, py].forEach(input => {
-    input.addEventListener('blur', () => {
-        input.value = input.value.replace(/[^0-9]/g, '');
+class TemplateManager {
+    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
+        this.name = name;
+        this.template = templateData;
+        this.coords = coords;
+        this.canBuyCharges = canBuyCharges;
+        this.canBuyMaxCharges = canBuyMaxCharges;
+        this.antiGriefMode = antiGriefMode;
+        this.userIds = userIds;
+        this.running = false;
+        this.status = "Waiting to be started.";
+        this.activeWplacer = null;
+        this.turnstileToken = null;
+        this.masterId = this.userIds[0];
+        this.masterName = users[this.masterId].name;
+        this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
+        this.isFirstRun = true;
+    }
+    sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    setToken(t) { 
+        this.turnstileToken = t;
+        if (this.activeWplacer) this.activeWplacer.setToken(t); 
+    }
+    async handleUpgrades(wplacer) {
+        if (this.canBuyMaxCharges) {
+            await wplacer.loadUserInfo();
+            const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
+            const amountToBuy = Math.floor(affordableDroplets / 500);
+
+            if (amountToBuy > 0) {
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+                try {
+                    await wplacer.buyProduct(70, amountToBuy);
+                    await this.sleep(10000); // Wait for the purchase to process
+                    await wplacer.loadUserInfo(); // Refresh user info after purchase
+                } catch (error) {
+                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+                }
+            }
+        }
+    }
+    async start() {
+        this.running = true;
+        this.status = "Started.";
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
+
+        while (this.running) {
+            if (this.isFirstRun) {
+                log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
+                for (const userId of this.userIds) {
+                    if (!this.running) break;
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    wplacer.token = this.turnstileToken;
+                    try {
+                        const { id, name } = await wplacer.login(users[userId].cookies);
+                        this.status = `Initial run for ${name}#${id}`;
+                        log(id, name, `🏁 Starting initial turn...`);
+                        this.activeWplacer = wplacer;
+                        await wplacer.paint(currentSettings.drawingMethod);
+                        this.turnstileToken = wplacer.token;
+                        await this.handleUpgrades(wplacer);
+                        
+                        if (await wplacer.pixelsLeft() === 0) {
+                            this.running = false;
+                            break;
+                        }
+                    } catch (error) {
+                        logUserError(error, userId, users[userId].name, "perform initial user turn");
+                    } finally {
+                        if (wplacer.browser) await wplacer.close();
+                        this.activeWplacer = null;
+                    }
+                     if (this.running && this.userIds.length > 1) {
+                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                        await this.sleep(currentSettings.accountCooldown);
+                    }
+                }
+                this.isFirstRun = false;
+                log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
+                if (!this.running) continue;
+            }
+
+            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+            let pixelsRemaining;
+            try {
+                await checkWplacer.login(users[this.masterId].cookies);
+                pixelsRemaining = await checkWplacer.pixelsLeft();
+            } catch (error) {
+                logUserError(error, this.masterId, this.masterName, "check pixels left");
+                await this.sleep(60000);
+                continue;
+            } finally {
+                await checkWplacer.close();
+            }
+
+            if (pixelsRemaining === 0) {
+                if (this.antiGriefMode) {
+                    this.status = "Monitoring for changes.";
+                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
+                    await this.sleep(currentSettings.antiGriefStandby);
+                    continue;
+                } else {
+                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
+                    this.status = "Finished.";
+                    this.running = false;
+                    break;
+                }
+            }
+
+            let userStates = [];
+            for (const userId of this.userIds) {
+                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                 try {
+                     await wplacer.login(users[userId].cookies);
+                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                 } catch (error) {
+                     logUserError(error, userId, users[userId].name, "check user status");
+                 } finally {
+                     await wplacer.close();
+                 }
+            }
+            
+            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * 0.75);
+            let userToRun = null;
+
+            if (readyUsers.length > 0) {
+                userToRun = readyUsers[0];
+            } else {
+                userStates.sort((a, b) => b.charges.count - a.charges.count);
+                if (userStates.length > 0 && userStates[0].charges.count > 0) {
+                    userToRun = userStates[0];
+                }
+            }
+
+            if (userToRun) {
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                try {
+                    const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
+                    this.status = `Running user ${name}#${id}`;
+                    log(id, name, `🔋 User has enough charges. Starting turn for "${this.name}"...`);
+                    this.activeWplacer = wplacer;
+                    wplacer.token = this.turnstileToken;
+                    await wplacer.paint(currentSettings.drawingMethod);
+                    this.turnstileToken = wplacer.token;
+                    await this.handleUpgrades(wplacer);
+                } catch (error) {
+                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
+                } finally {
+                    await wplacer.close();
+                    this.activeWplacer = null;
+                }
+                if (this.running && this.userIds.length > 1) {
+                    log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
+                    await this.sleep(currentSettings.accountCooldown);
+                }
+            } else if (this.running) {
+                if (this.canBuyCharges) {
+                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    try {
+                        await chargeBuyer.login(users[this.masterId].cookies);
+                        const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
+                        if(affordableDroplets >= 500) {
+                            const maxAffordable = Math.floor(affordableDroplets / 500);
+                            const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
+                            if (amountToBuy > 0) {
+                                log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
+                                await chargeBuyer.buyProduct(80, amountToBuy);
+                                await this.sleep(10000);
+                                continue;
+                            }
+                        }
+                    } catch (error) {
+                         logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
+                    } finally {
+                        await chargeBuyer.close();
+                    }
+                }
+                
+                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * 0.75 - u.charges.count) * u.cooldownMs));
+                const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
+                this.status = `Waiting for charges.`;
+                log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
+                await this.sleep(waitTime);
+            }
+        }
+        if (this.status !== "Finished.") {
+            this.status = "Stopped.";
+            log('SYSTEM', 'wplacer', `✖️ Template "${this.name}" stopped.`);
+        }
+    }
+}
+
+app.get("/events", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.write("retry: 1000\n\n");
+
+    sseClients.add(res);
+
+    if (needToken) {
+        res.write(`event: request-token\ndata: ${JSON.stringify({ reason: "client-connect" })}\n\n`);
+        needToken = false;
+    }
+
+    req.on("close", () => {
+        sseClients.delete(res);
     });
 });
+
+// frontend endpoints
+app.get("/users", (_, res) => res.json(users));
+app.get("/templates", (_, res) => res.json(templates));
+app.get('/settings', (_, res) => res.json(currentSettings));
+app.put('/settings', (req, res) => {
+    currentSettings = { ...currentSettings, ...req.body };
+    saveSettings();
+    res.sendStatus(200);
+});
+app.get("/user/status/:id", async (req, res) => {
+    const { id } = req.params;
+    if (!users[id]) return res.sendStatus(404);
+    const wplacer = new WPlacer();
+    try {
+        const userInfo = await wplacer.login(users[id].cookies);
+        res.status(200).json(userInfo);
+    } catch (error) {
+        logUserError(error, id, users[id].name, "validate cookie");
+        res.status(500).json({ error: error.message });
+    } finally {
+        await wplacer.close();
+    }
+});
+app.post("/user", async (req, res) => {
+    if (!req.body.cookies || !req.body.cookies.j) return res.sendStatus(400);
+    const wplacer = new WPlacer();
+    try {
+        const userInfo = await wplacer.login(req.body.cookies);
+        users[userInfo.id] = { name: userInfo.name, cookies: req.body.cookies };
+        saveUsers();
+        res.json(userInfo);
+    } catch (error) {
+        logUserError(error, 'NEW_USER', 'N/A', 'add new user');
+        res.status(500).json({ error: error.message });
+    } finally {
+        await wplacer.close();
+    }
+});
+app.post("/template", async (req, res) => {
+    if (!req.body.templateName || !req.body.template || !req.body.coords || !req.body.userIds || !req.body.userIds.length) return res.sendStatus(400);
+    
+    const isDuplicateName = Object.values(templates).some(t => t.name === req.body.templateName);
+    if (isDuplicateName) {
+        return res.status(409).json({ error: "A template with this name already exists." });
+    }
+
+    const wplacer = new WPlacer();
+    try {
+        await wplacer.login(users[req.body.userIds[0]].cookies);
+        const templateId = Date.now().toString();
+        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds);
+        saveTemplates();
+        res.status(200).json({ id: templateId });
+    } catch (error) {
+        logUserError(error, req.body.userIds[0], users[req.body.userIds[0]].name, "create template");
+        res.status(500).json({ error: error.message });
+    } finally {
+        await wplacer.close();
+    }
+});
+app.delete("/user/:id", async (req, res) => {
+    if (!req.params.id || !users[req.params.id]) return res.sendStatus(400);
+    delete users[req.params.id];
+    saveUsers();
+    res.sendStatus(200);
+});
+app.delete("/template/:id", async (req, res) => {
+    if (!req.params.id || !templates[req.params.id] || templates[req.params.id].running) return res.sendStatus(400);
+    delete templates[req.params.id];
+    saveTemplates();
+    res.sendStatus(200);
+});
+app.put("/template/image/:id", async (req, res) => {
+    if (!req.params.id || !templates[req.params.id] || !req.body.template) return res.sendStatus(400);
+    const manager = templates[req.params.id];
+    manager.template = req.body.template;
+    saveTemplates();
+    res.sendStatus(200);
+});
+app.put("/template/:id", async (req, res) => {
+    if (!req.params.id || !templates[req.params.id]) return res.sendStatus(400);
+    const manager = templates[req.params.id];
+    for (const i of Object.keys(req.body)) {
+        if (i === "running") {
+            if (req.body.running && !manager.running) {
+                try {
+                    manager.start();
+                } catch (error) {
+                    log(req.params.id, manager.masterName, "Error starting template", error);
+                };
+            } else manager.running = false;
+        } else manager[i] = req.body[i];
+    };
+    res.sendStatus(200);
+});
+app.put("/template/restart/:id", async (req, res) => {
+    if (!req.params.id || !templates[req.params.id]) return res.sendStatus(400);
+    const manager = templates[req.params.id];
+    manager.running = false;
+    setTimeout(() => {
+        manager.isFirstRun = true;
+        manager.start().catch(error => log(req.params.id, manager.masterName, "Error restarting template", error));
+    }, 1000);
+    res.sendStatus(200);
+});
+
+// client endpoints
+app.get("/ping", (_, res) => res.send("Pong!"));
+app.post("/t", async (req, res) => {
+    const { t } = req.body;
+    if (!t) return res.sendStatus(400);
+    for (const id in templates) {
+        if (templates[id]) {
+            templates[id].setToken(t);
+        }
+    }
+    res.sendStatus(200);
+});
+
+// starting
+const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
+(async () => {
+    const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+    console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
+
+    // Load saved templates
+    if (existsSync("templates.json")) {
+        const loadedTemplates = JSON.parse(readFileSync("templates.json", "utf8"));
+        for (const id in loadedTemplates) {
+            const t = loadedTemplates[id];
+            if (t.userIds.every(uid => users[uid])) {
+                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds);
+            } else {
+                console.warn(`⚠️ Template "${t.name}" could not be loaded because one or more user IDs are missing from users.json. It will be removed on the next save.`);
+            }
+        }
+        console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
+    }
+
+    // check for updates
+    const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+    const githubVersion = (await githubPackage.json()).version;
+    const diff = diffVer(version, githubVersion);
+    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    
+    // start server
+    const port = Number(process.env.PORT) || 80;
+    const host = process.env.HOST || "127.0.0.1";
+    app.listen(port, host, () => {
+        console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
+        requestTokenFromClients("server-start");
+    });
+})();
