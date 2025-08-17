@@ -282,7 +282,7 @@ app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => res.json(templates));
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
-    currentSettings = { ...currentSettings, ...req.body };
+    currentSettings = { ...req.body, ...currentSettings };
     saveSettings();
     res.sendStatus(200);
 });
