@@ -33,6 +33,10 @@
 
             <h2 class="section-title">Existing Users</h2>
             <div id="userList"></div>
+            <div id="chargeSummary">
+                <b>Total Available Charges:</b> <span id="totalCharges">?</span> | 
+                <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
+            </div>
             <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
             
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
@@ -71,6 +75,13 @@
                     <label for="canBuyCharges">Buy paint charges when running out</label>
                     <label class="switch">
                         <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="checkbox">
+                    <label for="antiGriefMode">Enable Anti-Grief Mode</label>
+                    <label class="switch">
+                        <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>

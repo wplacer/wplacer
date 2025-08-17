@@ -219,7 +219,7 @@ label {
 
 #userList {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 16px;
     margin-bottom: 24px;
 }
@@ -231,7 +231,7 @@ label {
     border: 1px solid var(--border-color);
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
@@ -239,7 +239,7 @@ label {
     display: flex;
     flex-direction: column;
     text-align: left;
-    gap: 4px;
+    gap: 8px;
 }
 
 .user .left span:first-child {
@@ -267,6 +267,30 @@ label {
 
 .user .right button:hover img {
     opacity: 1;
+}
+
+.user-stats {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+.user-stats b {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+#chargeSummary {
+    background-color: var(--background-tertiary);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+}
+
+#chargeSummary b {
+    color: var(--text-primary);
+    font-weight: 500;
 }
 
 #userSelectList {

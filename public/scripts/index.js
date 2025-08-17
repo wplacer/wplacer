@@ -30,6 +30,7 @@ const userSelectList = $("userSelectList");
 const selectAllUsers = $("selectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
+const antiGriefMode = $("antiGriefMode");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
@@ -39,6 +40,8 @@ const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
+const totalCharges = $("totalCharges");
+const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
 const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
@@ -254,6 +257,7 @@ templateForm.addEventListener('submit', async (e) => {
             userIds: selectedUsers,
             canBuyCharges: canBuyCharges.checked,
             canBuyMaxCharges: canBuyMaxCharges.checked,
+            antiGriefMode: antiGriefMode.checked,
             drawingMethod: drawingModeSelect.value
         });
         if (response.status === 200) {
@@ -298,18 +302,26 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 openManageUsers.addEventListener("click", () => {
     userList.innerHTML = "";
     userForm.reset();
+    totalCharges.textContent = "?";
+    totalMaxCharges.textContent = "?";
     loadUsers(users => {
         for (const id of Object.keys(users)) {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
-            user.innerHTML = `<div class="left"><span>${users[id].name}</span><span>(#${id})</span></div>`
-            const right = document.createElement('div');
-            right.className = 'right';
-            const button = document.createElement('button');
-            button.title = 'Delete User';
-            button.innerHTML = '<img src="icons/remove.svg">';
-            button.addEventListener("click", () => {
+            user.innerHTML = `
+                <div class="left">
+                    <span>${users[id].name}</span>
+                    <span>(#${id})</span>
+                    <div class="user-stats">
+                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span>
+                    </div>
+                </div>
+                <div class="right">
+                    <button title="Delete User"><img src="icons/remove.svg"></button>
+                </div>`;
+            
+            user.querySelector('button').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
                     `Are you sure you want to delete ${users[id].name} (#${id})?`,
@@ -324,8 +336,6 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
-            right.appendChild(button);
-            user.appendChild(right);
             userList.appendChild(user);
         };
     });
@@ -355,19 +365,40 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
     
+    let totalCurrent = 0;
+    let totalMax = 0;
+
     const tasks = userElements.map(userEl => async () => {
         const id = userEl.id.split('-')[1];
-        const leftSpans = userEl.querySelectorAll('.left span');
+        const leftSpans = userEl.querySelectorAll('.left > span');
+        const currentChargesEl = userEl.querySelector('.current-charges');
+        const maxChargesEl = userEl.querySelector('.max-charges');
+
         leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
         try {
-            await axios.get(`/user/status/${id}`);
+            const response = await axios.get(`/user/status/${id}`);
+            const userInfo = response.data;
+            
+            const current = Math.floor(userInfo.charges.count);
+            const max = userInfo.charges.max;
+
+            currentChargesEl.textContent = current;
+            maxChargesEl.textContent = max;
+            totalCurrent += current;
+            totalMax += max;
+
             leftSpans.forEach(span => span.style.color = 'var(--success-color)');
         } catch (error) {
+            currentChargesEl.textContent = "ERR";
+            maxChargesEl.textContent = "ERR";
             leftSpans.forEach(span => span.style.color = 'var(--error-color)');
         }
     });
 
     await processInParallel(tasks, 5);
+
+    totalCharges.textContent = totalCurrent;
+    totalMaxCharges.textContent = totalMax;
 
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
@@ -414,7 +445,7 @@ openManageTemplates.addEventListener("click", () => {
                 const template = document.createElement('div');
                 template.id = id;
                 template.className = "template";
-                template.innerHTML = `<span><b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
+                template.innerHTML = `<span><b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);

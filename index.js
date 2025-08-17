@@ -18,6 +18,7 @@ const saveTemplates = () => {
             coords: t.coords,
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
+            antiGriefMode: t.antiGriefMode,
             userIds: t.userIds,
             drawingMethod: t.drawingMethod
         };
@@ -51,20 +52,22 @@ function requestTokenFromClients(reason = "unknown") {
 }
 
 function logUserError(error, id, name, context) {
-    if (error.message && error.message.includes("(500)")) {
-        log(id, name, `🔑 Failed to ${context}: Expired or invalid cookie.`);
+    const message = error.message || "An unknown error occurred.";
+    if (message.includes("(500)") || message.includes("(1015)")) {
+        log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
-        log(id, name, `Failed to ${context}`, error);
+        log(id, name, `❌ Failed to ${context}`, error);
     }
 }
 
 class TemplateManager {
-    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, userIds, drawingMethod) {
+    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, drawingMethod) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.canBuyMaxCharges = canBuyMaxCharges;
+        this.antiGriefMode = antiGriefMode;
         this.userIds = userIds;
         this.drawingMethod = drawingMethod || 'linear';
         this.running = false;
@@ -101,63 +104,57 @@ class TemplateManager {
     async start() {
         this.running = true;
         this.status = "Started.";
-        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}" for users: ${this.masterIdentifier}...`);
-        
-        while (this.running) {
-            if (this.isFirstRun) {
-                log('SYSTEM', 'wplacer', `🚀 Calculating initial placement order for "${this.name}"...`);
-                const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
-                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
-                    try {
-                        await wplacer.login(users[userId].cookies);
-                        const diff = wplacer.userInfo.charges.max - wplacer.userInfo.charges.count;
-                        return { userId, diff };
-                    } catch (error) {
-                        logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
-                        return { userId, diff: Infinity }; // Put failing accounts at the end
-                    } finally {
-                        await wplacer.close();
-                    }
-                }));
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
 
-                userChargeStates.sort((a, b) => a.diff - b.diff);
-                const sortedUserIds = userChargeStates.map(u => u.userId);
-                const sortedUserNames = sortedUserIds.map(id => `${users[id].name}#${id}`).join(', ');
-
-                log('SYSTEM', 'wplacer', `✅ Initial placement order determined: ${sortedUserNames}`);
-                
-                for (let i = 0; i < sortedUserIds.length; i++) {
-                    const userId = sortedUserIds[i];
-                    if (!this.running) break;
-                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                    wplacer.token = this.turnstileToken;
-                    try {
-                        const { id, name } = await wplacer.login(users[userId].cookies);
-                        this.status = `Initial run for ${name}#${id}`;
-                        log(id, name, `🏁 Starting initial turn for "${this.name}"...`);
-                        this.activeWplacer = wplacer;
-                        await wplacer.paint(this.drawingMethod);
-                        this.turnstileToken = wplacer.token;
-                        await this.handleUpgrades(wplacer);
-                        if (await wplacer.pixelsLeft() === 0) {
-                            log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished during initial run!`);
-                            this.running = false;
-                        }
-                    } catch (error) {
-                        logUserError(error, userId, users[userId].name, "perform initial user turn");
-                    } finally {
-                        if (wplacer.browser) await wplacer.close();
-                        this.activeWplacer = null;
-                    }
-                    if (this.running && i < sortedUserIds.length - 1) {
-                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
-                        await this.sleep(currentSettings.accountCooldown);
-                    }
+        if (this.isFirstRun) {
+            log('SYSTEM', 'wplacer', `🚀 Calculating initial placement order for "${this.name}"...`);
+            const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
+                const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
+                try {
+                    await wplacer.login(users[userId].cookies);
+                    const diff = wplacer.userInfo.charges.max - wplacer.userInfo.charges.count;
+                    return { userId, diff };
+                } catch (error) {
+                    logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
+                    return { userId, diff: Infinity };
+                } finally {
+                    await wplacer.close();
                 }
-                this.isFirstRun = false;
-                log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) break;
+            }));
+            userChargeStates.sort((a, b) => a.diff - b.diff);
+            this.userIds = userChargeStates.map(u => u.userId);
+            log('SYSTEM', 'wplacer', `✅ Initial placement order determined: ${this.userIds.map(id => `${users[id].name}#${id}`).join(', ')}`);
+            this.isFirstRun = false;
+        }
+
+        while (this.running) {
+            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+            let pixelsRemaining;
+            try {
+                await checkWplacer.login(users[this.masterId].cookies);
+                pixelsRemaining = await checkWplacer.pixelsLeft();
+            } catch (error) {
+                logUserError(error, this.masterId, this.masterName, "check pixels left");
+                await this.sleep(60000);
+                continue;
+            } finally {
+                await checkWplacer.close();
             }
+
+            if (pixelsRemaining === 0) {
+                if (this.antiGriefMode) {
+                    this.status = "Monitoring for changes.";
+                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" is complete. Monitoring... Checking again in 5 minutes.`);
+                    await this.sleep(300000);
+                    continue;
+                } else {
+                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
+                    this.status = "Finished.";
+                    this.running = false;
+                    break;
+                }
+            }
+
             let readyUserWplacer = null;
             let minTimeToReady = Infinity;
             for (const userId of this.userIds) {
@@ -190,10 +187,6 @@ class TemplateManager {
                     await readyUserWplacer.paint(this.drawingMethod);
                     this.turnstileToken = readyUserWplacer.token;
                     await this.handleUpgrades(readyUserWplacer);
-                    if (await readyUserWplacer.pixelsLeft() === 0) {
-                        log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
-                        this.running = false;
-                    }
                 } catch (error) {
                     logUserError(error, id, name, "perform paint turn");
                 } finally {
@@ -210,15 +203,12 @@ class TemplateManager {
                     try {
                         await chargeBuyer.login(users[this.masterId].cookies);
                         if(chargeBuyer.userInfo.droplets >= 500) {
-                            const pixelsLeft = await chargeBuyer.pixelsLeft();
-                            const needed = Math.ceil(pixelsLeft / 30);
                             const maxAffordable = Math.floor(chargeBuyer.userInfo.droplets / 500);
-                            const amountToBuy = Math.min(needed, maxAffordable);
+                            const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
                             if (amountToBuy > 0) {
                                 log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
                                 await chargeBuyer.buyProduct(80, amountToBuy);
                                 await this.sleep(10000);
-                                await chargeBuyer.close();
                                 continue;
                             }
                         }
@@ -277,8 +267,8 @@ app.get("/user/status/:id", async (req, res) => {
     if (!users[id]) return res.sendStatus(404);
     const wplacer = new WPlacer();
     try {
-        await wplacer.login(users[id].cookies);
-        res.sendStatus(200);
+        const userInfo = await wplacer.login(users[id].cookies);
+        res.status(200).json(userInfo);
     } catch (error) {
         logUserError(error, id, users[id].name, "validate cookie");
         res.status(500).json({ error: error.message });
@@ -295,11 +285,7 @@ app.post("/user", async (req, res) => {
         saveUsers();
         res.json(userInfo);
     } catch (error) {
-        if (error.message && error.message.includes("(500)")) {
-            console.log(`❌ Error adding new user: ${error.message}`);
-        } else {
-            console.log("❌ Error adding new user:", error);
-        }
+        logUserError(error, 'NEW_USER', 'N/A', 'add new user');
         res.status(500).json({ error: error.message });
     } finally {
         await wplacer.close();
@@ -317,7 +303,7 @@ app.post("/template", async (req, res) => {
     try {
         await wplacer.login(users[req.body.userIds[0]].cookies);
         const templateId = Date.now().toString();
-        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.userIds, req.body.drawingMethod);
+        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds, req.body.drawingMethod);
         saveTemplates();
         res.status(200).json({ id: templateId });
     } catch (error) {
@@ -398,7 +384,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         for (const id in loadedTemplates) {
             const t = loadedTemplates[id];
             if (t.userIds.every(uid => users[uid])) {
-                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.userIds, t.drawingMethod);
+                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds, t.drawingMethod);
             } else {
                 console.warn(`⚠️ Template "${t.name}" could not be loaded because one or more user IDs are missing from users.json. It will be removed on the next save.`);
             }

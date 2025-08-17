@@ -302,11 +302,14 @@ export class WPlacer {
     async buyProduct(productId, amount) {
         const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: productId, amount: amount } });
         if (response.data.success) {
-            let purchaseMessage = `🛒 Purchase successful for product #${productId} (amount: ${amount})`;
+            let purchaseMessage;
             if (productId === 80) {
                 purchaseMessage = `🛒 Bought ${amount * 30} pixels for ${amount * 500} droplets`;
             } else if (productId === 70) {
-                purchaseMessage = `🛒 Bought Max Charge Upgrade for 500 droplets`;
+                const upgradeText = amount === 1 ? "Upgrade" : "Upgrades";
+                purchaseMessage = `🛒 Bought ${amount} Max Charge ${upgradeText} for ${amount * 500} droplets`;
+            } else {
+                purchaseMessage = `🛒 Purchase successful for product #${productId} (amount: ${amount})`;
             }
             log(this.userInfo.id, this.userInfo.name, purchaseMessage);
             return true;
