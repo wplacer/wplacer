@@ -1,17 +1,17 @@
 // elements
 const $ = (id) => document.getElementById(id);
 const main = $("main");
-const openAddUser = $("openAddUser");
 const openManageUsers = $("openManageUsers");
 const openAddTemplate = $("openAddTemplate");
 const openManageTemplates = $("openManageTemplates");
-const addUser = $("addUser");
+const openSettings = $("openSettings");
 const userForm = $("userForm");
 const scookie = $("scookie");
 const jcookie = $("jcookie");
 const submitUser = $("submitUser");
 const manageUsers = $("manageUsers");
 const userList = $("userList");
+const checkUserStatus = $("checkUserStatus");
 const addTemplate = $("addTemplate");
 const convert = $("convert");
 const details = $("details");
@@ -20,17 +20,87 @@ const ink = $("ink");
 const templateCanvas = $("templateCanvas");
 const templateForm = $("templateForm");
 const convertInput = $("convertInput");
+const replaceInput = $("replaceInput");
+const templateName = $("templateName");
 const tx = $("tx");
 const ty = $("ty");
 const px = $("px");
 const py = $("py");
-const userSelect = $("userSelect");
+const userSelectList = $("userSelectList");
+const selectAllUsers = $("selectAllUsers");
+const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
 const startAll = $("startAll");
 const stopAll = $("stopAll");
+const settings = $("settings");
+const drawingModeSelect = $("drawingModeSelect");
+const turnstileNotifications = $("turnstileNotifications");
+const accountCooldown = $("accountCooldown");
+const messageBoxOverlay = $("messageBoxOverlay");
+const messageBoxTitle = $("messageBoxTitle");
+const messageBoxContent = $("messageBoxContent");
+const messageBoxConfirm = $("messageBoxConfirm");
+const messageBoxCancel = $("messageBoxCancel");
+
+// Message Box
+let confirmCallback = null;
+
+const showMessage = (title, content) => {
+    messageBoxTitle.textContent = title;
+    messageBoxContent.textContent = content;
+    messageBoxCancel.classList.add('hidden');
+    messageBoxConfirm.textContent = 'OK';
+    messageBoxOverlay.classList.remove('hidden');
+    confirmCallback = null;
+};
+
+const showConfirmation = (title, content, onConfirm) => {
+    messageBoxTitle.textContent = title;
+    messageBoxContent.textContent = content;
+    messageBoxCancel.classList.remove('hidden');
+    messageBoxConfirm.textContent = 'Confirm';
+    messageBoxOverlay.classList.remove('hidden');
+    confirmCallback = onConfirm;
+};
+
+const closeMessageBox = () => {
+    messageBoxOverlay.classList.add('hidden');
+    confirmCallback = null;
+};
+
+messageBoxConfirm.addEventListener('click', () => {
+    if (confirmCallback) {
+        confirmCallback();
+    }
+    closeMessageBox();
+});
+
+messageBoxCancel.addEventListener('click', () => {
+    closeMessageBox();
+});
+
+const handleError = (error) => {
+    console.error(error);
+    let message = "An unknown error occurred. Check the console for details.";
+
+    if (error.code === 'ERR_NETWORK') {
+        message = "Could not connect to the server. Please ensure the bot is running and accessible.";
+    } else if (error.response && error.response.data && error.response.data.error) {
+        const errMsg = error.response.data.error;
+        if (errMsg.includes("(1015)")) {
+            message = "You are being rate-limited by the server. Please wait a moment before trying again.";
+        } else if (errMsg.includes("(500)")) {
+            message = "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
+        } else {
+            message = errMsg; // Show the full error if it's not a known one
+        }
+    }
+    showMessage("Error", message);
+};
+
 
 // users
 const loadUsers = async (f) => {
@@ -38,19 +108,20 @@ const loadUsers = async (f) => {
         const users = await axios.get("/users");
         if (f) f(users.data);
     } catch (error) {
-        alert("Error, check console for details.");
-        console.error(error);
+        handleError(error);
     };
 };
 userForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     try {
         const response = await axios.post('/user', { cookies: { s: scookie.value, j: jcookie.value } });
-        alert(response.status === 200 ? `Logged in as ${response.data.name} (#${response.data.id})! You may now use "Create Template".` : "Error, check console for details.");
-        if (response.status === 200) changeTab(main);
+        if (response.status === 200) {
+            showMessage("Success", `Logged in as ${response.data.name} (#${response.data.id})!`);
+            userForm.reset();
+            openManageUsers.click(); // Refresh the view
+        }
     } catch (error) {
-        alert("Error, check console for details.");
-        console.error(error);
+        handleError(error);
     };
 });
 
@@ -90,13 +161,11 @@ const loadTemplates = async (f) => {
         const templates = await axios.get("/templates");
         if (f) f(templates.data);
     } catch (error) {
-        alert("Error, check console for details.");
-        console.error(error);
+        handleError(error);
     };
 };
 let currentTemplate = { width: 0, height: 0, data: [] };
-convertInput.addEventListener('change', async () => {
-    const file = convertInput.files[0];
+const processImageFile = (file, callback) => {
     if (file) {
         const reader = new FileReader();
         reader.onload = e => {
@@ -120,31 +189,80 @@ convertInput.addEventListener('change', async () => {
                         } else template.data[x][y] = 0;
                     };
                 };
-                currentTemplate = template;
                 canvas.remove();
-                drawTemplate(template, templateCanvas);
-                size.innerHTML = `${template.width}x${template.height}px`;
-                ink.innerHTML = template.ink;
-                details.style.display = "block";
+                callback(template);
             };
         };
         reader.readAsDataURL(file);
-    };
+    }
+};
+convertInput.addEventListener('change', async () => {
+    processImageFile(convertInput.files[0], (template) => {
+        currentTemplate = template;
+        drawTemplate(template, templateCanvas);
+        size.innerHTML = `${template.width}x${template.height}px`;
+        ink.innerHTML = template.ink;
+        details.style.display = "block";
+    });
 });
+replaceInput.addEventListener('change', async () => {
+    const templateId = replaceInput.dataset.templateId;
+    if (!templateId) return;
+
+    processImageFile(replaceInput.files[0], async (newTemplate) => {
+        try {
+            await axios.put(`/template/image/${templateId}`, { template: newTemplate });
+            showMessage("Success", "Template image has been replaced!");
+            openManageTemplates.click();
+        } catch (error) {
+            handleError(error);
+        } finally {
+            delete replaceInput.dataset.templateId;
+            replaceInput.value = '';
+        }
+    });
+});
+
+canBuyMaxCharges.addEventListener('change', () => {
+    if (canBuyMaxCharges.checked) {
+        canBuyCharges.checked = false;
+    }
+});
+
+canBuyCharges.addEventListener('change', () => {
+    if (canBuyCharges.checked) {
+        canBuyMaxCharges.checked = false;
+    }
+});
+
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (!currentTemplate || currentTemplate.width === 0) {
+        showMessage("Error", "Please convert an image before creating a template.");
+        return;
+    }
+    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(cb => cb.value);
+    if (selectedUsers.length === 0) {
+        showMessage("Error", "Please select at least one user.");
+        return;
+    }
     try {
         const response = await axios.post('/template', {
+            templateName: templateName.value,
             template: currentTemplate,
             coords: [tx.value, ty.value, px.value, py.value].map(Number),
-            userId: userSelect.value,
-            canBuyCharges: canBuyCharges.checked
+            userIds: selectedUsers,
+            canBuyCharges: canBuyCharges.checked,
+            canBuyMaxCharges: canBuyMaxCharges.checked,
+            drawingMethod: drawingModeSelect.value
         });
-        alert(`${response.status === 200 ? `Created! Go to "Manage Templates" to start and` : "Error,"} check console for details.`);
-        if (response.status === 200) changeTab(main);
+        if (response.status === 200) {
+            showMessage("Success", "Created! Go to \"Manage Templates\" to start and check console for details.");
+            templateForm.reset();
+            document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => cb.checked = false);
+        }
     } catch (error) {
-        alert("Error, check console for details.");
-        console.error(error);
+        handleError(error);
     };
 });
 startAll.addEventListener('click', async () => {
@@ -152,22 +270,20 @@ startAll.addEventListener('click', async () => {
         try {
             await axios.put(`/template/${child.id}`, { running: true });
         } catch (error) {
-            alert(`Error starting #${child.id}, check console for details.`);
-            console.error(error);
+            handleError(error);
         };
     };
-    alert(`Finished! Check console for details.`)
+    showMessage("Success", "Finished! Check console for details.");
 });
 stopAll.addEventListener('click', async () => {
     for (const child of templateList.children) {
         try {
             await axios.put(`/template/${child.id}`, { running: false });
         } catch (error) {
-            alert(`Error stopping #${child.id}, check console for details.`);
-            console.error(error);
+            handleError(error);
         };
     };
-    alert(`Finished! Check console for details.`)
+    showMessage("Success", "Finished! Check console for details.");
 });
 
 
@@ -178,35 +294,35 @@ const changeTab = (el) => {
     el.style.display = "block";
     currentTab = el;
 };
-openAddUser.addEventListener("click", () => {
-    scookie.value = "";
-    jcookie.value = "";
-    changeTab(addUser);
-});
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 openManageUsers.addEventListener("click", () => {
     userList.innerHTML = "";
+    userForm.reset();
     loadUsers(users => {
         for (const id of Object.keys(users)) {
             const user = document.createElement('div');
             user.className = 'user';
+            user.id = `user-${id}`;
             user.innerHTML = `<div class="left"><span>${users[id].name}</span><span>(#${id})</span></div>`
             const right = document.createElement('div');
             right.className = 'right';
             const button = document.createElement('button');
             button.title = 'Delete User';
             button.innerHTML = '<img src="icons/remove.svg">';
-            button.addEventListener("click", async () => {
-                const confirmDelete = confirm(`Are you sure you want to delete ${users[id].name} (#${id})?`);
-                if (confirmDelete) {
-                    try {
-                        await axios.delete(`/user/${id}`);
-                        alert("User deleted.");
-                        changeTab(main);
-                    } catch (error) {
-                        alert("Error, check console for details.");
-                        console.error(error);
-                    };
-                };
+            button.addEventListener("click", () => {
+                showConfirmation(
+                    "Delete User",
+                    `Are you sure you want to delete ${users[id].name} (#${id})?`,
+                    async () => {
+                        try {
+                            await axios.delete(`/user/${id}`);
+                            showMessage("Success", "User deleted.");
+                            openManageUsers.click();
+                        } catch (error) {
+                            handleError(error);
+                        };
+                    }
+                );
             });
             right.appendChild(button);
             user.appendChild(right);
@@ -215,59 +331,201 @@ openManageUsers.addEventListener("click", () => {
     });
     changeTab(manageUsers);
 });
+
+async function processInParallel(tasks, concurrency) {
+    const queue = [...tasks];
+    const workers = [];
+
+    const runTask = async () => {
+        while (queue.length > 0) {
+            const task = queue.shift();
+            if (task) await task();
+        }
+    };
+
+    for (let i = 0; i < concurrency; i++) {
+        workers.push(runTask());
+    }
+
+    await Promise.all(workers);
+}
+
+checkUserStatus.addEventListener("click", async () => {
+    checkUserStatus.disabled = true;
+    checkUserStatus.innerHTML = "Checking...";
+    const userElements = Array.from(document.querySelectorAll('.user'));
+    
+    const tasks = userElements.map(userEl => async () => {
+        const id = userEl.id.split('-')[1];
+        const leftSpans = userEl.querySelectorAll('.left span');
+        leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
+        try {
+            await axios.get(`/user/status/${id}`);
+            leftSpans.forEach(span => span.style.color = 'var(--success-color)');
+        } catch (error) {
+            leftSpans.forEach(span => span.style.color = 'var(--error-color)');
+        }
+    });
+
+    await processInParallel(tasks, 5);
+
+    checkUserStatus.disabled = false;
+    checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
+});
 openAddTemplate.addEventListener("click", () => {
-    userSelect.innerHTML = "";
+    userSelectList.innerHTML = "";
     loadUsers(users => {
-        for (const id of Object.keys(users)) userSelect.innerHTML += `<option value="${id}">${users[id].name} (#${id})</option>`;
+        if (Object.keys(users).length === 0) {
+            userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
+            return;
+        }
+        for (const id of Object.keys(users)) {
+            const userDiv = document.createElement('div');
+            userDiv.className = 'user-select-item';
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `user_${id}`;
+            checkbox.name = 'user_checkbox';
+            checkbox.value = id;
+            const label = document.createElement('label');
+            label.htmlFor = `user_${id}`;
+            label.textContent = `${users[id].name} (#${id})`;
+            userDiv.appendChild(checkbox);
+            userDiv.appendChild(label);
+            userSelectList.appendChild(userDiv);
+        }
     });
     changeTab(addTemplate);
 });
+selectAllUsers.addEventListener('click', () => {
+    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
-    loadTemplates(templates => {
-        for (const id of Object.keys(templates)) {
-            const t = templates[id];
-            const template = document.createElement('div');
-            template.id = id;
-            template.className = "template";
-            template.innerHTML = `<span><b>#${id}</b><br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Can buy charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
-            const canvas = document.createElement("canvas");
-            drawTemplate(t.template, canvas);
-            const buttons = document.createElement('div');
-            buttons.className = "buttons";
-            const toggleButton = document.createElement('button');
-            toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
-            toggleButton.addEventListener('click', async () => {
-                try {
-                    await axios.put(`/template/${id}`, { running: !t.running });
-                    toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
-                    alert("Success! Check console for details.");
-                } catch (error) {
-                    alert("Error, check console for details.");
-                    console.error(error);
-                };
-            });
-            const delButton = document.createElement('button');
-            delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
-            delButton.addEventListener("click", async () => {
-                const confirmDelete = confirm(`Are you sure you want to delete template #${id}?`);
-                if (confirmDelete) {
+    loadUsers(users => {
+        loadTemplates(templates => {
+            for (const id of Object.keys(templates)) {
+                const t = templates[id];
+                const userListFormatted = t.userIds.map(userId => {
+                    const user = users[userId];
+                    return user ? `${user.name}#${userId}` : `Unknown#${userId}`;
+                }).join(", ");
+
+                const template = document.createElement('div');
+                template.id = id;
+                template.className = "template";
+                template.innerHTML = `<span><b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
+
+                const canvas = document.createElement("canvas");
+                drawTemplate(t.template, canvas);
+                const buttons = document.createElement('div');
+                buttons.className = "buttons";
+                const toggleButton = document.createElement('button');
+                toggleButton.className = 'primary-button';
+                toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
+                toggleButton.addEventListener('click', async () => {
                     try {
-                        await axios.delete(`/template/${id}`);
-                        alert("Template deleted.");
-                        changeTab(main);
+                        await axios.put(`/template/${id}`, { running: !t.running });
+                        t.running = !t.running;
+                        toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
+                        showMessage("Success", "Success! Check console for details.");
                     } catch (error) {
-                        alert("Error, check console for details.");
-                        console.error(error);
+                        handleError(error);
                     };
-                };
-            });
-            buttons.append(toggleButton);
-            buttons.append(delButton);
-            template.append(canvas);
-            template.append(buttons);
-            templateList.append(template);
-        };
+                });
+                const restartButton = document.createElement('button');
+                restartButton.className = 'destructive-button';
+                restartButton.innerHTML = '<img src="icons/restart.svg">Restart Template';
+                restartButton.addEventListener('click', async () => {
+                    showConfirmation(
+                        "Restart Template",
+                        `Are you sure you want to restart template "${t.name}"? This will stop it and start it from the beginning.`,
+                        async () => {
+                            try {
+                                await axios.put(`/template/restart/${id}`);
+                                showMessage("Success", "Restarting template! Check console for details.");
+                                openManageTemplates.click();
+                            } catch (error) {
+                                handleError(error);
+                            };
+                        }
+                    );
+                });
+                const replaceButton = document.createElement('button');
+                replaceButton.className = 'secondary-button';
+                replaceButton.innerHTML = '<img src="icons/replaceImage.svg">Replace Image';
+                replaceButton.addEventListener('click', () => {
+                    replaceInput.dataset.templateId = id;
+                    replaceInput.click();
+                });
+                const delButton = document.createElement('button');
+                delButton.className = 'destructive-button';
+                delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
+                delButton.addEventListener("click", () => {
+                    showConfirmation(
+                        "Delete Template",
+                        `Are you sure you want to delete template "${t.name}"?`,
+                        async () => {
+                            try {
+                                await axios.delete(`/template/${id}`);
+                                openManageTemplates.click();
+                            } catch (error) {
+                                handleError(error);
+                            };
+                        }
+                    );
+                });
+                buttons.append(toggleButton);
+                buttons.append(restartButton);
+                buttons.append(replaceButton);
+                buttons.append(delButton);
+                template.append(canvas);
+                template.append(buttons);
+                templateList.append(template);
+            };
+        });
     });
     changeTab(manageTemplates);
+});
+openSettings.addEventListener("click", async () => {
+    try {
+        const response = await axios.get('/settings');
+        const currentSettings = response.data;
+        turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        accountCooldown.value = currentSettings.accountCooldown / 1000;
+    } catch (error) {
+        handleError(error);
+    }
+    changeTab(settings);
+});
+
+// Settings
+const savedDrawingMode = localStorage.getItem('drawingMode') || 'linear';
+drawingModeSelect.value = savedDrawingMode;
+drawingModeSelect.addEventListener('change', () => {
+    localStorage.setItem('drawingMode', drawingModeSelect.value);
+    showMessage("Success", "Drawing mode saved!");
+});
+
+turnstileNotifications.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
+        showMessage("Success", "Notification setting saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+accountCooldown.addEventListener('change', async () => {
+    try {
+        const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
+        if (isNaN(newCooldown) || newCooldown < 0) {
+            showMessage("Error", "Please enter a valid non-negative number for the cooldown.");
+            return;
+        }
+        await axios.put('/settings', { accountCooldown: newCooldown });
+        showMessage("Success", "Account cooldown saved!");
+    } catch (error) {
+        handleError(error);
+    }
 });
