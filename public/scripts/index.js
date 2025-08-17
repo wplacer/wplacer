@@ -85,7 +85,10 @@ messageBoxCancel.addEventListener('click', () => {
 const handleError = (error) => {
     console.error(error);
     let message = "An unknown error occurred. Check the console for details.";
-    if (error.response && error.response.data && error.response.data.error) {
+
+    if (error.code === 'ERR_NETWORK') {
+        message = "Could not connect to the server. Please ensure the bot is running and accessible.";
+    } else if (error.response && error.response.data && error.response.data.error) {
         const errMsg = error.response.data.error;
         if (errMsg.includes("(1015)")) {
             message = "You are being rate-limited by the server. Please wait a moment before trying again.";

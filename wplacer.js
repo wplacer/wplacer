@@ -35,6 +35,12 @@ export const log = async (id, name, data, error) => {
 };
 export class WPlacer {
     constructor(template, coords, canBuyCharges, requestTokenCallback, settings) {
+        if (template && coords) {
+            const [_tx, _ty, px, py] = coords;
+            if (px + (template.width - 1) >= 1000 || py + (template.height - 1) >= 1000) {
+                throw Error("Template does not fit in a single tile. Multi-tile support is not available in this version.");
+            }
+        }
         this.status = "Waiting until called to start.";
         this.template = template;
         this.coords = coords;
@@ -45,7 +51,7 @@ export class WPlacer {
         this.browser = null;
         this.me = null;
         this.userInfo = null;
-        this.tiles = new Map();
+        this.tile = null;
         this.token = null;
         this.running = false;
         this._resolveToken = null;
@@ -107,51 +113,38 @@ export class WPlacer {
         }), url, this.cookieStr(this.cookies), body);
         return response;
     };
-    async loadTiles() {
-        this.tiles.clear();
-        const [tx, ty, px, py] = this.coords;
-        const endPx = px + this.template.width;
-        const endPy = py + this.template.height;
-        const endTx = tx + Math.floor(endPx / 1000);
-        const endTy = ty + Math.floor(endPy / 1000);
-
-        const tilePromises = [];
-        for (let currentTx = tx; currentTx <= endTx; currentTx++) {
-            for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = this.me.evaluate((pallete, src) => new Promise((resolve) => {
-                    const image = new Image();
-                    image.crossOrigin = "Anonymous";
-                    image.onload = () => {
-                        const canvas = document.createElement("canvas");
-                        canvas.width = image.width;
-                        canvas.height = image.height;
-                        const ctx = canvas.getContext("2d");
-                        ctx.drawImage(image, 0, 0);
-                        const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
-                        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        for (let x = 0; x < canvas.width; x++) {
-                            for (let y = 0; y < canvas.height; y++) {
-                                const i = (y * canvas.width + x) * 4;
-                                const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                                if (a === 255) template.data[x][y] = pallete[`${r},${g},${b}`];
-                                else template.data[x][y] = 0;
-                            };
-                        };
-                        canvas.remove();
-                        resolve(template);
+    async loadTile() {
+        const [tx, ty] = this.coords;
+        const imageData = await this.me.evaluate((pallete, src) => new Promise((resolve) => {
+            const image = new Image();
+            image.crossOrigin = "Anonymous";
+            image.onload = () => {
+                const canvas = document.createElement("canvas");
+                canvas.width = image.width;
+                canvas.height = image.height;
+                const ctx = canvas.getContext("2d");
+                ctx.drawImage(image, 0, 0);
+                const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
+                const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                for (let x = 0; x < canvas.width; x++) {
+                    for (let y = 0; y < canvas.height; y++) {
+                        const i = (y * canvas.width + x) * 4;
+                        const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
+                        if (a === 255) template.data[x][y] = pallete[`${r},${g},${b}`];
+                        else template.data[x][y] = 0;
                     };
-                    image.onerror = () => resolve(null); // Resolve with null on error
-                    image.src = src;
-                }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
-                .then(tileData => {
-                    if (tileData) {
-                        this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                    }
-                });
-                tilePromises.push(promise);
-            }
+                };
+                canvas.remove();
+                resolve(template);
+            };
+            image.onerror = () => resolve(null);
+            image.src = src;
+        }), pallete, `https://backend.wplace.live/files/s0/tiles/${tx}/${ty}.png?t=${Date.now()}`);
+        
+        if (!imageData) {
+            throw new Error(`Failed to load tile image for coordinates ${tx},${ty}. The tile may not exist.`);
         }
-        await Promise.all(tilePromises);
+        this.tile = imageData;
         return true;
     }
     setToken(t) {
@@ -179,12 +172,13 @@ export class WPlacer {
         log(this.userInfo.id, this.userInfo.name, "✅ Got Turnstile token!");
     }
 
-    async _executePaint(tx, ty, body, retryMethod) {
+    async _executePaint(body) {
         if (body.colors.length === 0) return { painted: 0, success: true };
+        const [tx, ty] = this.coords;
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
         if (response.data.painted && response.data.painted == body.colors.length) {
-            log(this.userInfo.id, this.userInfo.name, `🎨 Painted ${body.colors.length} pixels on tile ${tx},${ty}.`);
+            log(this.userInfo.id, this.userInfo.name, `🎨 Painted ${body.colors.length} pixels.`);
             return { painted: body.colors.length, success: true };
         } else if (response.status === 403 && response.data.error === "refresh") {
             this.token = null;
@@ -197,69 +191,41 @@ export class WPlacer {
         } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
              throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
         } else {
-            throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
+            throw Error(`Unexpected response: ${JSON.stringify(response)}`);
         }
-    }
-
-    _getMismatchedPixels() {
-        const [startX, startY, startPx, startPy] = this.coords;
-        const mismatched = [];
-        for (let y = 0; y < this.template.height; y++) {
-            for (let x = 0; x < this.template.width; x++) {
-                const templateColor = this.template.data[x][y];
-                if (templateColor === 0) continue;
-
-                const globalPx = startPx + x;
-                const globalPy = startPy + y;
-                const targetTx = startX + Math.floor(globalPx / 1000);
-                const targetTy = startY + Math.floor(globalPy / 1000);
-                const localPx = globalPx % 1000;
-                const localPy = globalPy % 1000;
-
-                const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile) continue; 
-                
-                const tileColor = tile.data[localPx][localPy];
-
-                if (templateColor !== tileColor) {
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor });
-                }
-            }
-        }
-        return mismatched;
     }
 
     async paint(method = 'linear') {
         await this.loadUserInfo();
 
         switch (method) {
-            case 'linear':
-                log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)...");
-                break;
-            case 'linear-reversed':
-                log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)...");
-                break;
-            case 'singleColorRandom':
-                log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`);
-                break;
-            case 'colorByColor':
-                 log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`);
-                 break;
-            default:
-                throw new Error(`Unknown paint method: ${method}`);
+            case 'linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)..."); break;
+            case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)..."); break;
+            case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`); break;
+            case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`); break;
+            default: throw new Error(`Unknown paint method: ${method}`);
         }
 
         while (true) {
-            await this.loadTiles();
+            await this.loadTile();
             if (!this.token) await this.waitForToken();
         
-            let mismatchedPixels = this._getMismatchedPixels();
+            const [_tx, _ty, px, py] = this.coords;
+            const body = { colors: [], coords: [], t: this.token };
+            const mismatchedPixels = [];
+
+            for (let y = 0; y < this.template.height; y++) {
+                for (let x = 0; x < this.template.width; x++) {
+                    if (this.template.data[x][y] !== 0 && this.template.data[x][y] !== this.tile.data[px + x][py + y]) {
+                        mismatchedPixels.push({ x: px + x, y: py + y, color: this.template.data[x][y] });
+                    }
+                }
+            }
+
             if (mismatchedPixels.length === 0) return 0;
-    
+
             switch (method) {
-                case 'linear-reversed':
-                    mismatchedPixels.reverse();
-                    break;
+                case 'linear-reversed': mismatchedPixels.reverse(); break;
                 case 'singleColorRandom':
                 case 'colorByColor':
                     const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
@@ -277,33 +243,16 @@ export class WPlacer {
                     mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
                     break;
             }
-    
+            
             const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
-            const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
-                const key = `${p.tx}_${p.ty}`;
-                if (!acc[key]) acc[key] = { colors: [], coords: [] };
-                acc[key].colors.push(p.color);
-                acc[key].coords.push(p.px, p.py);
-                return acc;
-            }, {});
-    
-            let totalPainted = 0;
-            let needsRetry = false;
-            for (const tileKey in bodiesByTile) {
-                const [tx, ty] = tileKey.split('_').map(Number);
-                const body = { ...bodiesByTile[tileKey], t: this.token };
-                const result = await this._executePaint(tx, ty, body, method);
-                
-                if (result.success) {
-                    totalPainted += result.painted;
-                } else {
-                    needsRetry = true;
-                    break;
-                }
+            for (const pixel of pixelsToPaint) {
+                body.colors.push(pixel.color);
+                body.coords.push(pixel.x, pixel.y);
             }
-
-            if (!needsRetry) {
-                return totalPainted;
+    
+            const result = await this._executePaint(body);
+            if (result.success) {
+                return result.painted;
             }
         }
     }
@@ -326,8 +275,17 @@ export class WPlacer {
         }
     };
     async pixelsLeft() {
-        await this.loadTiles();
-        return this._getMismatchedPixels().length;
+        await this.loadTile();
+        let count = 0;
+        const [_tx, _ty, px, py] = this.coords;
+        for (let y = 0; y < this.template.height; y++) {
+            for (let x = 0; x < this.template.width; x++) {
+                if (this.template.data[x][y] !== 0 && this.template.data[x][y] !== this.tile.data[px + x][py + y]) {
+                    count++;
+                }
+            };
+        };
+        return count;
     };
     sleep(ms) {
         return new Promise((resolve) => setTimeout(resolve, ms));
