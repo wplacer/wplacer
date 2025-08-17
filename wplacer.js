@@ -217,12 +217,19 @@ export class WPlacer {
                 const localPy = globalPy % 1000;
 
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile || !tile.data[localPx]) continue; 
-                
+                if (!tile || !tile.data[localPx]) continue;
+
                 const tileColor = tile.data[localPx][localPy];
 
                 if (templateColor !== tileColor) {
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor });
+                    const neighbors = [
+                        this.template.data[x - 1]?.[y],
+                        this.template.data[x + 1]?.[y],
+                        this.template.data[x]?.[y - 1],
+                        this.template.data[x]?.[y + 1]
+                    ];
+                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
+                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge });
                 }
             }
         }
@@ -235,6 +242,7 @@ export class WPlacer {
         switch (method) {
             case 'linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)..."); break;
             case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)..."); break;
+            case 'outline-linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Edges then Top to Bottom)..."); break;
             case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`); break;
             case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`); break;
             default: throw new Error(`Unknown paint method: ${method}`);
@@ -250,6 +258,11 @@ export class WPlacer {
             switch (method) {
                 case 'linear-reversed':
                     mismatchedPixels.reverse();
+                    break;
+                case 'outline-linear':
+                    const edgePixels = mismatchedPixels.filter(p => p.isEdge);
+                    const innerPixels = mismatchedPixels.filter(p => !p.isEdge);
+                    mismatchedPixels = edgePixels.concat(innerPixels);
                     break;
                 case 'singleColorRandom':
                 case 'colorByColor':
