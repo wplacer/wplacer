@@ -83,12 +83,18 @@ class TemplateManager {
     }
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
-            await wplacer.loadUserInfo(); // Refresh user info to get latest droplet count
-            while (wplacer.userInfo.droplets >= 500) {
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy max charge upgrade. Droplets: ${wplacer.userInfo.droplets}`);
-                await wplacer.buyProduct(70, 1);
-                await this.sleep(10000);
-                await wplacer.loadUserInfo();
+            await wplacer.loadUserInfo();
+            const amountToBuy = Math.floor(wplacer.userInfo.droplets / 500);
+
+            if (amountToBuy > 0) {
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s). Droplets: ${wplacer.userInfo.droplets}`);
+                try {
+                    await wplacer.buyProduct(70, amountToBuy);
+                    await this.sleep(10000); // Wait for the purchase to process
+                    await wplacer.loadUserInfo(); // Refresh user info after purchase
+                } catch (error) {
+                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+                }
             }
         }
     }
