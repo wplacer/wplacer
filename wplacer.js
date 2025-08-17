@@ -34,11 +34,13 @@ export const log = async (id, name, data, error) => {
     };
 };
 export class WPlacer {
-    constructor(template, coords, canBuyCharges) {
+    constructor(template, coords, canBuyCharges, requestTokenCallback, settings) {
         this.status = "Waiting until called to start.";
         this.template = template;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
+        this.requestTokenCallback = requestTokenCallback;
+        this.settings = settings;
         this.cookies = null;
         this.browser = null;
         this.me = null;
@@ -160,14 +162,19 @@ export class WPlacer {
         };
     };
     async waitForToken() {
-        log(this.userInfo.id, this.userInfo.name, "⚠️ No Turnstile token, please paint any pixel to retrieve one and continue");
-        notifier.notify({
-            title: 'wplacer++: Action Required',
-            message: `User ${this.userInfo.name} (#${this.userInfo.id}) needs a new captcha token to continue.`,
-            icon: path.join(process.cwd(), 'public', 'icons', 'favicon.png'),
-            sound: true,
-            wait: true
-        });
+        if (this.requestTokenCallback) {
+            this.requestTokenCallback(`user-${this.userInfo.name}`);
+        }
+        log(this.userInfo.id, this.userInfo.name, "⚠️ No Turnstile token, requesting one from clients...");
+        if (this.settings && this.settings.turnstileNotifications) {
+            notifier.notify({
+                title: 'wplacer: Action Required',
+                message: `User ${this.userInfo.name} (#${this.userInfo.id}) needs a new captcha token to continue. Please open wplace.live or solve a captcha.`,
+                icon: path.join(process.cwd(), 'public', 'icons', 'favicon.png'),
+                sound: true,
+                wait: true
+            });
+        }
         await this.tokenPromise;
         log(this.userInfo.id, this.userInfo.name, "✅ Got Turnstile token!");
     }

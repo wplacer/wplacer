@@ -29,6 +29,27 @@ const app = express();
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
+let currentSettings = {
+    turnstileNotifications: false,
+    accountCooldown: 20000
+};
+
+const sseClients = new Set();
+let needToken = true;
+
+function sseBroadcast(event, data) {
+    const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+    for (const res of sseClients) res.write(payload);
+}
+
+function requestTokenFromClients(reason = "unknown") {
+    if (sseClients.size === 0) {
+        needToken = true;
+        return;
+    }
+    sseBroadcast("request-token", { reason });
+}
+
 class TemplateManager {
     constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, userIds, drawingMethod) {
         this.name = name;
@@ -48,7 +69,10 @@ class TemplateManager {
         this.isFirstRun = true;
     }
     sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-    setToken(t) { if (this.activeWplacer) this.activeWplacer.setToken(t); }
+    setToken(t) { 
+        this.turnstileToken = t;
+        if (this.activeWplacer) this.activeWplacer.setToken(t); 
+    }
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
             await wplacer.loadUserInfo(); // Refresh user info to get latest droplet count
@@ -63,13 +87,13 @@ class TemplateManager {
     async start() {
         this.running = true;
         this.status = "Started.";
-        log('SYSTEM', 'wplacer++', `▶️ Starting template "${this.name}" for users: ${this.masterIdentifier}...`);
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}" for users: ${this.masterIdentifier}...`);
         
         while (this.running) {
             if (this.isFirstRun) {
-                log('SYSTEM', 'wplacer++', `🚀 Calculating initial placement order for "${this.name}"...`);
+                log('SYSTEM', 'wplacer', `🚀 Calculating initial placement order for "${this.name}"...`);
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
-                    const wplacer = new WPlacer();
+                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
                     try {
                         await wplacer.login(users[userId].cookies);
                         const diff = wplacer.userInfo.charges.max - wplacer.userInfo.charges.count;
@@ -86,12 +110,12 @@ class TemplateManager {
                 const sortedUserIds = userChargeStates.map(u => u.userId);
                 const sortedUserNames = sortedUserIds.map(id => `${users[id].name}#${id}`).join(', ');
 
-                log('SYSTEM', 'wplacer++', `✅ Initial placement order determined: ${sortedUserNames}`);
+                log('SYSTEM', 'wplacer', `✅ Initial placement order determined: ${sortedUserNames}`);
                 
                 for (let i = 0; i < sortedUserIds.length; i++) {
                     const userId = sortedUserIds[i];
                     if (!this.running) break;
-                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges);
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                     wplacer.token = this.turnstileToken;
                     try {
                         const { id, name } = await wplacer.login(users[userId].cookies);
@@ -102,7 +126,7 @@ class TemplateManager {
                         this.turnstileToken = wplacer.token;
                         await this.handleUpgrades(wplacer);
                         if (await wplacer.pixelsLeft() === 0) {
-                            log('SYSTEM', 'wplacer++', `🖼 Template "${this.name}" finished during initial run!`);
+                            log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished during initial run!`);
                             this.running = false;
                         }
                     } catch (error) {
@@ -112,18 +136,18 @@ class TemplateManager {
                         this.activeWplacer = null;
                     }
                     if (this.running && i < sortedUserIds.length - 1) {
-                        log('SYSTEM', 'wplacer++', `⏱️ Initial cycle: Waiting 20 seconds before next user.`);
-                        await this.sleep(20000);
+                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                        await this.sleep(currentSettings.accountCooldown);
                     }
                 }
                 this.isFirstRun = false;
-                log('SYSTEM', 'wplacer++', `✅ Initial placement cycle for "${this.name}" complete.`);
+                log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
                 if (!this.running) break;
             }
             let readyUserWplacer = null;
             let minTimeToReady = Infinity;
             for (const userId of this.userIds) {
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                 try {
                     await wplacer.login(users[userId].cookies);
                     const threshold = wplacer.userInfo.charges.max * 0.75;
@@ -152,8 +176,8 @@ class TemplateManager {
                     await readyUserWplacer.paint(this.drawingMethod);
                     this.turnstileToken = readyUserWplacer.token;
                     await this.handleUpgrades(readyUserWplacer);
-                    if (await wplacer.pixelsLeft() === 0) {
-                        log('SYSTEM', 'wplacer++', `🖼 Template "${this.name}" finished!`);
+                    if (await readyUserWplacer.pixelsLeft() === 0) {
+                        log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
                         this.running = false;
                     }
                 } catch (error) {
@@ -163,12 +187,12 @@ class TemplateManager {
                     this.activeWplacer = null;
                 }
                 if (this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer++', `⏱️ Turn finished. Waiting 20 seconds before checking next account.`);
-                    await this.sleep(20000);
+                    log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
+                    await this.sleep(currentSettings.accountCooldown);
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
-                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges);
+                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                     try {
                         await chargeBuyer.login(users[this.masterId].cookies);
                         if(chargeBuyer.userInfo.droplets >= 500) {
@@ -191,25 +215,49 @@ class TemplateManager {
                     }
                 }
                 if (minTimeToReady === Infinity) {
-                    log('SYSTEM', 'wplacer++', "⚠️ Could not determine wait time for any user. Waiting 60s.");
+                    log('SYSTEM', 'wplacer', "⚠️ Could not determine wait time for any user. Waiting 60s.");
                     minTimeToReady = 60000;
                 }
                 const waitTime = minTimeToReady + 2000;
                 this.status = `Waiting for charges.`;
-                log('SYSTEM', 'wplacer++', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
+                log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
                 await this.sleep(waitTime);
             }
         }
         if (this.status !== "Finished.") {
             this.status = "Stopped.";
-            log('SYSTEM', 'wplacer++', `✖️ Template "${this.name}" stopped.`);
+            log('SYSTEM', 'wplacer', `✖️ Template "${this.name}" stopped.`);
         }
     }
 }
 
+app.get("/events", (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.write("retry: 1000\n\n");
+
+    sseClients.add(res);
+
+    if (needToken) {
+        res.write(`event: request-token\ndata: ${JSON.stringify({ reason: "client-connect" })}\n\n`);
+        needToken = false;
+    }
+
+    req.on("close", () => {
+        sseClients.delete(res);
+    });
+});
+
 // frontend endpoints
 app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => res.json(templates));
+app.get('/settings', (_, res) => res.json(currentSettings));
+app.put('/settings', (req, res) => {
+    currentSettings = { ...currentSettings, ...req.body };
+    res.sendStatus(200);
+});
 app.get("/user/status/:id", async (req, res) => {
     const { id } = req.params;
     if (!users[id]) return res.sendStatus(404);
@@ -230,7 +278,7 @@ app.get("/user/status/:id", async (req, res) => {
 });
 app.post("/user", async (req, res) => {
     if (!req.body.cookies || !req.body.cookies.j) return res.sendStatus(400);
-    const wplacer = new WPlacer(req.body.template, req.body.coords, req.body.canBuyCharges);
+    const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(req.body.cookies);
         users[userInfo.id] = { name: userInfo.name, cookies: req.body.cookies };
@@ -320,14 +368,11 @@ app.get("/ping", (_, res) => res.send("Pong!"));
 app.post("/t", async (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
-    Object.keys(templates).forEach(i => {
-        if (templates[i]) {
-            templates[i].turnstileToken = t;
-            if (templates[i].activeWplacer) {
-                templates[i].activeWplacer.setToken(t);
-            }
+    for (const id in templates) {
+        if (templates[id]) {
+            templates[id].setToken(t);
         }
-    });
+    }
     res.sendStatus(200);
 });
 
@@ -335,7 +380,7 @@ app.post("/t", async (req, res) => {
 const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-    console.log(`🌐 wplacer++ by luluwaffless and jinx (${version})`);
+    console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
 
     // Load saved templates
     if (existsSync("templates.json")) {
@@ -362,5 +407,6 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const host = process.env.HOST || "127.0.0.1";
     app.listen(port, host, () => {
         console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
+        requestTokenFromClients("server-start");
     });
 })();

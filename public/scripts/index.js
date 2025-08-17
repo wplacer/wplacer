@@ -37,6 +37,8 @@ const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
+const turnstileNotifications = $("turnstileNotifications");
+const accountCooldown = $("accountCooldown");
 const messageBoxOverlay = $("messageBoxOverlay");
 const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
@@ -217,6 +219,19 @@ replaceInput.addEventListener('change', async () => {
         }
     });
 });
+
+canBuyMaxCharges.addEventListener('change', () => {
+    if (canBuyMaxCharges.checked) {
+        canBuyCharges.checked = false;
+    }
+});
+
+canBuyCharges.addEventListener('change', () => {
+    if (canBuyCharges.checked) {
+        canBuyMaxCharges.checked = false;
+    }
+});
+
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (!currentTemplate || currentTemplate.width === 0) {
@@ -456,7 +471,15 @@ openManageTemplates.addEventListener("click", () => {
     });
     changeTab(manageTemplates);
 });
-openSettings.addEventListener("click", () => {
+openSettings.addEventListener("click", async () => {
+    try {
+        const response = await axios.get('/settings');
+        const currentSettings = response.data;
+        turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        accountCooldown.value = currentSettings.accountCooldown / 1000;
+    } catch (error) {
+        handleError(error);
+    }
     changeTab(settings);
 });
 
@@ -466,4 +489,27 @@ drawingModeSelect.value = savedDrawingMode;
 drawingModeSelect.addEventListener('change', () => {
     localStorage.setItem('drawingMode', drawingModeSelect.value);
     showMessage("Success", "Drawing mode saved!");
+});
+
+turnstileNotifications.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
+        showMessage("Success", "Notification setting saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+accountCooldown.addEventListener('change', async () => {
+    try {
+        const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
+        if (isNaN(newCooldown) || newCooldown < 0) {
+            showMessage("Error", "Please enter a valid non-negative number for the cooldown.");
+            return;
+        }
+        await axios.put('/settings', { accountCooldown: newCooldown });
+        showMessage("Success", "Account cooldown saved!");
+    } catch (error) {
+        handleError(error);
+    }
 });

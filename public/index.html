@@ -7,12 +7,12 @@
     <link rel="icon" type="image/x-icon" href="icons/favicon.png">
     <link rel="stylesheet" href="styles/index.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
-    <title>wplacer++</title>
+    <title>wplacer</title>
 </head>
 
 <body>
     <div class="container">
-        <h1><img src="icons/favicon.png">wplacer++</h1>
+        <h1><img src="icons/favicon.png">wplacer</h1>
         
         <div id="main">
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
@@ -100,13 +100,21 @@
                 <option value="singleColorRandom">Random Color</option>
                 <option value="colorByColor">Color by Color</option>
             </select>
+            <div class="checkbox">
+                <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
+                <label class="switch">
+                    <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <label for="accountCooldown">Account Cooldown (seconds)</label>
+            <input type="number" id="accountCooldown" min="0" value="20">
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
         
-        <div class="credits">
-            <a href="https://github.com/luluwaffless/wplacer">Made by luluwaffless <img src="icons/github.svg"></a>
-            <a href="https://github.com/JinxTheCatto" class="credit">wplacer++ by Jinx <img src="icons/github.svg"></a>
-        </div>
+        <p class="credits">
+            Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
+        </p>
     </div>
 
     <div id="messageBoxOverlay" class="hidden">

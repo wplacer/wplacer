@@ -75,10 +75,27 @@ h2.section-title {
     padding-bottom: 0;
 }
 
-.credits {
-    display: flex;
-    flex-direction: column;
+p.credits {
+    margin-top: 24px;
+    color: var(--text-secondary);
+}
+
+p.credits a {
+    display: inline-flex;
     align-items: center;
+    gap: 0.25em;
+    margin: 0;
+    color: var(--text-secondary);
+    text-decoration: underline;
+}
+
+p.credits a:hover {
+    color: var(--text-primary);
+}
+
+p.credits a img {
+    width: 1.2em;
+    height: 1.2em;
 }
 
 a {
@@ -89,10 +106,6 @@ a {
     gap: 0.25em;
     margin-top: 24px;
     transition: color 0.2s ease;
-}
-
-a.credit {
-    margin-top: 8px;
 }
 
 a:hover {
