@@ -331,30 +331,43 @@ openManageUsers.addEventListener("click", () => {
     });
     changeTab(manageUsers);
 });
+
+async function processInParallel(tasks, concurrency) {
+    const queue = [...tasks];
+    const workers = [];
+
+    const runTask = async () => {
+        while (queue.length > 0) {
+            const task = queue.shift();
+            if (task) await task();
+        }
+    };
+
+    for (let i = 0; i < concurrency; i++) {
+        workers.push(runTask());
+    }
+
+    await Promise.all(workers);
+}
+
 checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.disabled = true;
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
     
-    const checkPromises = userElements.map((userEl, index) => {
-        return new Promise(resolve => {
-            setTimeout(async () => {
-                const id = userEl.id.split('-')[1];
-                const leftSpans = userEl.querySelectorAll('.left span');
-                leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
-                try {
-                    await axios.get(`/user/status/${id}`);
-                    leftSpans.forEach(span => span.style.color = 'var(--success-color)');
-                } catch (error) {
-                    leftSpans.forEach(span => span.style.color = 'var(--error-color)');
-                } finally {
-                    resolve();
-                }
-            }, index * 100);
-        });
+    const tasks = userElements.map(userEl => async () => {
+        const id = userEl.id.split('-')[1];
+        const leftSpans = userEl.querySelectorAll('.left span');
+        leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
+        try {
+            await axios.get(`/user/status/${id}`);
+            leftSpans.forEach(span => span.style.color = 'var(--success-color)');
+        } catch (error) {
+            leftSpans.forEach(span => span.style.color = 'var(--error-color)');
+        }
     });
 
-    await Promise.all(checkPromises);
+    await processInParallel(tasks, 5);
 
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';

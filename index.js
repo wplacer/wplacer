@@ -50,6 +50,14 @@ function requestTokenFromClients(reason = "unknown") {
     sseBroadcast("request-token", { reason });
 }
 
+function logUserError(error, id, name, context) {
+    if (error.message && error.message.includes("(500)")) {
+        log(id, name, `🔑 Failed to ${context}: Expired or invalid cookie.`);
+    } else {
+        log(id, name, `Failed to ${context}`, error);
+    }
+}
+
 class TemplateManager {
     constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, userIds, drawingMethod) {
         this.name = name;
@@ -99,7 +107,7 @@ class TemplateManager {
                         const diff = wplacer.userInfo.charges.max - wplacer.userInfo.charges.count;
                         return { userId, diff };
                     } catch (error) {
-                        log(userId, users[userId].name, "Could not fetch charge state for initial sort", error);
+                        logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
                         return { userId, diff: Infinity }; // Put failing accounts at the end
                     } finally {
                         await wplacer.close();
@@ -130,9 +138,9 @@ class TemplateManager {
                             this.running = false;
                         }
                     } catch (error) {
-                        log(userId, users[userId].name, "Error during initial user turn", error);
+                        logUserError(error, userId, users[userId].name, "perform initial user turn");
                     } finally {
-                        await wplacer.close();
+                        if (wplacer.browser) await wplacer.close();
                         this.activeWplacer = null;
                     }
                     if (this.running && i < sortedUserIds.length - 1) {
@@ -162,7 +170,7 @@ class TemplateManager {
                         await wplacer.close();
                     }
                 } catch (error) {
-                    log(userId, users[userId].name, "Error checking user status", error);
+                    logUserError(error, userId, users[userId].name, "check user status");
                     await wplacer.close();
                 }
             }
@@ -181,7 +189,7 @@ class TemplateManager {
                         this.running = false;
                     }
                 } catch (error) {
-                    log(id, name, "Error during paint turn", error);
+                    logUserError(error, id, name, "perform paint turn");
                 } finally {
                     await readyUserWplacer.close();
                     this.activeWplacer = null;
@@ -209,7 +217,7 @@ class TemplateManager {
                             }
                         }
                     } catch (error) {
-                         log(this.masterId, this.masterName, "Error during attempt to buy pixel charges", error);
+                         logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
                     } finally {
                         await chargeBuyer.close();
                     }
@@ -266,11 +274,7 @@ app.get("/user/status/:id", async (req, res) => {
         await wplacer.login(users[id].cookies);
         res.sendStatus(200);
     } catch (error) {
-        if (error.message && error.message.includes("(500)")) {
-            log(id, users[id].name, "🔑 Failed to validate cookie: Expired or invalid.");
-        } else {
-            log(id, users[id].name, "Failed to validate cookie", error);
-        }
+        logUserError(error, id, users[id].name, "validate cookie");
         res.status(500).json({ error: error.message });
     } finally {
         await wplacer.close();
@@ -311,7 +315,7 @@ app.post("/template", async (req, res) => {
         saveTemplates();
         res.status(200).json({ id: templateId });
     } catch (error) {
-        log(req.body.userIds[0], users[req.body.userIds[0]].name, "Error creating template", error);
+        logUserError(error, req.body.userIds[0], users[req.body.userIds[0]].name, "create template");
         res.status(500).json({ error: error.message });
     } finally {
         await wplacer.close();

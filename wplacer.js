@@ -73,7 +73,7 @@ export class WPlacer {
     async loadUserInfo() {
         if (!this.me) this.me = await this.browser.newPage();
         await this.me.goto('https://backend.wplace.live/me');
-        await this.me.waitForSelector('body');
+        await this.me.waitForSelector('body', { timeout: 15000 });
         const bodyText = await this.me.evaluate(() => document.body.innerText);
 
         if (bodyText.includes('1015')) {
