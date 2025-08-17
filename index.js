@@ -32,8 +32,15 @@ app.use(express.json({ limit: Infinity }));
 
 let currentSettings = {
     turnstileNotifications: false,
-    accountCooldown: 20000
+    accountCooldown: 20000,
+    dropletReserve: 0,
+    antiGriefStandby: 300000
 };
+if (existsSync("settings.json")) {
+    currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
+}
+const saveSettings = () => writeFileSync("settings.json", JSON.stringify(currentSettings, null, 4));
+
 
 const sseClients = new Set();
 let needToken = true;
@@ -87,10 +94,11 @@ class TemplateManager {
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
             await wplacer.loadUserInfo();
-            const amountToBuy = Math.floor(wplacer.userInfo.droplets / 500);
+            const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
+            const amountToBuy = Math.floor(affordableDroplets / 500);
 
             if (amountToBuy > 0) {
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s). Droplets: ${wplacer.userInfo.droplets}`);
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
                 try {
                     await wplacer.buyProduct(70, amountToBuy);
                     await this.sleep(10000); // Wait for the purchase to process
@@ -106,28 +114,42 @@ class TemplateManager {
         this.status = "Started.";
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
 
-        if (this.isFirstRun) {
-            log('SYSTEM', 'wplacer', `🚀 Calculating initial placement order for "${this.name}"...`);
-            const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
-                const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
-                try {
-                    await wplacer.login(users[userId].cookies);
-                    const diff = wplacer.userInfo.charges.max - wplacer.userInfo.charges.count;
-                    return { userId, diff };
-                } catch (error) {
-                    logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
-                    return { userId, diff: Infinity };
-                } finally {
-                    await wplacer.close();
-                }
-            }));
-            userChargeStates.sort((a, b) => a.diff - b.diff);
-            this.userIds = userChargeStates.map(u => u.userId);
-            log('SYSTEM', 'wplacer', `✅ Initial placement order determined: ${this.userIds.map(id => `${users[id].name}#${id}`).join(', ')}`);
-            this.isFirstRun = false;
-        }
-
         while (this.running) {
+            if (this.isFirstRun) {
+                log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
+                for (const userId of this.userIds) {
+                    if (!this.running) break;
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    wplacer.token = this.turnstileToken;
+                    try {
+                        const { id, name } = await wplacer.login(users[userId].cookies);
+                        this.status = `Initial run for ${name}#${id}`;
+                        log(id, name, `🏁 Starting initial turn...`);
+                        this.activeWplacer = wplacer;
+                        await wplacer.paint(this.drawingMethod);
+                        this.turnstileToken = wplacer.token;
+                        await this.handleUpgrades(wplacer);
+                        
+                        if (await wplacer.pixelsLeft() === 0) {
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
+                        }
+                    } catch (error) {
+                        logUserError(error, userId, users[userId].name, "perform initial user turn");
+                    } finally {
+                        if (wplacer.browser) await wplacer.close();
+                        this.activeWplacer = null;
+                    }
+                     if (this.running && this.userIds.length > 1) {
+                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                        await this.sleep(currentSettings.accountCooldown);
+                    }
+                }
+                this.isFirstRun = false;
+                log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
+                if (!this.running) continue; // Skip to the main loop's completion check
+            }
+
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
             let pixelsRemaining;
             try {
@@ -144,8 +166,8 @@ class TemplateManager {
             if (pixelsRemaining === 0) {
                 if (this.antiGriefMode) {
                     this.status = "Monitoring for changes.";
-                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" is complete. Monitoring... Checking again in 5 minutes.`);
-                    await this.sleep(300000);
+                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
+                    await this.sleep(currentSettings.antiGriefStandby);
                     continue;
                 } else {
                     log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
@@ -202,8 +224,9 @@ class TemplateManager {
                     const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                     try {
                         await chargeBuyer.login(users[this.masterId].cookies);
-                        if(chargeBuyer.userInfo.droplets >= 500) {
-                            const maxAffordable = Math.floor(chargeBuyer.userInfo.droplets / 500);
+                        const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
+                        if(affordableDroplets >= 500) {
+                            const maxAffordable = Math.floor(affordableDroplets / 500);
                             const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
                             if (amountToBuy > 0) {
                                 log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
@@ -260,6 +283,7 @@ app.get("/templates", (_, res) => res.json(templates));
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
     currentSettings = { ...currentSettings, ...req.body };
+    saveSettings();
     res.sendStatus(200);
 });
 app.get("/user/status/:id", async (req, res) => {

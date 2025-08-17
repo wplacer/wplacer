@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.4.3
+// @version      1.4.0
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -9,8 +9,7 @@
 // @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
-// @connect      localhost
-// @connect      127.0.0.1
+// @connect      *
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
@@ -18,8 +17,9 @@
 // ==/UserScript==
 
 (() => {
-  const host = GM_getValue("wplacer_server_host", "127.0.0.1:80");
+  const host = GM_getValue("wplacer_server_host", "localhost");
 
+  // ---- send-to-server (with dedupe so we don't double-send) ----
   const sent = new Set();
 
   function sendTokenToServer(token) {
@@ -31,17 +31,19 @@
       url: `http://${host}/t`,
       data: JSON.stringify({ t: token }),
       headers: { "Content-Type": "application/json" },
-      onload: (res) => console.log("✅ Server response:", res.responseText),
-      onerror: (err) => console.error("❌ Request failed:", err)
+      onload: (res) => console.log("Server response:", res.responseText),
+      onerror: (err) => console.error("Request failed:", err)
     });
   }
 
+  // Listen for tokens forwarded from injected page script
   window.addEventListener("message", (event) => {
     const d = event?.data;
     if (!d || d.type !== "WPLACER_TOKEN" || !d.token) return;
     sendTokenToServer(d.token);
   });
 
+  // ---- check local server; if up, inject hooks into the page context ----
   const promptForHost = () => {
     const newHost = prompt(
       'Please enter your server\'s IP and port (example: "127.0.0.1:80"):',
@@ -65,15 +67,16 @@
     method: "GET",
     url: `http://${host}/ping`,
     onload: (res) => {
-      console.log("✅ Server response:", res.responseText);
+      console.log("Server response:", res.responseText);
       if (res.responseText !== "Pong!") return;
 
+      // Inject a page-context script so we can 1) hook fetch, 2) listen for CF postMessage
       const script = document.createElement("script");
       script.id = "wplacer";
       script.textContent = `(function () {
-  console.log("✅ Hello wplacer!");
-  const host = "${host}";
+  console.log("✅ Hello Wplace!");
 
+  // Forward tokens to the userscript via postMessage (it will send to your server)
   const postToken = (t, from, extra) => {
     try {
       if (!t || typeof t !== "string" || t.length < 10) return;
@@ -82,8 +85,9 @@
   };
 
 try {
-  const es = new EventSource(\`http://${host}/events\`);
+  const es = new EventSource("http://__HOST__/events".replace("__HOST__", /* interpolate host here */));
   es.addEventListener("request-token", () => {
+    // Try a few sources quickly:
     try { const t = window.na?.captcha?.token; if (t) postToken(t, "existing-state"); } catch {}
     try {
       const inp = document.querySelector('input[name="cf-turnstile-response"], input[name*="turnstile" i]');
@@ -91,9 +95,10 @@ try {
     } catch {}
     try { if (window.__lastTurnstileToken) postToken(window.__lastTurnstileToken, "existing-var"); } catch {}
   });
-} catch (e) { console.error("wplacer userscript failed to connect to event source:", e) }
+} catch (e) { /* ignore */ }
 
 
+  // 1) Catch tokens at use-time (when painting) via fetch hook
   const origFetch = window.fetch;
   window.fetch = async function (input, init) {
     try {
@@ -116,6 +121,7 @@ try {
     return origFetch.apply(this, arguments);
   };
 
+  // 2) Catch tokens minted via postMessage from Cloudflare Turnstile
   (function () {
     const seen = new Set();
     const deliver = (token, from, extra) => {
@@ -126,6 +132,7 @@ try {
 
     window.addEventListener('message', (e) => {
       try {
+        // Only consider messages from the Turnstile domain
         const host = (new URL(e.origin)).host;
         if (!/challenges\\.cloudflare\\.com$/i.test(host)) return;
 
@@ -133,6 +140,7 @@ try {
         let token = null;
 
         if (typeof data === 'string') {
+          // Many CF tokens start with "0."
           if (data.startsWith('0.') && data.length > 20) token = data;
         } else if (data && typeof data === 'object') {
           token = data.token || data.c || data.response || data['cf-turnstile-response'] || null;
@@ -150,10 +158,10 @@ try {
     },
     onerror: () => {
       const userConfirm = confirm(
-        "Is your wplacer local server running? Click OK if yes, otherwise Cancel."
+        "Is your Wplacer local server running? Click OK if yes, otherwise Cancel."
       );
       if (userConfirm) promptForHost();
-      else console.warn("⚠️ wplacer server is not running. Please start your local server.");
+      else console.warn("Wplacer server is not running. Please start your local server.");
     }
   });
 })();

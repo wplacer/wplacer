@@ -40,6 +40,8 @@ const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
+const dropletReserve = $("dropletReserve");
+const antiGriefStandby = $("antiGriefStandby");
 const totalCharges = $("totalCharges");
 const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
@@ -240,6 +242,7 @@ canBuyCharges.addEventListener('change', () => {
 
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    
     if (!currentTemplate || currentTemplate.width === 0) {
         showMessage("Error", "Please convert an image before creating a template.");
         return;
@@ -257,8 +260,7 @@ templateForm.addEventListener('submit', async (e) => {
             userIds: selectedUsers,
             canBuyCharges: canBuyCharges.checked,
             canBuyMaxCharges: canBuyMaxCharges.checked,
-            antiGriefMode: antiGriefMode.checked,
-            drawingMethod: drawingModeSelect.value
+            antiGriefMode: antiGriefMode.checked
         });
         if (response.status === 200) {
             showMessage("Success", "Created! Go to \"Manage Templates\" to start and check console for details.");
@@ -522,8 +524,11 @@ openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
+        drawingModeSelect.value = currentSettings.drawingMethod;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
+        dropletReserve.value = currentSettings.dropletReserve;
+        antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
     } catch (error) {
         handleError(error);
     }
@@ -531,11 +536,13 @@ openSettings.addEventListener("click", async () => {
 });
 
 // Settings
-const savedDrawingMode = localStorage.getItem('drawingMode') || 'linear';
-drawingModeSelect.value = savedDrawingMode;
-drawingModeSelect.addEventListener('change', () => {
-    localStorage.setItem('drawingMode', drawingModeSelect.value);
-    showMessage("Success", "Drawing mode saved!");
+drawingModeSelect.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { drawingMethod: drawingModeSelect.value });
+        showMessage("Success", "Drawing mode saved!");
+    } catch (error) {
+        handleError(error);
+    }
 });
 
 turnstileNotifications.addEventListener('change', async () => {
@@ -559,4 +566,51 @@ accountCooldown.addEventListener('change', async () => {
     } catch (error) {
         handleError(error);
     }
+});
+
+dropletReserve.addEventListener('change', async () => {
+    try {
+        const newReserve = parseInt(dropletReserve.value, 10);
+        if (isNaN(newReserve) || newReserve < 0) {
+            showMessage("Error", "Please enter a valid non-negative number for the droplet reserve.");
+            return;
+        }
+        await axios.put('/settings', { dropletReserve: newReserve });
+        showMessage("Success", "Droplet reserve saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+antiGriefStandby.addEventListener('change', async () => {
+    try {
+        const newStandby = parseInt(antiGriefStandby.value, 10) * 60000;
+        if (isNaN(newStandby) || newStandby < 60000) {
+            showMessage("Error", "Please enter a valid number (at least 1 minute).");
+            return;
+        }
+        await axios.put('/settings', { antiGriefStandby: newStandby });
+        showMessage("Success", "Anti-grief standby time saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+tx.addEventListener('blur', () => {
+    const value = tx.value.trim();
+    const parts = value.split(/\s+/);
+    if (parts.length === 4) {
+        tx.value = parts[0].replace(/[^0-9]/g, '');
+        ty.value = parts[1].replace(/[^0-9]/g, '');
+        px.value = parts[2].replace(/[^0-9]/g, '');
+        py.value = parts[3].replace(/[^0-9]/g, '');
+    } else {
+        tx.value = value.replace(/[^0-9]/g, '');
+    }
+});
+
+[ty, px, py].forEach(input => {
+    input.addEventListener('blur', () => {
+        input.value = input.value.replace(/[^0-9]/g, '');
+    });
 });
