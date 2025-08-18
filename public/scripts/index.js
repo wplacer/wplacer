@@ -18,6 +18,8 @@ const details = $("details");
 const size = $("size");
 const ink = $("ink");
 const templateCanvas = $("templateCanvas");
+const previewCanvas = $("previewCanvas");
+const previewCanvasButton = $("previewCanvasButton");
 const templateForm = $("templateForm");
 const convertInput = $("convertInput");
 const replaceInput = $("replaceInput");
@@ -171,6 +173,66 @@ const loadTemplates = async (f) => {
         handleError(error);
     };
 };
+const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
+    const TILE_SIZE = 1000;
+    const startX = txVal * TILE_SIZE + pxVal;
+    const startY = tyVal * TILE_SIZE + pyVal;
+    const endX = startX + width;
+    const endY = startY + height;
+    const startTileX = Math.floor(startX / TILE_SIZE);
+    const startTileY = Math.floor(startY / TILE_SIZE);
+    const endTileX = Math.floor((endX - 1) / TILE_SIZE);
+    const endTileY = Math.floor((endY - 1) / TILE_SIZE);
+
+    previewCanvas.width = width;
+    previewCanvas.height = height;
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+
+    for (let txi = startTileX; txi <= endTileX; txi++) {
+        for (let tyi = startTileY; tyi <= endTileY; tyi++) {
+            try {
+                const response = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
+                const img = new Image();
+                img.src = response.data.image;
+                await img.decode();
+                const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
+                const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
+                const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
+                const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                const sw = ex - sx;
+                const sh = ey - sy;
+                const dx = txi * TILE_SIZE + sx - startX;
+                const dy = tyi * TILE_SIZE + sy - startY;
+                ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
+            } catch (error) {
+                handleError(error);
+                return;
+            }
+        }
+    }
+
+    const baseImage = ctx.getImageData(0, 0, width, height);
+    const templateCtx = templateCanvas.getContext('2d');
+    const templateImage = templateCtx.getImageData(0, 0, width, height);
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(templateCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+    const b = baseImage.data;
+    const t = templateImage.data;
+    for (let i = 0; i < t.length; i += 4) {
+        // skip transparent template pixels
+        if (t[i + 3] === 0) continue;
+        // skip highlighting if base pixel is transparent
+        if (b[i + 3] === 0) continue;
+
+        const idx = i / 4;
+        const x = idx % width;
+        const y = Math.floor(idx / width);
+        ctx.fillStyle = 'rgba(255,0,0,0.8)';
+        ctx.fillRect(x, y, 1, 1);
+    }
+};
 let currentTemplate = { width: 0, height: 0, data: [] };
 const processImageFile = (file, callback) => {
     if (file) {
@@ -211,6 +273,17 @@ convertInput.addEventListener('change', async () => {
         ink.innerHTML = template.ink;
         details.style.display = "block";
     });
+});
+previewCanvasButton.addEventListener('click', async () => {
+    const txVal = parseInt(tx.value, 10);
+    const tyVal = parseInt(ty.value, 10);
+    const pxVal = parseInt(px.value, 10);
+    const pyVal = parseInt(py.value, 10);
+    if (isNaN(txVal) || isNaN(tyVal) || isNaN(pxVal) || isNaN(pyVal) || currentTemplate.width === 0) {
+        showMessage("Error", "Please convert an image and enter valid coordinates before previewing.");
+        return;
+    }
+    await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
 });
 replaceInput.addEventListener('change', async () => {
     const templateId = replaceInput.dataset.templateId;
