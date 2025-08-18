@@ -48,6 +48,7 @@ const saveSettings = () => writeFileSync("settings.json", JSON.stringify(current
 
 const sseClients = new Set();
 let needToken = true;
+const activeBrowserUsers = new Set(); // --- BROWSER LOCK ---
 
 function sseBroadcast(event, data) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -122,6 +123,8 @@ class TemplateManager {
                 log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
                 
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
+                    if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
+                    activeBrowserUsers.add(userId);
                     const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
                     try {
                         await wplacer.login(users[userId].cookies);
@@ -131,6 +134,7 @@ class TemplateManager {
                         return { userId, charges: -1 };
                     } finally {
                         await wplacer.close();
+                        activeBrowserUsers.delete(userId);
                     }
                 }));
 
@@ -139,6 +143,8 @@ class TemplateManager {
 
                 for (const userId of sortedUserIds) {
                     if (!this.running) break;
+                    if (activeBrowserUsers.has(userId)) continue;
+                    activeBrowserUsers.add(userId);
                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                     wplacer.token = this.turnstileToken;
                     try {
@@ -151,14 +157,15 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false; // Stop the main loop
-                            break; // Exit the initial run loop
+                            this.running = false;
+                            break;
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
                     } finally {
                         if (wplacer.browser) await wplacer.close();
                         this.activeWplacer = null;
+                        activeBrowserUsers.delete(userId);
                     }
                      if (this.running && this.userIds.length > 1) {
                         log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
@@ -167,9 +174,14 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue; // Skip to the main loop's completion check
+                if (!this.running) continue;
             }
 
+            if (activeBrowserUsers.has(this.masterId)) {
+                await this.sleep(5000);
+                continue;
+            }
+            activeBrowserUsers.add(this.masterId);
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
             let pixelsRemaining;
             try {
@@ -181,6 +193,7 @@ class TemplateManager {
                 continue;
             } finally {
                 await checkWplacer.close();
+                activeBrowserUsers.delete(this.masterId);
             }
 
             if (pixelsRemaining === 0) {
@@ -199,6 +212,8 @@ class TemplateManager {
 
             let userStates = [];
             for (const userId of this.userIds) {
+                 if (activeBrowserUsers.has(userId)) continue;
+                 activeBrowserUsers.add(userId);
                  const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                  try {
                      await wplacer.login(users[userId].cookies);
@@ -207,6 +222,7 @@ class TemplateManager {
                      logUserError(error, userId, users[userId].name, "check user status");
                  } finally {
                      await wplacer.close();
+                     activeBrowserUsers.delete(userId);
                  }
             }
             
@@ -223,6 +239,8 @@ class TemplateManager {
             }
 
             if (userToRun) {
+                if (activeBrowserUsers.has(userToRun.userId)) continue;
+                activeBrowserUsers.add(userToRun.userId);
                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                 try {
                     const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
@@ -238,6 +256,7 @@ class TemplateManager {
                 } finally {
                     await wplacer.close();
                     this.activeWplacer = null;
+                    activeBrowserUsers.delete(userToRun.userId);
                 }
                 if (this.running && this.userIds.length > 1) {
                     log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
@@ -245,24 +264,28 @@ class TemplateManager {
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
-                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                    try {
-                        await chargeBuyer.login(users[this.masterId].cookies);
-                        const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                        if(affordableDroplets >= 500) {
-                            const maxAffordable = Math.floor(affordableDroplets / 500);
-                            const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
-                            if (amountToBuy > 0) {
-                                log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
-                                await chargeBuyer.buyProduct(80, amountToBuy);
-                                await this.sleep(currentSettings.purchaseCooldown);
-                                continue;
+                    if (!activeBrowserUsers.has(this.masterId)) {
+                        activeBrowserUsers.add(this.masterId);
+                        const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                        try {
+                            await chargeBuyer.login(users[this.masterId].cookies);
+                            const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
+                            if(affordableDroplets >= 500) {
+                                const maxAffordable = Math.floor(affordableDroplets / 500);
+                                const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
+                                if (amountToBuy > 0) {
+                                    log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
+                                    await chargeBuyer.buyProduct(80, amountToBuy);
+                                    await this.sleep(currentSettings.purchaseCooldown);
+                                    continue;
+                                }
                             }
+                        } catch (error) {
+                             logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
+                        } finally {
+                            await chargeBuyer.close();
+                            activeBrowserUsers.delete(this.masterId);
                         }
-                    } catch (error) {
-                         logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
-                    } finally {
-                        await chargeBuyer.close();
                     }
                 }
                 
@@ -310,7 +333,8 @@ app.put('/settings', (req, res) => {
 });
 app.get("/user/status/:id", async (req, res) => {
     const { id } = req.params;
-    if (!users[id]) return res.sendStatus(404);
+    if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409); // Conflict
+    activeBrowserUsers.add(id);
     const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(users[id].cookies);
@@ -320,6 +344,7 @@ app.get("/user/status/:id", async (req, res) => {
         res.status(500).json({ error: error.message });
     } finally {
         await wplacer.close();
+        activeBrowserUsers.delete(id);
     }
 });
 app.post("/user", async (req, res) => {
@@ -327,6 +352,8 @@ app.post("/user", async (req, res) => {
     const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(req.body.cookies);
+        if (activeBrowserUsers.has(userInfo.id)) return res.sendStatus(409);
+        activeBrowserUsers.add(userInfo.id);
         users[userInfo.id] = { name: userInfo.name, cookies: req.body.cookies };
         saveUsers();
         res.json(userInfo);
@@ -334,6 +361,7 @@ app.post("/user", async (req, res) => {
         logUserError(error, 'NEW_USER', 'N/A', 'add new user');
         res.status(500).json({ error: error.message });
     } finally {
+        if (wplacer.userInfo) activeBrowserUsers.delete(wplacer.userInfo.id);
         await wplacer.close();
     }
 });
@@ -436,20 +464,26 @@ app.post("/t", async (req, res) => {
     res.sendStatus(200);
 });
 
-// keep alive system
+// --- New Keep-Alive System ---
 const keepAlive = async () => {
-    log('SYSTEM', 'wplacer', '⚙️ Performing periodic cookie keep alive check for all users...');
+    log('SYSTEM', 'wplacer', '⚙️ Performing periodic cookie keep-alive check for all users...');
     const userIds = Object.keys(users);
     for (const userId of userIds) {
+        if (activeBrowserUsers.has(userId)) {
+            log(userId, users[userId].name, '⚠️ Skipping keep-alive check: user is currently busy.');
+            continue;
+        }
+        activeBrowserUsers.add(userId);
         const user = users[userId];
         const wplacer = new WPlacer();
         try {
             await wplacer.login(user.cookies);
-            log(userId, user.name, '✅ Cookie keep alive successful.');
+            log(userId, user.name, '✅ Cookie keep-alive successful.');
         } catch (error) {
-            log(userId, user.name, '❌ Cookie keep alive failed. The cookie may be expired.');
+            logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
             if (wplacer.browser) await wplacer.close();
+            activeBrowserUsers.delete(userId);
         }
     }
     log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
