@@ -1,4 +1,14 @@
 @echo off
+
+if /i not "%1" == ":run" (
+    echo Starting in a new window to ensure the script can pause...
+    start "Update Script" cmd /c ""%~f0" :run & pause"
+    goto :eof
+)
+
+shift /1
+
+
 setlocal enabledelayedexpansion
 
 echo Verifying Git Installation...
@@ -21,8 +31,7 @@ if %errorlevel% neq 0 (
     echo Please install Git manually at: https://git-scm.com/
     echo Or upgrade to Windows 10 version 1809+ or Windows 11.
     echo.
-    pause
-    exit /b 1
+    goto :final_pause
 )
 
 echo Winget found!
@@ -38,8 +47,7 @@ if %errorlevel% neq 0 (
     echo Installation failed!
     echo Try to install manually at: https://git-scm.com/
     echo.
-    pause
-    exit /b 1
+    goto :final_pause
 )
 
 echo.
@@ -48,8 +56,7 @@ echo.
 echo Git has been installed. To use Git, you must restart your command prompt (terminal) for PATH changes to take effect.
 echo After restarting, please run this script again.
 echo.
-pause
-exit /b 0
+goto :final_pause
 
 :node_version_check
 echo Verifying Node.js installation and version...
@@ -59,24 +66,37 @@ if %errorlevel% neq 0 (
     goto :install_node_prompt
 )
 
-for /f "tokens=1,2 delims=.v" %%a in ('node -v') do (
-    set "NODE_MAJOR=%%a"
-    set "NODE_MINOR=%%b"
+rem  So apparently the previous variable name corrupts the environment because batch is actually worthless
+set "NODE_VERSION_STR="
+for /f "delims=" %%v in ('node -v') do set "NODE_VERSION_STR=%%v"
+
+rem Extract by character position
+set "NODE_MAJOR=!NODE_VERSION_STR:~1,2!"
+set "NODE_MINOR=!NODE_VERSION_STR:~4,2!"
+
+rem Use a safe variable name: VERSION_OK
+set VERSION_OK=0
+if defined NODE_MAJOR (
+    if !NODE_MAJOR! GTR 20 (
+        set VERSION_OK=1
+    ) else if !NODE_MAJOR! EQU 20 (
+        if !NODE_MINOR! GEQ 6 (
+            set VERSION_OK=1
+        )
+    )
 )
 
-set IS_COMPATIBLE=1
-if !NODE_MAJOR! LSS 20 set IS_COMPATIBLE=0
-if !NODE_MAJOR! EQU 20 if !NODE_MINOR! LSS 6 set IS_COMPATIBLE=0
+if !VERSION_OK! equ 1 goto :version_is_good
 
-if !IS_COMPATIBLE! equ 1 (
-    echo Node.js version is compatible (v!NODE_MAJOR!.!NODE_MINOR!.x found).
-    echo.
-    goto :git_pull
-) else (
-    echo Your Node.js version (v!NODE_MAJOR!.!NODE_MINOR!.x) is outdated.
-    echo This project requires Node.js v20.6.0 or newer.
-    goto :install_node_prompt
-)
+echo Your Node.js version (v!NODE_MAJOR!.!NODE_MINOR!.x) is outdated or could not be parsed.
+echo This project requires Node.js v20.6.0 or newer.
+goto :install_node_prompt
+
+:version_is_good
+echo Node.js version is compatible (v!NODE_MAJOR!.!NODE_MINOR!.x found).
+echo.
+goto :git_pull
+
 
 :install_node_prompt
 echo.
@@ -87,8 +107,7 @@ if %errorlevel% neq 0 (
     echo Please install/upgrade Node.js manually from:
     echo https://nodejs.org/en/download/current
     echo.
-    pause
-    exit /b 1
+    goto :final_pause
 )
 
 echo Winget is available to help.
@@ -99,8 +118,7 @@ if /i "!CHOICE!" neq "Y" (
     echo Please install Node.js v20.6.0+ manually to proceed.
     echo https://nodejs.org/en/download/current
     echo.
-    pause
-    exit /b 1
+    goto :final_pause
 )
 
 echo.
@@ -114,8 +132,7 @@ if %errorlevel% neq 0 (
     echo Installation failed!
     echo Please try to install/upgrade manually from: https://nodejs.org/en/download/current
     echo.
-    pause
-    exit /b 1
+    goto :final_pause
 )
 
 echo.
@@ -124,8 +141,7 @@ echo.
 echo You MUST restart your command prompt (terminal) for PATH changes to take effect.
 echo After restarting, please run this script again to complete the update.
 echo.
-pause
-exit /b 0
+goto :final_pause
 
 
 :git_pull
@@ -161,7 +177,6 @@ if %errorlevel% equ 0 (
     echo.
     echo Repository updated successfully!
     
-    rem -- New section to run npm install after a successful pull --
     if exist package.json (
         echo.
         echo Checking for Node.js package updates...
@@ -192,4 +207,7 @@ if %errorlevel% equ 0 (
 :end
 echo.
 echo All done!
-pause
+goto :final_pause
+
+
+:final_pause
