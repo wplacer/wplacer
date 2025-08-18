@@ -34,13 +34,14 @@ export const log = async (id, name, data, error) => {
     };
 };
 export class WPlacer {
-    constructor(template, coords, canBuyCharges, requestTokenCallback, settings) {
+    constructor(template, coords, canBuyCharges, requestTokenCallback, settings, unlockedColors) {
         this.status = "Waiting until called to start.";
         this.template = template;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.requestTokenCallback = requestTokenCallback;
         this.settings = settings;
+        this.unlockedColors = unlockedColors;
         this.cookies = null;
         this.browser = null;
         this.me = null;
@@ -207,7 +208,7 @@ export class WPlacer {
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 const templateColor = this.template.data[x][y];
-                if (templateColor === 0) continue;
+                if (templateColor === 0 || templateColor >= 32 || !this.unlockedColors.includes(templateColor)) continue;
 
                 const globalPx = startPx + x;
                 const globalPy = startPy + y;

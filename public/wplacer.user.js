@@ -112,4 +112,57 @@
             else console.warn("⚠️ wplacer: Server is not running. Please start your local server.");
         }
     });
+    async function handlePaintButtons() {
+        // Click the Paint button
+        const paintButton = document.querySelector('button.btn.btn-primary.btn-lg');
+        if (paintButton) paintButton.click();
+
+        // Wait for UI update
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Look for collapse button
+        const collapseButton = document.querySelector(
+            'button.btn.btn-lg.btn-square.sm\\:btn-xl.absolute.bottom-0.left-0.shadow-md svg path[d="m356-160-56-56 180-180 180 180-56 56-124-124-124 124Zm124-404L300-744l56-56 124 124 124-124 56 56-180 180Z"]'
+        );
+
+        // If collapse not found → click expand
+        if (!collapseButton) {
+            const expandButton = document.querySelector(
+                'button.btn.btn-lg.btn-square.sm\\:btn-xl.absolute.bottom-0.left-0.shadow-md'
+            );
+            if (expandButton) expandButton.click();
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Collect color buttons without <svg>
+        const colorElements = Array.from(
+            document.querySelectorAll('button[id^="color-"]')
+        ).filter(el => !el.querySelector('svg'));
+
+        // Extract IDs
+        const colorIds = colorElements.map(el => {
+            const id = el.id.replace('color-', '');
+            return parseInt(id) - 1;
+        });
+
+        return colorIds.filter(id => id >= 33 && id <= 64);
+    }
+
+    // Run on page load
+    window.addEventListener('load', () => {
+        handlePaintButtons().then(colorIds => {
+            console.log('🎨 Color IDs found:', colorIds);
+
+            // Send to server endpoint
+            GM_xmlhttpRequest({
+                method: "POST",
+                url: `http://${host}/colors`,
+                data: JSON.stringify({ colors: colorIds }),
+                headers: { "Content-Type": "application/json" },
+                onload: res => console.log("✅ Server response (colors):", res.responseText),
+                onerror: err => console.error("❌ Failed to send colors:", err)
+            });
+        });
+    });
 })();

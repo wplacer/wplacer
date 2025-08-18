@@ -20,7 +20,8 @@ const saveTemplates = () => {
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
-            userIds: t.userIds
+            userIds: t.userIds,
+            unlockedColors: t.unlockedColors
         };
     }
     writeFileSync("templates.json", JSON.stringify(templatesToSave, null, 4));
@@ -30,6 +31,7 @@ const app = express();
 app.use(cors({ origin: 'https://wplace.live' }));
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
+app.locals.unlockedColors = [];
 
 let currentSettings = {
     turnstileNotifications: false,
@@ -171,7 +173,7 @@ class TemplateManager {
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
                     if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
+                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
                     try {
                         await wplacer.login(users[userId].cookies);
                         return { userId, charges: wplacer.userInfo.charges.count };
@@ -191,7 +193,7 @@ class TemplateManager {
                     if (!this.running) break;
                     if (activeBrowserUsers.has(userId)) continue;
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
                     wplacer.token = this.turnstileToken;
                     try {
                         const { id, name } = await wplacer.login(users[userId].cookies);
@@ -228,7 +230,7 @@ class TemplateManager {
                 continue;
             }
             activeBrowserUsers.add(this.masterId);
-            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
             let pixelsRemaining;
             try {
                 await checkWplacer.login(users[this.masterId].cookies);
@@ -258,7 +260,7 @@ class TemplateManager {
 
             let userStates = [];
             for (const userId of this.userIds) {
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
                 try {
                     await wplacer.login(users[userId].cookies);
                     // store full charges object and cooldown; some accounts may not include cooldownMs directly
@@ -292,7 +294,7 @@ class TemplateManager {
             if (userToRun) {
                 if (activeBrowserUsers.has(userToRun.userId)) continue;
                 activeBrowserUsers.add(userToRun.userId);
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
                 try {
                     const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                     this.status = `Running user ${name}#${id}`;
@@ -316,7 +318,7 @@ class TemplateManager {
             } else if (this.running) {
                 if (this.canBuyCharges) {
 
-                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, app.locals.unlockedColors);
                     try {
                         await chargeBuyer.login(users[this.masterId].cookies);
                         const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
@@ -534,6 +536,19 @@ app.post("/t", async (req, res) => {
         }
     }
     res.sendStatus(200);
+});
+app.post("/colors", (req, res) => {
+    const { colors } = req.body;
+    if (!colors || !Array.isArray(colors)) {
+        return res.status(400).json({ error: "Colors must be an array" });
+    }
+    app.locals.unlockedColors = colors;
+    // Update all existing templates with the new unlocked colors
+    for (const templateId in templates) {
+        templates[templateId].unlockedColors = colors;
+    }
+
+    res.status(200).json({ success: true, count: colors.length });
 });
 
 // --- New Keep-Alive System ---
