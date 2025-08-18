@@ -6,7 +6,7 @@ git --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Git found!
     echo.
-    goto :git_pull
+    goto :node_version_check
 )
 
 echo Git not found!
@@ -45,15 +45,90 @@ if %errorlevel% neq 0 (
 echo.
 echo Git successfully installed!
 echo.
-echo Git has been installed and PATH updated by winget.
 echo Git has been installed. To use Git, you must restart your command prompt (terminal) for PATH changes to take effect.
 echo After restarting, please run this script again.
 echo.
 pause
 exit /b 0
 
-:git_pull
+:node_version_check
+echo Verifying Node.js installation and version...
+node -v >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Node.js not found. It is a required dependency.
+    goto :install_node_prompt
+)
 
+for /f "tokens=1,2 delims=.v" %%a in ('node -v') do (
+    set "NODE_MAJOR=%%a"
+    set "NODE_MINOR=%%b"
+)
+
+set IS_COMPATIBLE=1
+if !NODE_MAJOR! LSS 20 set IS_COMPATIBLE=0
+if !NODE_MAJOR! EQU 20 if !NODE_MINOR! LSS 6 set IS_COMPATIBLE=0
+
+if !IS_COMPATIBLE! equ 1 (
+    echo Node.js version is compatible (v!NODE_MAJOR!.!NODE_MINOR!.x found).
+    echo.
+    goto :git_pull
+) else (
+    echo Your Node.js version (v!NODE_MAJOR!.!NODE_MINOR!.x) is outdated.
+    echo This project requires Node.js v20.6.0 or newer.
+    goto :install_node_prompt
+)
+
+:install_node_prompt
+echo.
+winget --version >nul 2>&1
+if %errorlevel% neq 0 (
+    echo Winget not found! Cannot install Node.js automatically.
+    echo.
+    echo Please install/upgrade Node.js manually from:
+    echo https://nodejs.org/en/download/current
+    echo.
+    pause
+    exit /b 1
+)
+
+echo Winget is available to help.
+set /p "CHOICE=Do you want to install/upgrade Node.js automatically using winget? (Y/N): "
+if /i "!CHOICE!" neq "Y" (
+    echo.
+    echo Action cancelled by user.
+    echo Please install Node.js v20.6.0+ manually to proceed.
+    echo https://nodejs.org/en/download/current
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Installing/Upgrading Node.js with winget...
+echo This may take a few minutes.
+echo.
+winget install -e --id OpenJS.NodeJS --source winget --accept-package-agreements --accept-source-agreements
+
+if %errorlevel% neq 0 (
+    echo.
+    echo Installation failed!
+    echo Please try to install/upgrade manually from: https://nodejs.org/en/download/current
+    echo.
+    pause
+    exit /b 1
+)
+
+echo.
+echo Node.js successfully installed/upgraded!
+echo.
+echo You MUST restart your command prompt (terminal) for PATH changes to take effect.
+echo After restarting, please run this script again to complete the update.
+echo.
+pause
+exit /b 0
+
+
+:git_pull
 echo Repository:
 git remote get-url origin 2>nul
 if %errorlevel% neq 0 (
@@ -85,6 +160,23 @@ git pull
 if %errorlevel% equ 0 (
     echo.
     echo Repository updated successfully!
+    
+    rem -- New section to run npm install after a successful pull --
+    if exist package.json (
+        echo.
+        echo Checking for Node.js package updates...
+        npm install
+        
+        if %errorlevel% equ 0 (
+            echo.
+            echo Node.js packages are up to date!
+        ) else (
+            echo.
+            echo Error: 'npm install' failed.
+            echo Please check your Node.js and npm setup. You may need to run 'npm install' manually.
+        )
+    )
+
 ) else (
     echo.
     echo Error updating the repository.
