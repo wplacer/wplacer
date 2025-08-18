@@ -98,6 +98,25 @@ p.credits a img {
     height: 1.2em;
 }
 
+a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25em;
+    margin-top: 24px;
+    transition: color 0.2s ease;
+}
+
+a:hover {
+    color: var(--text-primary);
+}
+
+a img {
+    width: 1.5em;
+    height: 1.5em;
+}
+
 button {
     font-family: var(--font-family);
     font-weight: 500;
@@ -192,7 +211,7 @@ label {
     color: var(--text-secondary);
 }
 
-.coordinate-grid {
+.coordinates {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
@@ -216,37 +235,45 @@ label {
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.user-info {
+.user .left {
     display: flex;
     flex-direction: column;
     text-align: left;
     gap: 8px;
 }
 
-.user-info span:first-child {
+.user .left span:first-child {
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.user-info span:last-child {
+.user .left span:last-child {
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
 
-.user-actions button {
+.user .right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
+.user .right button {
     padding: 8px;
+    display: inline-flex;
     background: none;
     border: none;
     margin: 0;
 }
 
-.user-actions button img {
+.user .right button img {
     filter: none;
     opacity: 0.6;
     transition: opacity 0.2s ease;
 }
 
-.user-actions button:hover img {
+.user .right button:hover img {
     opacity: 1;
 }
 
@@ -258,6 +285,10 @@ label {
 .user-stats b {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+.current-level {
+  font-weight: bold;
 }
 
 #chargeSummary {
@@ -345,20 +376,20 @@ canvas {
 .template .status-waiting { color: var(--warning-color); }
 .template .status-stopped { color: var(--error-color); }
 
-.template-actions, .template-actions-all {
+.template .buttons {
     display: flex;
     gap: 10px;
     margin-top: 16px;
 }
 
-.setting-toggle {
+.checkbox {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin: 20px 0;
 }
 
-.setting-toggle label[for] {
+.checkbox label[for] {
     margin: 0;
 }
 
