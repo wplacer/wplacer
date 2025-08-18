@@ -43,7 +43,7 @@
         </div>
 
         <div id="addTemplate" style="display: none;">
-            <h2>Add Template</h2>
+            <h2 id="templateFormTitle">Add Template</h2>
             <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg">Convert Image</button>
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
@@ -90,12 +90,11 @@
                 
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
             <h2>Manage Templates</h2>
-            <input type="file" style="display: none;" accept="image/png" id="replaceInput">
             <div class="template-actions-all">
                 <button id="startAll" class="primary-button"><img src="icons/playAll.svg">Start All</button>
                 <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>

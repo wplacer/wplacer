@@ -32,8 +32,9 @@ app.use(express.json({ limit: Infinity }));
 let currentSettings = {
     turnstileNotifications: false,
     accountCooldown: 20000,
+    purchaseCooldown: 5000,
     dropletReserve: 0,
-    antiGriefStandby: 300000,
+    antiGriefStandby: 600000,
     drawingMethod: 'linear',
     chargeThreshold: 0.5
 };
@@ -101,8 +102,8 @@ class TemplateManager {
                 log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
                 try {
                     await wplacer.buyProduct(70, amountToBuy);
-                    await this.sleep(10000); // Wait for the purchase to process
-                    await wplacer.loadUserInfo(); // Refresh user info after purchase
+                    await this.sleep(currentSettings.purchaseCooldown);
+                    await wplacer.loadUserInfo();
                 } catch (error) {
                     logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
                 }
@@ -131,8 +132,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false; // Stop the main loop
-                            break; // Exit the initial run loop
+                            this.running = false;
+                            break;
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -147,7 +148,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue; // Skip to the main loop's completion check
+                if (!this.running) continue;
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -235,7 +236,7 @@ class TemplateManager {
                             if (amountToBuy > 0) {
                                 log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
                                 await chargeBuyer.buyProduct(80, amountToBuy);
-                                await this.sleep(10000);
+                                await this.sleep(currentSettings.purchaseCooldown);
                                 continue;
                             }
                         }
@@ -351,10 +352,28 @@ app.delete("/template/:id", async (req, res) => {
     saveTemplates();
     res.sendStatus(200);
 });
-app.put("/template/image/:id", async (req, res) => {
-    if (!req.params.id || !templates[req.params.id] || !req.body.template) return res.sendStatus(400);
-    const manager = templates[req.params.id];
-    manager.template = req.body.template;
+app.put("/template/edit/:id", async (req, res) => {
+    const { id } = req.params;
+    if (!templates[id]) return res.sendStatus(404);
+
+    const manager = templates[id];
+    const updatedData = req.body;
+
+    manager.name = updatedData.templateName;
+    manager.coords = updatedData.coords;
+    manager.userIds = updatedData.userIds;
+    manager.canBuyCharges = updatedData.canBuyCharges;
+    manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
+    manager.antiGriefMode = updatedData.antiGriefMode;
+    
+    if (updatedData.template) {
+        manager.template = updatedData.template;
+    }
+
+    manager.masterId = manager.userIds[0];
+    manager.masterName = users[manager.masterId].name;
+    manager.masterIdentifier = manager.userIds.map(uid => `${users[uid].name}#${uid}`).join(', ');
+
     saveTemplates();
     res.sendStatus(200);
 });

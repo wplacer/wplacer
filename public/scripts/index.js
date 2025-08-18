@@ -21,8 +21,8 @@ const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
 const templateForm = $("templateForm");
+const templateFormTitle = $("templateFormTitle");
 const convertInput = $("convertInput");
-const replaceInput = $("replaceInput");
 const templateName = $("templateName");
 const tx = $("tx");
 const ty = $("ty");
@@ -285,23 +285,6 @@ previewCanvasButton.addEventListener('click', async () => {
     }
     await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
 });
-replaceInput.addEventListener('change', async () => {
-    const templateId = replaceInput.dataset.templateId;
-    if (!templateId) return;
-
-    processImageFile(replaceInput.files[0], async (newTemplate) => {
-        try {
-            await axios.put(`/template/image/${templateId}`, { template: newTemplate });
-            showMessage("Success", "Template image has been replaced!");
-            openManageTemplates.click();
-        } catch (error) {
-            handleError(error);
-        } finally {
-            delete replaceInput.dataset.templateId;
-            replaceInput.value = '';
-        }
-    });
-});
 
 canBuyMaxCharges.addEventListener('change', () => {
     if (canBuyMaxCharges.checked) {
@@ -315,10 +298,21 @@ canBuyCharges.addEventListener('change', () => {
     }
 });
 
+const resetTemplateForm = () => {
+    templateForm.reset();
+    templateFormTitle.textContent = "Add Template";
+    submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
+    delete templateForm.dataset.editId;
+    details.style.display = "none";
+    currentTemplate = { width: 0, height: 0, data: [] };
+};
+
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    if (!currentTemplate || currentTemplate.width === 0) {
+    const isEditMode = !!templateForm.dataset.editId;
+
+    if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
         showMessage("Error", "Please convert an image before creating a template.");
         return;
     }
@@ -327,21 +321,30 @@ templateForm.addEventListener('submit', async (e) => {
         showMessage("Error", "Please select at least one user.");
         return;
     }
+
+    const data = {
+        templateName: templateName.value,
+        coords: [tx.value, ty.value, px.value, py.value].map(Number),
+        userIds: selectedUsers,
+        canBuyCharges: canBuyCharges.checked,
+        canBuyMaxCharges: canBuyMaxCharges.checked,
+        antiGriefMode: antiGriefMode.checked
+    };
+
+    if (currentTemplate && currentTemplate.width > 0) {
+        data.template = currentTemplate;
+    }
+
     try {
-        const response = await axios.post('/template', {
-            templateName: templateName.value,
-            template: currentTemplate,
-            coords: [tx.value, ty.value, px.value, py.value].map(Number),
-            userIds: selectedUsers,
-            canBuyCharges: canBuyCharges.checked,
-            canBuyMaxCharges: canBuyMaxCharges.checked,
-            antiGriefMode: antiGriefMode.checked
-        });
-        if (response.status === 200) {
-            showMessage("Success", "Created! Go to \"Manage Templates\" to start and check console for details.");
-            templateForm.reset();
-            document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => cb.checked = false);
+        if (isEditMode) {
+            await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
+            showMessage("Success", "Template updated!");
+        } else {
+            await axios.post('/template', data);
+            showMessage("Success", "Template created!");
         }
+        resetTemplateForm();
+        openManageTemplates.click();
     } catch (error) {
         handleError(error);
     };
@@ -481,7 +484,7 @@ checkUserStatus.addEventListener("click", async () => {
             totalCurrent += charges;
             totalMax += max;
 
-            infoSpans.forEach(span => span.style.color = 'var(--text-primary)');
+            infoSpans.forEach(span => span.style.color = 'var(--success-color)');
         } catch (error) {
             currentChargesEl.textContent = "ERR";
             maxChargesEl.textContent = "ERR";
@@ -500,6 +503,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
 openAddTemplate.addEventListener("click", () => {
+    resetTemplateForm();
     userSelectList.innerHTML = "";
     loadUsers(users => {
         if (Object.keys(users).length === 0) {
@@ -527,6 +531,28 @@ openAddTemplate.addEventListener("click", () => {
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
+
+const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
+    const button = document.createElement('button');
+    const isRunning = template.running;
+    
+    button.className = isRunning ? 'destructive-button' : 'primary-button';
+    button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'} Template`;
+
+    button.addEventListener('click', async () => {
+        try {
+            await axios.put(`/template/${id}`, { running: !isRunning });
+            template.running = !isRunning;
+            const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
+            button.replaceWith(newButton);
+            statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+        } catch (error) {
+            handleError(error);
+        }
+    });
+    return button;
+};
+
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
     loadUsers(users => {
@@ -541,66 +567,40 @@ openManageTemplates.addEventListener("click", () => {
                 const template = document.createElement('div');
                 template.id = id;
                 template.className = "template";
-                template.innerHTML = `<span><b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b>Status:</b> ${t.status}</span>`;
+                const infoSpan = document.createElement('span');
+                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b class="status-text">Status:</b> ${t.status}`;
+                template.appendChild(infoSpan);
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
                 
-                if (t.running) {
-                    const stopButton = document.createElement('button');
-                    stopButton.className = 'destructive-button';
-                    stopButton.innerHTML = `<img src="icons/pause.svg">Stop Template`;
-                    stopButton.addEventListener('click', async () => {
-                        try {
-                            await axios.put(`/template/${id}`, { running: false });
-                            openManageTemplates.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    });
-                    buttons.append(stopButton);
-                } else {
-                    const startButton = document.createElement('button');
-                    startButton.className = 'primary-button';
-                    startButton.innerHTML = `<img src="icons/play.svg">Start Template`;
-                    startButton.addEventListener('click', async () => {
-                        try {
-                            await axios.put(`/template/${id}`, { running: true });
-                            openManageTemplates.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    });
-                    buttons.append(startButton);
-                }
+                const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
+                buttons.appendChild(toggleButton);
 
-                const restartButton = document.createElement('button');
-                restartButton.className = 'secondary-button';
-                restartButton.innerHTML = '<img src="icons/restart.svg">Restart Template';
-                restartButton.addEventListener('click', async () => {
-                    showConfirmation(
-                        "Restart Template",
-                        `Are you sure you want to restart template "${t.name}"? This will stop it and start it from the beginning.`,
-                        async () => {
-                            try {
-                                await axios.put(`/template/restart/${id}`);
-                                showMessage("Success", "Restarting template! Check console for details.");
-                                openManageTemplates.click();
-                            } catch (error) {
-                                handleError(error);
-                            };
+                const editButton = document.createElement('button');
+                editButton.className = 'secondary-button';
+                editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
+                editButton.addEventListener('click', () => {
+                    openAddTemplate.click();
+                    templateFormTitle.textContent = `Edit Template: ${t.name}`;
+                    submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
+                    templateForm.dataset.editId = id;
+
+                    templateName.value = t.name;
+                    [tx.value, ty.value, px.value, py.value] = t.coords;
+                    canBuyCharges.checked = t.canBuyCharges;
+                    canBuyMaxCharges.checked = t.canBuyMaxCharges;
+                    antiGriefMode.checked = t.antiGriefMode;
+
+                    document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
+                        if (t.userIds.includes(cb.value)) {
+                            cb.checked = true;
                         }
-                    );
+                    });
                 });
-                const replaceButton = document.createElement('button');
-                replaceButton.className = 'secondary-button';
-                replaceButton.innerHTML = '<img src="icons/replaceImage.svg">Replace Image';
-                replaceButton.addEventListener('click', () => {
-                    replaceInput.dataset.templateId = id;
-                    replaceInput.click();
-                });
+
                 const delButton = document.createElement('button');
                 delButton.className = 'destructive-button';
                 delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
@@ -618,8 +618,7 @@ openManageTemplates.addEventListener("click", () => {
                         }
                     );
                 });
-                buttons.append(restartButton);
-                buttons.append(replaceButton);
+                buttons.append(editButton);
                 buttons.append(delButton);
                 template.append(canvas);
                 template.append(buttons);
