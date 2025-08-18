@@ -46,7 +46,8 @@ echo.
 echo Git successfully installed!
 echo.
 echo Git has been installed and PATH updated by winget.
-echo Please restart this script.
+echo Git has been installed. To use Git, you must restart your command prompt (terminal) for PATH changes to take effect.
+echo After restarting, please run this script again.
 echo.
 pause
 exit /b 0
