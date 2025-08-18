@@ -72,7 +72,7 @@ if %errorlevel% neq 0 (
 echo.
 
 echo Checking for changes...
-git fetch origin 2>nul
+git fetch origin 2>&1
 if %errorlevel% neq 0 (
     echo Warning: Could not fetch from remote repository.
     echo Note: Without a successful fetch, 'git pull' will likely fail. Please check your internet connection and remote repository configuration.
