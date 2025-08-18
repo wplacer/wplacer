@@ -6,7 +6,7 @@ git --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo Git found!
     echo.
-    goto :git_pull
+    goto :node_version_check
 )
 
 echo Git not found!
@@ -45,15 +45,65 @@ if %errorlevel% neq 0 (
 echo.
 echo Git successfully installed!
 echo.
-echo Git has been installed and PATH updated by winget.
 echo Git has been installed. To use Git, you must restart your command prompt (terminal) for PATH changes to take effect.
 echo After restarting, please run this script again.
 echo.
 pause
 exit /b 0
 
-:git_pull
+:node_version_check
+rem -- This section verifies the required Node.js version. The script will HALT if it's missing or outdated.
+echo Verifying Node.js installation and version...
+node -v >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo ============================= ERROR =============================
+    echo Node.js is not installed, but it is required to run this project.
+    echo.
+    echo Please install the latest version of Node.js from:
+    echo https://nodejs.org/en/download/current
+    echo.
+    echo After installing, please run this script again.
+    echo ===============================================================
+    echo.
+    pause
+    exit /b 1
+)
 
+for /f "tokens=1,2 delims=.v" %%a in ('node -v') do (
+    set "NODE_MAJOR=%%a"
+    set "NODE_MINOR=%%b"
+)
+
+set IS_COMPATIBLE=1
+if !NODE_MAJOR! LSS 20 set IS_COMPATIBLE=0
+if !NODE_MAJOR! EQU 20 if !NODE_MINOR! LSS 6 set IS_COMPATIBLE=0
+
+if !IS_COMPATIBLE! equ 1 (
+    echo Node.js version is compatible (v!NODE_MAJOR!.!NODE_MINOR!.x found).
+    echo.
+    goto :git_pull
+) else (
+    echo.
+    echo ============================= ERROR =============================
+    echo Your Node.js version (v!NODE_MAJOR!.!NODE_MINOR!.x) is outdated and incompatible.
+    echo.
+    echo This project REQUIRES Node.js v20.6.0 or newer to support the --env-file feature.
+    echo The application will not work with your current version.
+    echo.
+    echo HOW TO FIX:
+    echo 1. Install the latest version of Node.js from:
+    echo    https://nodejs.org/en/download/current
+    echo 2. After installing, it is recommended to do a clean install of the project
+    echo    by deleting the folder and starting the setup over (git clone, etc.).
+    echo =================================================================
+    echo.
+    pause
+    exit /b 1
+)
+
+
+:git_pull
 echo Repository:
 git remote get-url origin 2>nul
 if %errorlevel% neq 0 (
