@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { WPlacer, log, duration } from "./wplacer.js";
 import express from "express";
+import cors from "cors";
 
 // User data handling
 const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
@@ -26,6 +27,7 @@ const saveTemplates = () => {
 };
 
 const app = express();
+app.use(cors({ origin: 'https://wplace.live' }));
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
@@ -118,7 +120,24 @@ class TemplateManager {
         while (this.running) {
             if (this.isFirstRun) {
                 log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
-                for (const userId of this.userIds) {
+                
+                const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
+                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
+                    try {
+                        await wplacer.login(users[userId].cookies);
+                        return { userId, charges: wplacer.userInfo.charges.count };
+                    } catch (error) {
+                        logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
+                        return { userId, charges: -1 };
+                    } finally {
+                        await wplacer.close();
+                    }
+                }));
+
+                userChargeStates.sort((a, b) => b.charges - a.charges);
+                const sortedUserIds = userChargeStates.map(u => u.userId);
+
+                for (const userId of sortedUserIds) {
                     if (!this.running) break;
                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                     wplacer.token = this.turnstileToken;
@@ -132,8 +151,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -148,7 +167,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -439,6 +458,25 @@ app.post("/t", async (req, res) => {
     res.sendStatus(200);
 });
 
+// keep alive system
+const keepAlive = async () => {
+    log('SYSTEM', 'wplacer', '⚙️ Performing periodic cookie keep alive check for all users...');
+    const userIds = Object.keys(users);
+    for (const userId of userIds) {
+        const user = users[userId];
+        const wplacer = new WPlacer();
+        try {
+            await wplacer.login(user.cookies);
+            log(userId, user.name, '✅ Cookie keep alive successful.');
+        } catch (error) {
+            log(userId, user.name, '❌ Cookie keep alive failed. The cookie may be expired.');
+        } finally {
+            if (wplacer.browser) await wplacer.close();
+        }
+    }
+    log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
+};
+
 // starting
 const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
@@ -471,5 +509,6 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     app.listen(port, host, () => {
         console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
         requestTokenFromClients("server-start");
+        setInterval(keepAlive, 20 * 60 * 1000); // Run keep-alive every 20 minutes
     });
 })();
