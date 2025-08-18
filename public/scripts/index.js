@@ -316,7 +316,7 @@ openManageUsers.addEventListener("click", () => {
                     <span>${users[id].name}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span> - <span class="current-level">Level ?</span> <span class="level-progress">(?)</span></b>
+                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span> - <span class="current-level">Level ?</span> <span class="level-progress">(?)</span>
                     </div>
                 </div>
                 <div class="right">
