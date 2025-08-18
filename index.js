@@ -388,9 +388,18 @@ app.put("/template/restart/:id", async (req, res) => {
 // client endpoints
 app.get("/canvas", async (req, res) => {
     const { tx, ty } = req.query;
-    if (tx === undefined || ty === undefined) return res.sendStatus(400);
+    // Validate tx and ty: must be non-negative integers
+    const txInt = Number.isInteger(Number(tx)) ? Number(tx) : NaN;
+    const tyInt = Number.isInteger(Number(ty)) ? Number(ty) : NaN;
+    if (
+        tx === undefined || ty === undefined ||
+        isNaN(txInt) || isNaN(tyInt) ||
+        txInt < 0 || tyInt < 0
+    ) {
+        return res.sendStatus(400);
+    }
     try {
-        const url = `https://backend.wplace.live/files/s0/tiles/${tx}/${ty}.png`;
+        const url = `https://backend.wplace.live/files/s0/tiles/${txInt}/${tyInt}.png`;
         const response = await fetch(url);
         if (!response.ok) return res.sendStatus(response.status);
         const buffer = Buffer.from(await response.arrayBuffer());
