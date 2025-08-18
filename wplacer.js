@@ -235,6 +235,8 @@ export class WPlacer {
         switch (method) {
             case 'linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)..."); break;
             case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)..."); break;
+            case 'linear-ltr': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Left to Right)..."); break;
+            case 'linear-rtl': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Right to Left)..."); break;
             case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`); break;
             case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`); break;
             default: throw new Error(`Unknown paint method: ${method}`);
@@ -251,6 +253,26 @@ export class WPlacer {
                 case 'linear-reversed':
                     mismatchedPixels.reverse();
                     break;
+                case 'linear-ltr': {
+                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    mismatchedPixels.sort((a, b) => {
+                        const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                        const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                        if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
+                        return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                    });
+                    break;
+                }
+                case 'linear-rtl': {
+                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    mismatchedPixels.sort((a, b) => {
+                        const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                        const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                        if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
+                        return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                    });
+                    break;
+                }
                 case 'singleColorRandom':
                 case 'colorByColor':
                     const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
