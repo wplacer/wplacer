@@ -4,6 +4,7 @@
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
 <a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a><//p>
+<a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a><//p>
 
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
@@ -35,7 +36,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
    - In [wplace.live](https://wplace.live/), open DevTools (F12 or Inspect), go to `Application > Cookies`, and copy the values of the cookies named `s` and `j`. Only older accounts have the `s` cookie, so you can often skip it.
    - Paste the cookie values into the "Add User" form.
 4. Go to the "Add Template" page to create your drawing templates.
-   - The coordinates (`Tile X/Y`, `Pixel X/Y`) are for the top-left corner of your image. You can find these by clicking a pixel on wplace.live and inspecting the `pixel` request in the Network tab of DevTools. You can also use the Blue Marble userscript to see a pixel's coordinates.
+   - The coordinates (`Tile X/Y`, `Pixel X/Y`) are for the top-left corner of your image. You can find these by clicking a pixel on wplace.live and inspecting the `pixel` request in the Network tab of DevTools. You can also use the [Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble) userscript to see a pixel's coordinates.
    - You can assign multiple users to a single template.
 5. Finally, go to "Manage Templates" and click "Start" on any template to begin drawing.
    - The script will occasionally notify you to paint a pixel on [wplace.live](https://wplace.live/). This is required to refresh the Turnstile token needed for painting.
@@ -53,3 +54,5 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 ### License 📜
 
 [GNU AGPL v3](LICENSE)
+
+
