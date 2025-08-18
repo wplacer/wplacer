@@ -20,7 +20,6 @@ const saveTemplates = () => {
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
             userIds: t.userIds
-            userIds: t.userIds
         };
     }
     writeFileSync("templates.json", JSON.stringify(templatesToSave, null, 4));
