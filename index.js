@@ -329,17 +329,12 @@ class TemplateManager {
                                 await this.sleep(currentSettings.purchaseCooldown);
                                 continue;
                             }
-                        } catch (error) {
-                             logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
-                        } finally {
-                            await chargeBuyer.close();
-                            activeBrowserUsers.delete(this.masterId);
                         }
-                    } catch (error) {
+                    } catch(error) {
                         logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
                     } finally {
                         await chargeBuyer.close();
-
+                        activeBrowserUsers.delete(this.masterId);
                     }
                 }
 
