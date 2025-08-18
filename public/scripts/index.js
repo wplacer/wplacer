@@ -44,9 +44,12 @@ const purchaseCooldown = $("purchaseCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
+const chargeThresholdContainer = $("chargeThresholdContainer");
 const totalCharges = $("totalCharges");
 const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
+// add reference for new toggle
+const alwaysDrawOnCharge = $("alwaysDrawOnCharge");
 const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
@@ -566,6 +569,9 @@ openSettings.addEventListener("click", async () => {
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
+        alwaysDrawOnCharge.checked = !!currentSettings.alwaysDrawOnCharge;
+        // Show/hide the threshold input depending on the toggle
+        chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
     } catch (error) {
         handleError(error);
     }
@@ -656,6 +662,20 @@ chargeThreshold.addEventListener('change', async () => {
         }
         await axios.put('/settings', { chargeThreshold: newThreshold / 100 });
         showMessage("Success", "Charge threshold saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+// New toggle: alwaysDrawOnCharge
+alwaysDrawOnCharge.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { alwaysDrawOnCharge: alwaysDrawOnCharge.checked });
+        showMessage("Success", "Always-draw-on-charge setting saved!");
+        // Hide the threshold input if immediate-draw is enabled, show otherwise
+        chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
+        // Wake running templates so they re-evaluate immediately
+        // (server will also wake them; this keeps UI responsive)
     } catch (error) {
         handleError(error);
     }
