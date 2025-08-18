@@ -137,13 +137,64 @@ userForm.addEventListener('submit', async (e) => {
 // templates
 const colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-const closest = color => {
-    const [tr, tg, tb] = color.split(',').map(Number);
-    return colors[Object.keys(colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
+
+// better adjust color
+const adjustColor = (value) => Math.max(0, Math.min(255, value));
+
+const findNearestPaletteColor = (r, g, b) => {
+    let nearest = null;
+    let minDist = Infinity;
+    for (const key of Object.keys(colors)) {
+        const [pr, pg, pb] = key.split(',').map(Number);
+        const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+        if (dist < minDist) {
+            minDist = dist;
+            nearest = key;
+        }
+    }
+    return { id: colors[nearest], color: nearest };
+};
+
+const ditherImage = async (imageData, width, height) => {
+    const data = imageData.data;
+    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    let ink = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const a = data[idx + 3];
+            if (a !== 255) {
+                matrix[x][y] = 0;
+                continue;
+            }
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const { id, color } = findNearestPaletteColor(r, g, b);
+            const [nr, ng, nb] = color.split(',').map(Number);
+            matrix[x][y] = id;
+            ink += 1;
+            const errR = r - nr;
+            const errG = g - ng;
+            const errB = b - nb;
+            const distribute = (dx, dy, factor) => {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
+                const nIdx = (ny * width + nx) * 4;
+                data[nIdx] = adjustColor(data[nIdx] + errR * factor);
+                data[nIdx + 1] = adjustColor(data[nIdx + 1] + errG * factor);
+                data[nIdx + 2] = adjustColor(data[nIdx + 2] + errB * factor);
+            };
+            distribute(1, 0, 7 / 16);
+            distribute(-1, 1, 3 / 16);
+            distribute(0, 1, 5 / 16);
+            distribute(1, 1, 1 / 16);
+        }
+        if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    return { matrix, ink };
 };
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
@@ -223,7 +274,6 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     for (let i = 0; i < t.length; i += 4) {
         // skip transparent template pixels
         if (t[i + 3] === 0) continue;
-        // skip highlighting if base pixel is transparent
         if (b[i + 3] === 0) continue;
 
         const idx = i / 4;
@@ -246,18 +296,11 @@ const processImageFile = (file, callback) => {
                 canvas.height = image.height;
                 const ctx = canvas.getContext("2d");
                 ctx.drawImage(image, 0, 0);
-                const template = { width: canvas.width, height: canvas.height, ink: 0, data: Array.from({ length: canvas.width }, () => []) };
+                const template = { width: canvas.width, height: canvas.height, ink: 0, data: [] };
                 const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                for (let x = 0; x < canvas.width; x++) {
-                    for (let y = 0; y < canvas.height; y++) {
-                        const i = (y * canvas.width + x) * 4;
-                        const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                        if (a === 255) {
-                            template.data[x][y] = closest(`${r},${g},${b}`);
-                            template.ink += 1;
-                        } else template.data[x][y] = 0;
-                    };
-                };
+                const { matrix, ink } = await ditherImage(d, canvas.width, canvas.height);
+                template.data = matrix;
+                template.ink = ink;
                 canvas.remove();
                 callback(template);
             };
