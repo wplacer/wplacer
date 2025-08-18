@@ -1,5 +1,4 @@
 @echo off
-s@echo off
 setlocal enabledelayedexpansion
 
 echo Verifying Git Installation...
@@ -161,6 +160,23 @@ git pull
 if %errorlevel% equ 0 (
     echo.
     echo Repository updated successfully!
+    
+    rem -- New section to run npm install after a successful pull --
+    if exist package.json (
+        echo.
+        echo Checking for Node.js package updates...
+        npm install
+        
+        if %errorlevel% equ 0 (
+            echo.
+            echo Node.js packages are up to date!
+        ) else (
+            echo.
+            echo Error: 'npm install' failed.
+            echo Please check your Node.js and npm setup. You may need to run 'npm install' manually.
+        )
+    )
+
 ) else (
     echo.
     echo Error updating the repository.
