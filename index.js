@@ -89,7 +89,37 @@ class TemplateManager {
         this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
         this.isFirstRun = true;
     }
-    sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    sleep(ms) {
+        // Cancellable sleep: stores timer and resolver on the instance so stop() can cancel it.
+        if (this._sleepTimer) {
+            clearTimeout(this._sleepTimer);
+            this._sleepTimer = null;
+        }
+        return new Promise((resolve) => {
+            this._sleepResolve = () => {
+                if (this._sleepTimer) { clearTimeout(this._sleepTimer); this._sleepTimer = null; }
+                const r = this._sleepResolve;
+                this._sleepResolve = null;
+                resolve();
+            };
+            this._sleepTimer = setTimeout(() => {
+                if (this._sleepResolve) this._sleepResolve();
+            }, ms);
+        });
+    }
+
+    stop() {
+        // Stop the manager and cancel any pending sleep so the main loop can exit promptly.
+        this.running = false;
+        if (this._sleepTimer) {
+            clearTimeout(this._sleepTimer);
+            this._sleepTimer = null;
+        }
+        if (typeof this._sleepResolve === 'function') {
+            try { this._sleepResolve(); } catch (e) { /* ignore */ }
+            this._sleepResolve = null;
+        }
+    }
     setToken(t) { 
         this.turnstileToken = t;
         if (this.activeWplacer) this.activeWplacer.setToken(t); 
@@ -210,16 +240,16 @@ class TemplateManager {
                  }
             }
             
-            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
+            const readyUsers = userStates.filter(u => u.charges && typeof u.charges.count === 'number' && typeof u.charges.max === 'number' && u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
             let userToRun = null;
 
             if (readyUsers.length > 0) {
+                // Prefer the ready user with the most charges
+                readyUsers.sort((a, b) => b.charges.count - a.charges.count);
                 userToRun = readyUsers[0];
             } else {
-                userStates.sort((a, b) => b.charges.count - a.charges.count);
-                if (userStates.length > 0 && userStates[0].charges.count > 0) {
-                    userToRun = userStates[0];
-                }
+                // No users meet the configured charge threshold — do not run a turn with partial charges.
+                userToRun = null;
             }
 
             if (userToRun) {
@@ -266,7 +296,12 @@ class TemplateManager {
                     }
                 }
                 
-                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs));
+                const timeCandidates = userStates.map(u => {
+                    if (!u.charges || typeof u.charges.count !== 'number' || typeof u.charges.max !== 'number' || typeof u.cooldownMs !== 'number') return NaN;
+                    return (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs;
+                }).filter(t => Number.isFinite(t) && t > 0);
+
+                const minTimeToReady = timeCandidates.length > 0 ? Math.min(...timeCandidates) : NaN;
                 const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
                 log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
@@ -407,7 +442,10 @@ app.put("/template/:id", async (req, res) => {
                 } catch (error) {
                     log(req.params.id, manager.masterName, "Error starting template", error);
                 };
-            } else manager.running = false;
+            } else if (!req.body.running && manager.running) {
+                // Use the new stop() method to interrupt any pending sleep immediately.
+                manager.stop();
+            }
         } else manager[i] = req.body[i];
     };
     res.sendStatus(200);
@@ -415,7 +453,8 @@ app.put("/template/:id", async (req, res) => {
 app.put("/template/restart/:id", async (req, res) => {
     if (!req.params.id || !templates[req.params.id]) return res.sendStatus(400);
     const manager = templates[req.params.id];
-    manager.running = false;
+    // Ensure any pending waits are cancelled immediately
+    manager.stop();
     setTimeout(() => {
         manager.isFirstRun = true;
         manager.start().catch(error => log(req.params.id, manager.masterName, "Error restarting template", error));
