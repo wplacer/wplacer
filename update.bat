@@ -8,7 +8,6 @@ if /i not "%1" == ":run" (
 
 shift /1
 
-
 setlocal enabledelayedexpansion
 
 echo Verifying Git Installation...
@@ -66,7 +65,6 @@ if %errorlevel% neq 0 (
     goto :install_node_prompt
 )
 
-rem  So apparently the previous variable name corrupts the environment because batch is actually worthless
 set "NODE_VERSION_STR="
 for /f "delims=" %%v in ('node -v') do set "NODE_VERSION_STR=%%v"
 
@@ -74,7 +72,6 @@ rem Extract by character position
 set "NODE_MAJOR=!NODE_VERSION_STR:~1,2!"
 set "NODE_MINOR=!NODE_VERSION_STR:~4,2!"
 
-rem Use a safe variable name: VERSION_OK
 set VERSION_OK=0
 if defined NODE_MAJOR (
     if !NODE_MAJOR! GTR 20 (
@@ -88,14 +85,14 @@ if defined NODE_MAJOR (
 
 if !VERSION_OK! equ 1 goto :version_is_good
 
-echo Your Node.js version (v!NODE_MAJOR!.!NODE_MINOR!.x) is outdated or could not be parsed.
+echo Your Node.js version (!NODE_VERSION_STR!) is outdated or could not be parsed.
 echo This project requires Node.js v20.6.0 or newer.
 goto :install_node_prompt
 
 :version_is_good
-echo Node.js version is compatible (v!NODE_MAJOR!.!NODE_MINOR!.x found).
+echo Node.js version is compatible (!NODE_VERSION_STR! found).
 echo.
-goto :git_pull
+goto :nuke_and_reclone
 
 
 :install_node_prompt
@@ -144,70 +141,156 @@ echo.
 goto :final_pause
 
 
-:git_pull
-echo Repository:
-git remote get-url origin 2>nul
-if %errorlevel% neq 0 (
-    echo Could not determine the remote repository.
-    echo Make sure you are in a folder with an initialized Git repository.
-    echo.
-    goto :end
-)
-
+:nuke_and_reclone
 echo.
-echo Current branch:
-git branch --show-current 2>nul
-if %errorlevel% neq 0 (
-    echo Could not determine current branch.
+echo =================================================================
+echo                      NUKE AND RE-CLONE
+echo This process will GUARANTEE a clean, up-to-date installation.
+echo 	Any and all local changes will be permanently lost.
+echo
+echo YOUR USER FILES (ACCOUNT COOKIES, TEMPLATES AND WPLACER SETTINGS)
+echo WILL BE BACKED UP AND SAFELY RESTORED AFTER THE UPDATE IS DONE.
+echo =================================================================
+echo.
+pause
+
+set "BACKUP_DIR=_update_backup"
+set "TEMP_CLONE_DIR=_update_temp_clone"
+set "FILES_TO_BACKUP=users.json templates.json settings.json"
+
+echo Determining remote repository URL...
+for /f "delims=" %%i in ('git remote get-url origin') do set "REMOTE_URL=%%i"
+if not defined REMOTE_URL (
+    echo.
+    echo ============================= ERROR =============================
+    echo 	Could not determine the remote repository URL.
+    echo     Make sure you are running this in the correct folder.
+    echo 		       Update cannot proceed.
+    echo =================================================================
+    echo.
+    goto :final_pause
 )
+echo Found remote: !REMOTE_URL!
 echo.
 
-echo Checking for changes...
-git fetch origin 2>&1
-if %errorlevel% neq 0 (
-    echo Warning: Could not fetch from remote repository.
-    echo Note: Without a successful fetch, 'git pull' will likely fail. Please check your internet connection and remote repository configuration.
-    echo.
-)
-
-echo Updating repository...
-git pull
-
-if %errorlevel% equ 0 (
-    echo.
-    echo Repository updated successfully!
-    
-    if exist package.json (
-        echo.
-        echo Checking for Node.js package updates...
-        npm install
-        
-        if %errorlevel% equ 0 (
-            echo.
-            echo Node.js packages are up to date!
-        ) else (
-            echo.
-            echo Error: 'npm install' failed.
-            echo Please check your Node.js and npm setup. You may need to run 'npm install' manually.
-        )
+echo Backing up user files...
+if exist "!BACKUP_DIR!" rd /s /q "!BACKUP_DIR!"
+mkdir "!BACKUP_DIR!"
+for %%f in (%FILES_TO_BACKUP%) do (
+    if exist "%%f" (
+        copy "%%f" "!BACKUP_DIR!\" >nul
+        echo   - Backed up %%f
     )
-
-) else (
-    echo.
-    echo Error updating the repository.
-    echo Possible causes:
-    echo - No internet connection
-    echo - Authentication required
-    echo - Merge conflicts
-    echo - No remote repository configured
-    echo.
-    echo You may need to resolve conflicts manually or check your credentials.
 )
+echo.
+
+echo Cloning latest version into a temporary folder...
+if exist "!TEMP_CLONE_DIR!" rd /s /q "!TEMP_CLONE_DIR!"
+git clone "!REMOTE_URL!" "!TEMP_CLONE_DIR!"
+if %errorlevel% neq 0 (
+    echo.
+    echo ============================= ERROR =============================
+    echo Failed to clone the repository. The script cannot proceed.
+    echo             Please check your internet connection.
+    echo =================================================================
+    echo.
+    goto :cleanup_and_fail
+)
+echo Clone successful.
+echo.
+
+echo Wiping the current directory (except this script)...
+for /d %%d in (*) do (
+    if /i not "%%d" == "!BACKUP_DIR!" if /i not "%%d" == "!TEMP_CLONE_DIR!" (
+        echo   - Deleting folder: %%d
+        rd /s /q "%%d"
+    )
+)
+for %%f in (*) do (
+    if /i not "%%~nxf" == "%~nx0" (
+        echo   - Deleting file: %%f
+        del /f /q "%%f"
+    )
+)
+echo Wipe complete.
+echo.
+
+echo Preparing new update script...
+if exist "!TEMP_CLONE_DIR!\update.bat" (
+    ren "!TEMP_CLONE_DIR!\update.bat" "update_new.bat"
+    echo   - Renamed new updater to update_new.bat to prevent conflicts.
+)
+echo.
+
+echo Moving new version into place...
+xcopy "!TEMP_CLONE_DIR!\*" ".\" /e /h /y /q
+if %errorlevel% neq 0 (
+    echo.
+    echo ============================= ERROR =============================
+    echo 	Failed to move new files from temporary clone.
+    echo How did we get here? I don't know. But the package is now broken.
+    echo =================================================================
+    echo.
+    goto :cleanup_and_fail
+)
+echo Move successful.
+echo.
+
+echo Restoring user files...
+if exist "!BACKUP_DIR!" (
+    xcopy "!BACKUP_DIR!\*" ".\" /y /q
+    echo   - Restore complete.
+)
+echo.
+
+echo Cleaning up temporary folders...
+if exist "!BACKUP_DIR!" rd /s /q "!BACKUP_DIR!"
+if exist "!TEMP_CLONE_DIR!" rd /s /q "!TEMP_CLONE_DIR!"
+echo.
+
+if exist package.json (
+    echo Checking for Node.js package updates...
+    npm install
+    if %errorlevel% equ 0 (
+        echo Node.js packages are up to date!
+    ) else (
+        echo.
+        echo ============================ WARNING ============================
+        echo 	'npm install' failed. The project files are updated,
+        echo     but you may need to run 'npm install' manually.
+        echo ===============================================================
+    )
+    echo.
+)
+
+echo =================================================================
+echo                     UPDATE COMPLETE!
+echo.
+echo The project has been completely refreshed to the latest version.
+echo.
+echo ========================= IMPORTANT =========================
+echo A new update script has been downloaded as 'update_new.bat'.
+echo Because a running script cannot update itself, you must
+echo         perform the following steps MANUALLY:
+echo.
+echo 1. Close this window.
+echo 2. Delete this old script ('%~nx0').
+echo 3. Rename 'update_new.bat' to 'update.bat'.
+echo.
+echo This is the only way to ensure future updates work correctly.
+echo =================================================================
+goto :end
+
+:cleanup_and_fail
+echo.
+echo An error occurred during the update process.
+echo The update has failed, and the folder may be in an inconsistent state.
+echo Your backed up data files (if any) are in the '!BACKUP_DIR!' folder.
+echo Please restore them manually and re-clone the repository.
+goto :end
 
 :end
 echo.
 echo All done!
-goto :final_pause
-
 
 :final_pause
