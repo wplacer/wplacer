@@ -75,7 +75,7 @@ echo Checking for changes...
 git fetch origin 2>nul
 if %errorlevel% neq 0 (
     echo Warning: Could not fetch from remote repository.
-    echo Continuing with local pull attempt...
+    echo Note: Without a successful fetch, 'git pull' will likely fail. Please check your internet connection and remote repository configuration.
     echo.
 )
 
