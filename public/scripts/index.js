@@ -40,8 +40,10 @@ const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
+const purchaseCooldown = $("purchaseCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
+const chargeThreshold = $("chargeThreshold");
 const totalCharges = $("totalCharges");
 const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
@@ -280,6 +282,7 @@ startAll.addEventListener('click', async () => {
         };
     };
     showMessage("Success", "Finished! Check console for details.");
+    openManageTemplates.click();
 });
 stopAll.addEventListener('click', async () => {
     for (const child of templateList.children) {
@@ -290,6 +293,7 @@ stopAll.addEventListener('click', async () => {
         };
     };
     showMessage("Success", "Finished! Check console for details.");
+    openManageTemplates.click();
 });
 
 
@@ -312,18 +316,19 @@ openManageUsers.addEventListener("click", () => {
             user.className = 'user';
             user.id = `user-${id}`;
             user.innerHTML = `
-                <div class="left">
+                <div class="user-info">
                     <span>${users[id].name}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span>
+                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span>
                     </div>
                 </div>
-                <div class="right">
-                    <button title="Delete User"><img src="icons/remove.svg"></button>
+                <div class="user-actions">
+                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
+                    <button class="json-btn" title="Get Raw User Info"><img src="icons/code.svg"></button>
                 </div>`;
             
-            user.querySelector('button').addEventListener("click", () => {
+            user.querySelector('.delete-btn').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
                     `Are you sure you want to delete ${users[id].name} (#${id})?`,
@@ -337,6 +342,14 @@ openManageUsers.addEventListener("click", () => {
                         };
                     }
                 );
+            });
+            user.querySelector('.json-btn').addEventListener("click", async () => {
+                try {
+                    const response = await axios.get(`/user/status/${id}`);
+                    showMessage("Raw User Info", JSON.stringify(response.data, null, 2));
+                } catch (error) {
+                    handleError(error);
+                };
             });
             userList.appendChild(user);
         };
@@ -372,28 +385,36 @@ checkUserStatus.addEventListener("click", async () => {
 
     const tasks = userElements.map(userEl => async () => {
         const id = userEl.id.split('-')[1];
-        const leftSpans = userEl.querySelectorAll('.left > span');
-        const currentChargesEl = userEl.querySelector('.current-charges');
-        const maxChargesEl = userEl.querySelector('.max-charges');
+        const infoSpans = userEl.querySelectorAll('.user-info > span');
+        const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
+        const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
+        const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+        const levelProgressEl = userEl.querySelector('.level-progress');
 
-        leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
+        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
         try {
             const response = await axios.get(`/user/status/${id}`);
             const userInfo = response.data;
             
-            const current = Math.floor(userInfo.charges.count);
+            const charges = Math.floor(userInfo.charges.count);
             const max = userInfo.charges.max;
+            const level = Math.floor(userInfo.level);
+            const progress = Math.round((userInfo.level % 1) * 100);
 
-            currentChargesEl.textContent = current;
+            currentChargesEl.textContent = charges;
             maxChargesEl.textContent = max;
-            totalCurrent += current;
+            currentLevelEl.textContent = level;
+            levelProgressEl.textContent = `(${progress}%)`;
+            totalCurrent += charges;
             totalMax += max;
 
-            leftSpans.forEach(span => span.style.color = 'var(--success-color)');
+            infoSpans.forEach(span => span.style.color = 'var(--text-primary)');
         } catch (error) {
             currentChargesEl.textContent = "ERR";
             maxChargesEl.textContent = "ERR";
-            leftSpans.forEach(span => span.style.color = 'var(--error-color)');
+            currentLevelEl.textContent = "?";
+            levelProgressEl.textContent = "(?%)";
+            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
         }
     });
 
@@ -452,22 +473,38 @@ openManageTemplates.addEventListener("click", () => {
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
                 const buttons = document.createElement('div');
-                buttons.className = "buttons";
-                const toggleButton = document.createElement('button');
-                toggleButton.className = 'primary-button';
-                toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
-                toggleButton.addEventListener('click', async () => {
-                    try {
-                        await axios.put(`/template/${id}`, { running: !t.running });
-                        t.running = !t.running;
-                        toggleButton.innerHTML = `<img src="icons/${t.running ? 'pause' : 'play'}.svg">${t.running ? 'Stop' : 'Start'} Template`;
-                        showMessage("Success", "Success! Check console for details.");
-                    } catch (error) {
-                        handleError(error);
-                    };
-                });
+                buttons.className = "template-actions";
+                
+                if (t.running) {
+                    const stopButton = document.createElement('button');
+                    stopButton.className = 'destructive-button';
+                    stopButton.innerHTML = `<img src="icons/pause.svg">Stop Template`;
+                    stopButton.addEventListener('click', async () => {
+                        try {
+                            await axios.put(`/template/${id}`, { running: false });
+                            openManageTemplates.click();
+                        } catch (error) {
+                            handleError(error);
+                        };
+                    });
+                    buttons.append(stopButton);
+                } else {
+                    const startButton = document.createElement('button');
+                    startButton.className = 'primary-button';
+                    startButton.innerHTML = `<img src="icons/play.svg">Start Template`;
+                    startButton.addEventListener('click', async () => {
+                        try {
+                            await axios.put(`/template/${id}`, { running: true });
+                            openManageTemplates.click();
+                        } catch (error) {
+                            handleError(error);
+                        };
+                    });
+                    buttons.append(startButton);
+                }
+
                 const restartButton = document.createElement('button');
-                restartButton.className = 'destructive-button';
+                restartButton.className = 'secondary-button';
                 restartButton.innerHTML = '<img src="icons/restart.svg">Restart Template';
                 restartButton.addEventListener('click', async () => {
                     showConfirmation(
@@ -508,7 +545,6 @@ openManageTemplates.addEventListener("click", () => {
                         }
                     );
                 });
-                buttons.append(toggleButton);
                 buttons.append(restartButton);
                 buttons.append(replaceButton);
                 buttons.append(delButton);
@@ -527,8 +563,10 @@ openSettings.addEventListener("click", async () => {
         drawingModeSelect.value = currentSettings.drawingMethod;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
+        purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
+        chargeThreshold.value = currentSettings.chargeThreshold * 100;
     } catch (error) {
         handleError(error);
     }
@@ -558,7 +596,7 @@ accountCooldown.addEventListener('change', async () => {
     try {
         const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
         if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number for the cooldown.");
+            showMessage("Error", "Please enter a valid non-negative number.");
             return;
         }
         await axios.put('/settings', { accountCooldown: newCooldown });
@@ -568,11 +606,25 @@ accountCooldown.addEventListener('change', async () => {
     }
 });
 
+purchaseCooldown.addEventListener('change', async () => {
+    try {
+        const newCooldown = parseInt(purchaseCooldown.value, 10) * 1000;
+        if (isNaN(newCooldown) || newCooldown < 0) {
+            showMessage("Error", "Please enter a valid non-negative number.");
+            return;
+        }
+        await axios.put('/settings', { purchaseCooldown: newCooldown });
+        showMessage("Success", "Purchase cooldown saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
 dropletReserve.addEventListener('change', async () => {
     try {
         const newReserve = parseInt(dropletReserve.value, 10);
         if (isNaN(newReserve) || newReserve < 0) {
-            showMessage("Error", "Please enter a valid non-negative number for the droplet reserve.");
+            showMessage("Error", "Please enter a valid non-negative number.");
             return;
         }
         await axios.put('/settings', { dropletReserve: newReserve });
@@ -596,16 +648,41 @@ antiGriefStandby.addEventListener('change', async () => {
     }
 });
 
+chargeThreshold.addEventListener('change', async () => {
+    try {
+        const newThreshold = parseInt(chargeThreshold.value, 10);
+        if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 100) {
+            showMessage("Error", "Please enter a valid percentage between 1 and 100.");
+            return;
+        }
+        await axios.put('/settings', { chargeThreshold: newThreshold / 100 });
+        showMessage("Success", "Charge threshold saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
-    const parts = value.split(/\s+/);
-    if (parts.length === 4) {
-        tx.value = parts[0].replace(/[^0-9]/g, '');
-        ty.value = parts[1].replace(/[^0-9]/g, '');
-        px.value = parts[2].replace(/[^0-9]/g, '');
-        py.value = parts[3].replace(/[^0-9]/g, '');
+    const urlRegex = /pixel\/(\d+)\/(\d+)\?x=(\d+)&y=(\d+)/;
+    const urlMatch = value.match(urlRegex);
+
+    if (urlMatch) {
+        tx.value = urlMatch[1];
+        ty.value = urlMatch[2];
+        px.value = urlMatch[3];
+        py.value = urlMatch[4];
     } else {
-        tx.value = value.replace(/[^0-9]/g, '');
+        const parts = value.split(/\s+/);
+        if (parts.length === 4) {
+            tx.value = parts[0].replace(/[^0-9]/g, '');
+            ty.value = parts[1].replace(/[^0-9]/g, '');
+            px.value = parts[2].replace(/[^0-9]/g, '');
+            py.value = parts[3].replace(/[^0-9]/g, '');
+        } else {
+            tx.value = value.replace(/[^0-9]/g, '');
+        }
     }
 });
 

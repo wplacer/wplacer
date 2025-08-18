@@ -1,0 +1,9 @@
+{
+    "turnstileNotifications": false,
+    "accountCooldown": 20000,
+    "dropletReserve": 500,
+    "antiGriefStandby": 600000,
+    "drawingMethod": "linear",
+    "chargeThreshold": 0.5,
+    "purchaseCooldown": 5000
+}

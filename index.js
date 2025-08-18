@@ -19,8 +19,7 @@ const saveTemplates = () => {
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
-            userIds: t.userIds,
-            drawingMethod: t.drawingMethod
+            userIds: t.userIds
         };
     }
     writeFileSync("templates.json", JSON.stringify(templatesToSave, null, 4));
@@ -34,7 +33,9 @@ let currentSettings = {
     turnstileNotifications: false,
     accountCooldown: 20000,
     dropletReserve: 0,
-    antiGriefStandby: 300000
+    antiGriefStandby: 300000,
+    drawingMethod: 'linear',
+    chargeThreshold: 0.5
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
@@ -68,7 +69,7 @@ function logUserError(error, id, name, context) {
 }
 
 class TemplateManager {
-    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds, drawingMethod) {
+    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -76,7 +77,6 @@ class TemplateManager {
         this.canBuyMaxCharges = canBuyMaxCharges;
         this.antiGriefMode = antiGriefMode;
         this.userIds = userIds;
-        this.drawingMethod = drawingMethod || 'linear';
         this.running = false;
         this.status = "Waiting to be started.";
         this.activeWplacer = null;
@@ -126,7 +126,7 @@ class TemplateManager {
                         this.status = `Initial run for ${name}#${id}`;
                         log(id, name, `🏁 Starting initial turn...`);
                         this.activeWplacer = wplacer;
-                        await wplacer.paint(this.drawingMethod);
+                        await wplacer.paint(currentSettings.drawingMethod);
                         this.turnstileToken = wplacer.token;
                         await this.handleUpgrades(wplacer);
                         
@@ -177,42 +177,46 @@ class TemplateManager {
                 }
             }
 
-            let readyUserWplacer = null;
-            let minTimeToReady = Infinity;
+            let userStates = [];
             for (const userId of this.userIds) {
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                try {
-                    await wplacer.login(users[userId].cookies);
-                    const threshold = wplacer.userInfo.charges.max * 0.75;
+                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                 try {
+                     await wplacer.login(users[userId].cookies);
+                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                 } catch (error) {
+                     logUserError(error, userId, users[userId].name, "check user status");
+                 } finally {
+                     await wplacer.close();
+                 }
+            }
+            
+            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
+            let userToRun = null;
 
-                    if (wplacer.userInfo.charges.count >= threshold) {
-                        readyUserWplacer = wplacer;
-                        break;
-                    } else {
-                        const needed = threshold - wplacer.userInfo.charges.count;
-                        const time = needed * wplacer.userInfo.charges.cooldownMs;
-                        if (time < minTimeToReady) minTimeToReady = time;
-                        await wplacer.close();
-                    }
-                } catch (error) {
-                    logUserError(error, userId, users[userId].name, "check user status");
-                    await wplacer.close();
+            if (readyUsers.length > 0) {
+                userToRun = readyUsers[0];
+            } else {
+                userStates.sort((a, b) => b.charges.count - a.charges.count);
+                if (userStates.length > 0 && userStates[0].charges.count > 0) {
+                    userToRun = userStates[0];
                 }
             }
-            if (readyUserWplacer) {
-                const { id, name } = readyUserWplacer.userInfo;
-                this.status = `Running user ${name}#${id}`;
-                log(id, name, `🔋 User has reached charge threshold. Starting turn for "${this.name}"...`);
-                this.activeWplacer = readyUserWplacer;
-                readyUserWplacer.token = this.turnstileToken;
+
+            if (userToRun) {
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                 try {
-                    await readyUserWplacer.paint(this.drawingMethod);
-                    this.turnstileToken = readyUserWplacer.token;
-                    await this.handleUpgrades(readyUserWplacer);
+                    const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
+                    this.status = `Running user ${name}#${id}`;
+                    log(id, name, `🔋 User has enough charges. Starting turn for "${this.name}"...`);
+                    this.activeWplacer = wplacer;
+                    wplacer.token = this.turnstileToken;
+                    await wplacer.paint(currentSettings.drawingMethod);
+                    this.turnstileToken = wplacer.token;
+                    await this.handleUpgrades(wplacer);
                 } catch (error) {
-                    logUserError(error, id, name, "perform paint turn");
+                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
                 } finally {
-                    await readyUserWplacer.close();
+                    await wplacer.close();
                     this.activeWplacer = null;
                 }
                 if (this.running && this.userIds.length > 1) {
@@ -241,11 +245,9 @@ class TemplateManager {
                         await chargeBuyer.close();
                     }
                 }
-                if (minTimeToReady === Infinity) {
-                    log('SYSTEM', 'wplacer', "⚠️ Could not determine wait time for any user. Waiting 60s.");
-                    minTimeToReady = 60000;
-                }
-                const waitTime = minTimeToReady + 2000;
+                
+                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs));
+                const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
                 log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
                 await this.sleep(waitTime);
@@ -282,7 +284,7 @@ app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => res.json(templates));
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
-    currentSettings = { ...req.body, ...currentSettings };
+    currentSettings = { ...currentSettings, ...req.body };
     saveSettings();
     res.sendStatus(200);
 });
@@ -327,7 +329,7 @@ app.post("/template", async (req, res) => {
     try {
         await wplacer.login(users[req.body.userIds[0]].cookies);
         const templateId = Date.now().toString();
-        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds, req.body.drawingMethod);
+        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds);
         saveTemplates();
         res.status(200).json({ id: templateId });
     } catch (error) {
@@ -408,7 +410,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         for (const id in loadedTemplates) {
             const t = loadedTemplates[id];
             if (t.userIds.every(uid => users[uid])) {
-                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds, t.drawingMethod);
+                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds);
             } else {
                 console.warn(`⚠️ Template "${t.name}" could not be loaded because one or more user IDs are missing from users.json. It will be removed on the next save.`);
             }
