@@ -395,7 +395,7 @@ checkUserStatus.addEventListener("click", async () => {
             const charges = Math.floor(userInfo.charges.count);
             const max = userInfo.charges.max;
             const level = Math.floor(userInfo.level);
-            const progress = Math.round((userInfo.level % 1) * 100);;
+            const progress = Math.round((userInfo.level % 1) * 100);
 
             currentChargesEl.textContent = charges;
             maxChargesEl.textContent = max;
