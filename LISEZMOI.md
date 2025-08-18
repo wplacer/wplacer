@@ -2,9 +2,9 @@
 
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
-<a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gris?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/traduction-portugais_(brésil)-green"></a><//p>
-<a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a><//p>
+<a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
+<a href="README.md"><img src="https://img.shields.io/badge/translation-english-red"></a>
+<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a></p>
 
 Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://wplace.live/).
 
@@ -26,7 +26,7 @@ Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://
 - [git](https://git-scm.com/downloads) (optionnel mais recommandé)
 ### Installation :
 1. [Installez le userscript pour résoudre manuellement les Turnstiles (CAPTCHAs)](https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js)
-2. Téléchargez le dépôt via [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) ou téléchargez directement le ZIP depuis GitHub.
+2. Téléchargez le dépôt via [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) ou téléchargez directement le ZIP depuis GitHub (déconseillé).
 3. Dans le terminal, allez dans le répertoire du projet et installez les dépendances avec `npm i`.
 - Vous pouvez changer l’hôte et le port du serveur local en créant un fichier `.env`.
 ### Utilisation :
@@ -43,13 +43,25 @@ Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://
 
 ## Remarques 📝
 
-> [!ATTENTION]
+> [!CAUTION]
 > Ce bot n’est pas affilié à [wplace.live](https://wplace.live/) et son utilisation peut être contraire aux règles du site. Les développeurs ne sont pas responsables des sanctions appliquées à vos comptes. Utilisez-le à vos risques et périls.
 
-## Auteurs 🙏
+### À faire ✅
+- [ ] **Ajout de la prise en charge des couleurs payantes**
+- [ ] **Prise en charge du proxy**
+- [ ] **Fonction de récolte automatique d'EXP et de gouttelettes pour les utilisateurs**
+- [ ] **Résolution automatique des tourniquets (si possible)**
+- [x] ~~Prise en charge de la peinture entre plusieurs tuiles~~
+- [x] ~~Prise en charge multi-comptes simplifiée pour un même modèle~~
+- [x] ~~Système de file d'attente pour les comptes multiples~~
+
+### Crédits 🙏
 
 -   [luluwaffless](https://github.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto)
+
+Et à nos incroyables contributeurs!
+<p align="center"><img src="https://contrib.rocks/image?repo=luluwaffless/wplacer"></p>
 
 ### Licence 📜
 

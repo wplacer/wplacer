@@ -3,8 +3,8 @@
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a><//p>
-<a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a><//p>
+<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a>
+<a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a></p>
 
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
@@ -26,7 +26,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - [git](https://git-scm.com/downloads) (optional, but recommended)
 ### Installation:
 1. [Install the userscript to manually solve Turnstiles (CAPTCHAs)](https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js)
-2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub.
+2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
 3. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
 - If you'd like, you can change the host and port of the local server by creating a `.env` file.
 ### Usage:
@@ -46,10 +46,22 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 > [!CAUTION]
 > This bot is not affiliated with [wplace.live](https://wplace.live/) and its use may be against the site's rules. The developers are not responsible for any punishments against your accounts. Use at your own risk.
 
-## Authors 🙏
+### To-dos ✅
+- [ ] **Add support for paid colors**
+- [ ] **Proxy support**
+- [ ] **Auto-farm EXP and droplets function for users**
+- [ ] **Automatic Turnstile solving (if possible)**
+- [x] ~~Support for painting between multiple tiles~~
+- [x] ~~Easier multi-account support for one template~~
+- [x] ~~Queueing system for multi-accounts~~
+
+### Credits 🙏
 
 -   [luluwaffless](https://github.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto)
+
+And to our amazing contributors!
+<p align="center"><img src="https://contrib.rocks/image?repo=luluwaffless/wplacer"></p>
 
 ### License 📜
 
