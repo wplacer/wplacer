@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { WPlacer, log, duration } from "./wplacer.js";
 import express from "express";
+import cors from "cors";
 
 // User data handling
 const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
@@ -26,6 +27,7 @@ const saveTemplates = () => {
 };
 
 const app = express();
+app.use(cors({ origin: 'https://wplace.live' }));
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
@@ -132,8 +134,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -148,7 +150,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -265,7 +267,6 @@ app.get("/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
     res.write("retry: 1000\n\n");
 
     sseClients.add(res);
