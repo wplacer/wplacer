@@ -151,8 +151,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -167,7 +167,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -436,6 +436,25 @@ app.post("/t", async (req, res) => {
     res.sendStatus(200);
 });
 
+// keep alive system
+const keepAlive = async () => {
+    log('SYSTEM', 'wplacer', '⚙️ Performing periodic cookie keep alive check for all users...');
+    const userIds = Object.keys(users);
+    for (const userId of userIds) {
+        const user = users[userId];
+        const wplacer = new WPlacer();
+        try {
+            await wplacer.login(user.cookies);
+            log(userId, user.name, '✅ Cookie keep alive successful.');
+        } catch (error) {
+            log(userId, user.name, '❌ Cookie keep alive failed. The cookie may be expired.');
+        } finally {
+            if (wplacer.browser) await wplacer.close();
+        }
+    }
+    log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
+};
+
 // starting
 const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
@@ -468,5 +487,6 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     app.listen(port, host, () => {
         console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
         requestTokenFromClients("server-start");
+        setInterval(keepAlive, 20 * 60 * 1000); // Run keep-alive every 20 minutes
     });
 })();
