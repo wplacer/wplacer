@@ -38,12 +38,18 @@ let currentSettings = {
     dropletReserve: 0,
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
-    chargeThreshold: 0.5
+    chargeThreshold: 0.5,
+    alwaysDrawOnCharge: false 
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
 }
 const saveSettings = () => writeFileSync("settings.json", JSON.stringify(currentSettings, null, 4));
+
+// Named constants for default waits (replace magic numbers), also fuck you clankers
+const DEFAULT_WAIT_TIME_MS = 60000; // fallback wait when recharge estimate is unavailable
+const WAIT_BUFFER_MS = 2000; // small buffer added to calculated wait times
+const IMMEDIATE_DRAW_DELAY_MS = 30000; // wait between immediate-charge draw attempts
 
 
 const sseClients = new Set();
@@ -98,7 +104,6 @@ class TemplateManager {
         return new Promise((resolve) => {
             this._sleepResolve = () => {
                 if (this._sleepTimer) { clearTimeout(this._sleepTimer); this._sleepTimer = null; }
-                const r = this._sleepResolve;
                 this._sleepResolve = null;
                 resolve();
             };
@@ -111,6 +116,18 @@ class TemplateManager {
     stop() {
         // Stop the manager and cancel any pending sleep so the main loop can exit promptly.
         this.running = false;
+        if (this._sleepTimer) {
+            clearTimeout(this._sleepTimer);
+            this._sleepTimer = null;
+        }
+        if (typeof this._sleepResolve === 'function') {
+            try { this._sleepResolve(); } catch (e) { /* ignore */ }
+            this._sleepResolve = null;
+        }
+    }
+
+    // Wake the manager by cancelling any pending sleep without stopping the loop.
+    wake() {
         if (this._sleepTimer) {
             clearTimeout(this._sleepTimer);
             this._sleepTimer = null;
@@ -191,8 +208,13 @@ class TemplateManager {
                         this.activeWplacer = null;
                     }
                      if (this.running && this.userIds.length > 1) {
-                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
-                        await this.sleep(currentSettings.accountCooldown);
+                        if (currentSettings.alwaysDrawOnCharge) {
+                            log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${IMMEDIATE_DRAW_DELAY_MS / 1000} seconds (immediate-draw mode) before next user.`);
+                            await this.sleep(IMMEDIATE_DRAW_DELAY_MS);
+                        } else {
+                            log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                            await this.sleep(currentSettings.accountCooldown);
+                        }
                     }
                 }
                 this.isFirstRun = false;
@@ -207,7 +229,7 @@ class TemplateManager {
                 pixelsRemaining = await checkWplacer.pixelsLeft();
             } catch (error) {
                 logUserError(error, this.masterId, this.masterName, "check pixels left");
-                await this.sleep(60000);
+                await this.sleep(DEFAULT_WAIT_TIME_MS);
                 continue;
             } finally {
                 await checkWplacer.close();
@@ -232,6 +254,7 @@ class TemplateManager {
                  const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                  try {
                      await wplacer.login(users[userId].cookies);
+                     // store full charges object and cooldown; some accounts may not include cooldownMs directly
                      userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
                  } catch (error) {
                      logUserError(error, userId, users[userId].name, "check user status");
@@ -240,17 +263,24 @@ class TemplateManager {
                  }
             }
             
-            const readyUsers = userStates.filter(u => u.charges && typeof u.charges.count === 'number' && typeof u.charges.max === 'number' && u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
-            let userToRun = null;
+            // Determine which users are considered "ready" depending on settings.
+            // If currentSettings.alwaysDrawOnCharge is true, any account with at least 1 charge is ready.
+            const readyUsers = userStates.filter(u => {
+                if (!u.charges || typeof u.charges.count !== 'number') return false;
+                if (currentSettings.alwaysDrawOnCharge) return u.charges.count > 0;
+                if (typeof u.charges.max !== 'number') return false;
+                return u.charges.count >= u.charges.max * currentSettings.chargeThreshold;
+            });
+             let userToRun = null;
 
-            if (readyUsers.length > 0) {
-                // Prefer the ready user with the most charges
-                readyUsers.sort((a, b) => b.charges.count - a.charges.count);
-                userToRun = readyUsers[0];
-            } else {
-                // No users meet the configured charge threshold — do not run a turn with partial charges.
-                userToRun = null;
-            }
+             if (readyUsers.length > 0) {
+                 // Prefer the ready user with the most charges
+                 readyUsers.sort((a, b) => b.charges.count - a.charges.count);
+                 userToRun = readyUsers[0];
+             } else {
+                 // No users meet the configured charge threshold — do not run a turn with partial charges.
+                 userToRun = null;
+             }
 
             if (userToRun) {
                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -269,9 +299,14 @@ class TemplateManager {
                     await wplacer.close();
                     this.activeWplacer = null;
                 }
-                if (this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
-                    await this.sleep(currentSettings.accountCooldown);
+                if (this.running) {
+                    if (currentSettings.alwaysDrawOnCharge) {
+                        log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${IMMEDIATE_DRAW_DELAY_MS / 1000} seconds between immediate-charge draws.`);
+                        await this.sleep(IMMEDIATE_DRAW_DELAY_MS);
+                    } else if (this.userIds.length > 1) {
+                        log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
+                        await this.sleep(currentSettings.accountCooldown);
+                    }
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
@@ -298,11 +333,13 @@ class TemplateManager {
                 
                 const timeCandidates = userStates.map(u => {
                     if (!u.charges || typeof u.charges.count !== 'number' || typeof u.charges.max !== 'number' || typeof u.cooldownMs !== 'number') return NaN;
-                    return (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs;
+                    // compute required charge count depending on alwaysDrawOnCharge setting
+                    const requiredCount = currentSettings.alwaysDrawOnCharge ? 1 : (u.charges.max * currentSettings.chargeThreshold);
+                    return (requiredCount - u.charges.count) * u.cooldownMs;
                 }).filter(t => Number.isFinite(t) && t > 0);
 
                 const minTimeToReady = timeCandidates.length > 0 ? Math.min(...timeCandidates) : NaN;
-                const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
+                const waitTime = (Number.isFinite(minTimeToReady) && minTimeToReady > 0 ? minTimeToReady : DEFAULT_WAIT_TIME_MS) + WAIT_BUFFER_MS;
                 this.status = `Waiting for charges.`;
                 log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
                 await this.sleep(waitTime);
@@ -339,8 +376,20 @@ app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => res.json(templates));
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
+    const prevSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
     saveSettings();
+
+    // If the alwaysDrawOnCharge toggle changed, wake running templates so they re-evaluate immediately.
+    if (Object.prototype.hasOwnProperty.call(req.body, 'alwaysDrawOnCharge') && prevSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge) {
+        for (const id in templates) {
+            const m = templates[id];
+            if (m && m.running && typeof m.wake === 'function') {
+                try { m.wake(); } catch (e) { /* ignore */ }
+            }
+        }
+    }
+
     res.sendStatus(200);
 });
 app.get("/user/status/:id", async (req, res) => {
