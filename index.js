@@ -49,7 +49,6 @@ const saveSettings = () => writeFileSync("settings.json", JSON.stringify(current
 // Named constants for default waits (replace magic numbers), also fuck you clankers
 const DEFAULT_WAIT_TIME_MS = 60000; // fallback wait when recharge estimate is unavailable
 const WAIT_BUFFER_MS = 2000; // small buffer added to calculated wait times
-const IMMEDIATE_DRAW_DELAY_MS = 30000; // wait between immediate-charge draw attempts
 
 
 const sseClients = new Set();
@@ -208,13 +207,8 @@ class TemplateManager {
                         this.activeWplacer = null;
                     }
                      if (this.running && this.userIds.length > 1) {
-                        if (currentSettings.alwaysDrawOnCharge) {
-                            log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${IMMEDIATE_DRAW_DELAY_MS / 1000} seconds (immediate-draw mode) before next user.`);
-                            await this.sleep(IMMEDIATE_DRAW_DELAY_MS);
-                        } else {
-                            log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
-                            await this.sleep(currentSettings.accountCooldown);
-                        }
+                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                        await this.sleep(currentSettings.accountCooldown);
                     }
                 }
                 this.isFirstRun = false;
@@ -299,14 +293,9 @@ class TemplateManager {
                     await wplacer.close();
                     this.activeWplacer = null;
                 }
-                if (this.running) {
-                    if (currentSettings.alwaysDrawOnCharge) {
-                        log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${IMMEDIATE_DRAW_DELAY_MS / 1000} seconds between immediate-charge draws.`);
-                        await this.sleep(IMMEDIATE_DRAW_DELAY_MS);
-                    } else if (this.userIds.length > 1) {
-                        log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
-                        await this.sleep(currentSettings.accountCooldown);
-                    }
+                if (this.running && this.userIds.length > 1) {
+                    log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
+                    await this.sleep(currentSettings.accountCooldown);
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
