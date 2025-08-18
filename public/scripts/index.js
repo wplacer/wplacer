@@ -316,14 +316,15 @@ openManageUsers.addEventListener("click", () => {
                     <span>${users[id].name}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span>
+                        Charges: <span class="current-charges">?</span>/<span class="max-charges">?</span> - <span class="current-level">Level ?</span> <span class="level-progress">(?)</span></b>
                     </div>
                 </div>
                 <div class="right">
-                    <button title="Delete User"><img src="icons/remove.svg"></button>
+                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
+                    <button class="json-btn" title="Get Raw Json"><img src="icons/code.svg"></button>
                 </div>`;
             
-            user.querySelector('button').addEventListener("click", () => {
+            user.querySelector('.delete-btn').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
                     `Are you sure you want to delete ${users[id].name} (#${id})?`,
@@ -337,6 +338,14 @@ openManageUsers.addEventListener("click", () => {
                         };
                     }
                 );
+            });
+            user.querySelector('.json-btn').addEventListener("click", async () => {
+                try {
+                    const userData = await axios.get(`/user/status/${id}`);
+                    showMessage("Raw Json", JSON.stringify(userData.data, null, 2));
+                } catch (error) {
+                    handleError(error);
+                };
             });
             userList.appendChild(user);
         };
@@ -375,18 +384,24 @@ checkUserStatus.addEventListener("click", async () => {
         const leftSpans = userEl.querySelectorAll('.left > span');
         const currentChargesEl = userEl.querySelector('.current-charges');
         const maxChargesEl = userEl.querySelector('.max-charges');
+        const currentLevelEl = userEl.querySelector('.current-level');
+        const levelProgressEl = userEl.querySelector('.level-progress');
 
         leftSpans.forEach(span => span.style.color = 'var(--warning-color)');
         try {
             const response = await axios.get(`/user/status/${id}`);
             const userInfo = response.data;
             
-            const current = Math.floor(userInfo.charges.count);
+            const charges = Math.floor(userInfo.charges.count);
             const max = userInfo.charges.max;
+            const level = Math.floor(userInfo.level);
+            const progress = Math.round((userInfo.level % 1) * 100);;
 
-            currentChargesEl.textContent = current;
+            currentChargesEl.textContent = charges;
             maxChargesEl.textContent = max;
-            totalCurrent += current;
+            currentLevelEl.textContent = `Level ${level}`;
+            levelProgressEl.textContent = `(${progress}%)`;
+            totalCurrent += charges;
             totalMax += max;
 
             leftSpans.forEach(span => span.style.color = 'var(--success-color)');

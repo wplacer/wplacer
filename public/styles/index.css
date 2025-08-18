@@ -252,8 +252,16 @@ label {
     color: var(--text-secondary);
 }
 
+.user .right {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    align-items: flex-end;
+}
+
 .user .right button {
     padding: 8px;
+    display: inline-flex;
     background: none;
     border: none;
     margin: 0;
@@ -277,6 +285,10 @@ label {
 .user-stats b {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+.current-level {
+  font-weight: bold;
 }
 
 #chargeSummary {
