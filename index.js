@@ -34,7 +34,8 @@ let currentSettings = {
     accountCooldown: 20000,
     dropletReserve: 0,
     antiGriefStandby: 300000,
-    drawingMethod: 'linear'
+    drawingMethod: 'linear',
+    chargeThreshold: 0.5
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
@@ -130,8 +131,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -146,7 +147,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -189,7 +190,7 @@ class TemplateManager {
                  }
             }
             
-            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * 0.75);
+            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
             let userToRun = null;
 
             if (readyUsers.length > 0) {
@@ -245,7 +246,7 @@ class TemplateManager {
                     }
                 }
                 
-                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * 0.75 - u.charges.count) * u.cooldownMs));
+                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs));
                 const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
                 log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
