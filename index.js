@@ -70,7 +70,6 @@ function logUserError(error, id, name, context) {
 
 class TemplateManager {
     constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
-    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -128,13 +127,12 @@ class TemplateManager {
                         log(id, name, `🏁 Starting initial turn...`);
                         this.activeWplacer = wplacer;
                         await wplacer.paint(currentSettings.drawingMethod);
-                        await wplacer.paint(currentSettings.drawingMethod);
                         this.turnstileToken = wplacer.token;
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn");
@@ -149,7 +147,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -180,17 +178,7 @@ class TemplateManager {
             }
 
             let userStates = [];
-            let userStates = [];
             for (const userId of this.userIds) {
-                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                 try {
-                     await wplacer.login(users[userId].cookies);
-                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
-                 } catch (error) {
-                     logUserError(error, userId, users[userId].name, "check user status");
-                 } finally {
-                     await wplacer.close();
-                 }
                  const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
                  try {
                      await wplacer.login(users[userId].cookies);
@@ -227,9 +215,7 @@ class TemplateManager {
                     await this.handleUpgrades(wplacer);
                 } catch (error) {
                     logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
-                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
                 } finally {
-                    await wplacer.close();
                     await wplacer.close();
                     this.activeWplacer = null;
                 }
@@ -344,7 +330,6 @@ app.post("/template", async (req, res) => {
         await wplacer.login(users[req.body.userIds[0]].cookies);
         const templateId = Date.now().toString();
         templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds);
-        templates[templateId] = new TemplateManager(req.body.templateName, req.body.template, req.body.coords, req.body.canBuyCharges, req.body.canBuyMaxCharges, req.body.antiGriefMode, req.body.userIds);
         saveTemplates();
         res.status(200).json({ id: templateId });
     } catch (error) {
@@ -425,7 +410,6 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         for (const id in loadedTemplates) {
             const t = loadedTemplates[id];
             if (t.userIds.every(uid => users[uid])) {
-                templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds);
                 templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds);
             } else {
                 console.warn(`⚠️ Template "${t.name}" could not be loaded because one or more user IDs are missing from users.json. It will be removed on the next save.`);
