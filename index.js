@@ -39,7 +39,7 @@ let currentSettings = {
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
     chargeThreshold: 0.5,
-    alwaysDrawOnCharge: false 
+    alwaysDrawOnCharge: false
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
@@ -136,9 +136,9 @@ class TemplateManager {
             this._sleepResolve = null;
         }
     }
-    setToken(t) { 
+    setToken(t) {
         this.turnstileToken = t;
-        if (this.activeWplacer) this.activeWplacer.setToken(t); 
+        if (this.activeWplacer) this.activeWplacer.setToken(t);
     }
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
@@ -166,7 +166,7 @@ class TemplateManager {
         while (this.running) {
             if (this.isFirstRun) {
                 log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
-                
+
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
                     const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
                     try {
@@ -195,7 +195,7 @@ class TemplateManager {
                         await wplacer.paint(currentSettings.drawingMethod);
                         this.turnstileToken = wplacer.token;
                         await this.handleUpgrades(wplacer);
-                        
+
                         if (await wplacer.pixelsLeft() === 0) {
                             this.running = false; // Stop the main loop
                             break; // Exit the initial run loop
@@ -206,7 +206,7 @@ class TemplateManager {
                         if (wplacer.browser) await wplacer.close();
                         this.activeWplacer = null;
                     }
-                     if (this.running && this.userIds.length > 1) {
+                    if (this.running && this.userIds.length > 1) {
                         log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
                         await this.sleep(currentSettings.accountCooldown);
                     }
@@ -245,18 +245,18 @@ class TemplateManager {
 
             let userStates = [];
             for (const userId of this.userIds) {
-                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                 try {
-                     await wplacer.login(users[userId].cookies);
-                     // store full charges object and cooldown; some accounts may not include cooldownMs directly
-                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
-                 } catch (error) {
-                     logUserError(error, userId, users[userId].name, "check user status");
-                 } finally {
-                     await wplacer.close();
-                 }
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                try {
+                    await wplacer.login(users[userId].cookies);
+                    // store full charges object and cooldown; some accounts may not include cooldownMs directly
+                    userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                } catch (error) {
+                    logUserError(error, userId, users[userId].name, "check user status");
+                } finally {
+                    await wplacer.close();
+                }
             }
-            
+
             // Determine which users are considered "ready" depending on settings.
             // If currentSettings.alwaysDrawOnCharge is true, any account with at least 1 charge is ready.
             const readyUsers = userStates.filter(u => {
@@ -265,16 +265,16 @@ class TemplateManager {
                 if (typeof u.charges.max !== 'number') return false;
                 return u.charges.count >= u.charges.max * currentSettings.chargeThreshold;
             });
-             let userToRun = null;
+            let userToRun = null;
 
-             if (readyUsers.length > 0) {
-                 // Prefer the ready user with the most charges
-                 readyUsers.sort((a, b) => b.charges.count - a.charges.count);
-                 userToRun = readyUsers[0];
-             } else {
-                 // No users meet the configured charge threshold — do not run a turn with partial charges.
-                 userToRun = null;
-             }
+            if (readyUsers.length > 0) {
+                // Prefer the ready user with the most charges
+                readyUsers.sort((a, b) => b.charges.count - a.charges.count);
+                userToRun = readyUsers[0];
+            } else {
+                // No users meet the configured charge threshold — do not run a turn with partial charges.
+                userToRun = null;
+            }
 
             if (userToRun) {
                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
@@ -303,7 +303,7 @@ class TemplateManager {
                     try {
                         await chargeBuyer.login(users[this.masterId].cookies);
                         const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                        if(affordableDroplets >= 500) {
+                        if (affordableDroplets >= 500) {
                             const maxAffordable = Math.floor(affordableDroplets / 500);
                             const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
                             if (amountToBuy > 0) {
@@ -314,12 +314,12 @@ class TemplateManager {
                             }
                         }
                     } catch (error) {
-                         logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
+                        logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
                     } finally {
                         await chargeBuyer.close();
                     }
                 }
-                
+
                 const timeCandidates = userStates.map(u => {
                     if (!u.charges || typeof u.charges.count !== 'number' || typeof u.charges.max !== 'number' || typeof u.cooldownMs !== 'number') return NaN;
                     // compute required charge count depending on alwaysDrawOnCharge setting
@@ -412,7 +412,7 @@ app.post("/user", async (req, res) => {
 });
 app.post("/template", async (req, res) => {
     if (!req.body.templateName || !req.body.template || !req.body.coords || !req.body.userIds || !req.body.userIds.length) return res.sendStatus(400);
-    
+
     const isDuplicateName = Object.values(templates).some(t => t.name === req.body.templateName);
     if (isDuplicateName) {
         return res.status(409).json({ error: "A template with this name already exists." });
@@ -457,7 +457,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = updatedData.canBuyCharges;
     manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
     manager.antiGriefMode = updatedData.antiGriefMode;
-    
+
     if (updatedData.template) {
         manager.template = updatedData.template;
     }
@@ -557,7 +557,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
     if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
-    
+
     // start server
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
