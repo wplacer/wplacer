@@ -98,25 +98,6 @@ p.credits a img {
     height: 1.2em;
 }
 
-a {
-    color: var(--text-secondary);
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25em;
-    margin-top: 24px;
-    transition: color 0.2s ease;
-}
-
-a:hover {
-    color: var(--text-primary);
-}
-
-a img {
-    width: 1.5em;
-    height: 1.5em;
-}
-
 button {
     font-family: var(--font-family);
     font-weight: 500;
@@ -211,7 +192,7 @@ label {
     color: var(--text-secondary);
 }
 
-.coordinates {
+.coordinate-grid {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
     gap: 10px;
@@ -235,37 +216,37 @@ label {
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
-.user .left {
+.user-info {
     display: flex;
     flex-direction: column;
     text-align: left;
     gap: 8px;
 }
 
-.user .left span:first-child {
+.user-info span:first-child {
     font-weight: 700;
     color: var(--text-primary);
 }
 
-.user .left span:last-child {
+.user-info span:last-child {
     font-size: 0.875rem;
     color: var(--text-secondary);
 }
 
-.user .right button {
+.user-actions button {
     padding: 8px;
     background: none;
     border: none;
     margin: 0;
 }
 
-.user .right button img {
+.user-actions button img {
     filter: none;
     opacity: 0.6;
     transition: opacity 0.2s ease;
 }
 
-.user .right button:hover img {
+.user-actions button:hover img {
     opacity: 1;
 }
 
@@ -364,20 +345,20 @@ canvas {
 .template .status-waiting { color: var(--warning-color); }
 .template .status-stopped { color: var(--error-color); }
 
-.template .buttons {
+.template-actions, .template-actions-all {
     display: flex;
     gap: 10px;
     margin-top: 16px;
 }
 
-.checkbox {
+.setting-toggle {
     display: flex;
     align-items: center;
     justify-content: space-between;
     margin: 20px 0;
 }
 
-.checkbox label[for] {
+.setting-toggle label[for] {
     margin: 0;
 }
 
