@@ -91,23 +91,60 @@ class TemplateManager {
         this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
         this.isFirstRun = true;
         this.sleepResolve = null;
+        this.sleepInterval = null;
+        this.sleepTimeout = null;
     }
-    sleep(ms) {
+    sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
             this.sleepResolve = resolve;
-            setTimeout(() => {
+            
+            this.sleepTimeout = setTimeout(() => {
+                if (this.sleepInterval) {
+                    clearInterval(this.sleepInterval);
+                    this.sleepInterval = null;
+                    if (withProgressBar) process.stdout.write('\n');
+                }
                 if (this.sleepResolve) {
                     this.sleepResolve = null;
+                    this.sleepTimeout = null;
                     resolve();
                 }
             }, ms);
+
+            if (withProgressBar && ms > 1000) {
+                const totalDuration = ms;
+                const barWidth = 40;
+                let elapsed = 0;
+
+                const updateProgressBar = () => {
+                    elapsed += 1000;
+                    if (elapsed > totalDuration) elapsed = totalDuration;
+                    const percentage = (elapsed / totalDuration) * 100;
+                    const filledWidth = Math.round((barWidth * percentage) / 100);
+                    const emptyWidth = barWidth - filledWidth;
+                    const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
+                    const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
+                    const eta = duration(totalDuration - elapsed);
+                    process.stdout.write(`\r${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
+                };
+                updateProgressBar();
+                this.sleepInterval = setInterval(updateProgressBar, 1000);
+            }
         });
     }
+
     interruptSleep() {
         if (this.sleepResolve) {
             log('SYSTEM', 'wplacer', `[${this.name}] ⚙️ Settings changed, waking up.`);
+            clearTimeout(this.sleepTimeout);
+            if (this.sleepInterval) {
+                clearInterval(this.sleepInterval);
+                this.sleepInterval = null;
+                process.stdout.write('\n');
+            }
             this.sleepResolve();
             this.sleepResolve = null;
+            this.sleepTimeout = null;
         }
     }
     setToken(t) { 
@@ -318,8 +355,8 @@ class TemplateManager {
                 const minTimeToReady = times.length ? Math.min(...times) : -1;
                 const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
-                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users have reached charge threshold. Waiting for next recharge in ${duration(waitTime)}...`);
-                await this.sleep(waitTime);
+                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users have reached charge threshold. Waiting for next recharge...`);
+                await this.sleep(waitTime, true);
             }
         }
         if (this.status !== "Finished.") {

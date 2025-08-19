@@ -19,6 +19,7 @@ if %NEED_INSTALL%==1 (
   )
 )
 
+call cls
 echo [run] npm start
 call npm start
 pause >nul
