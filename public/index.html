@@ -128,7 +128,7 @@
             </select>
             <div class="setting-toggle">
                 <label for="outlineMode">
-                    Enable stroke mode 
+                    Enable Outline mode 
                     <span class="help-icon" title="When enabled, strokes will be drawn instead of fills.">?</span>
                 </label>
                 <label class="switch">
@@ -175,7 +175,10 @@
             <input type="number" id="antiGriefStandby" min="1" value="10">
 
             <div id="chargeThresholdContainer">
-                <label for="chargeThreshold">Charge Threshold (%)</label>
+                <label for="chargeThreshold">
+                    Charge Threshold (%)
+                    <span class="help-icon" title="Percentage of charges needed for the user to paint.">?</span>
+                </label>
                 <input type="number" id="chargeThreshold" min="1" max="100" value="50">
             </div>
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
