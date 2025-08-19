@@ -18,6 +18,8 @@ const details = $("details");
 const size = $("size");
 const ink = $("ink");
 const templateCanvas = $("templateCanvas");
+const previewCanvas = $("previewCanvas");
+const previewCanvasButton = $("previewCanvasButton");
 const templateForm = $("templateForm");
 const templateFormTitle = $("templateFormTitle");
 const convertInput = $("convertInput");
@@ -38,6 +40,8 @@ const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
+const outlineMode = $("outlineMode");
+const useDitherDecoder = $("useDitherDecoder");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
@@ -150,6 +154,7 @@ const closest = color => {
         return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
     })];
 };
+
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
@@ -178,37 +183,163 @@ const loadTemplates = async (f) => {
         handleError(error);
     };
 };
-let currentTemplate = { width: 0, height: 0, data: [] };
-const processImageFile = (file, callback) => {
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const image = new Image();
-            image.src = e.target.result;
-            image.onload = async () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = image.width;
-                canvas.height = image.height;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(image, 0, 0);
-                const template = { width: canvas.width, height: canvas.height, ink: 0, data: Array.from({ length: canvas.width }, () => []) };
-                const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                for (let x = 0; x < canvas.width; x++) {
-                    for (let y = 0; y < canvas.height; y++) {
-                        const i = (y * canvas.width + x) * 4;
-                        const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                        if (a === 255) {
-                            template.data[x][y] = closest(`${r},${g},${b}`);
-                            template.ink += 1;
-                        } else template.data[x][y] = 0;
-                    };
-                };
-                canvas.remove();
-                callback(template);
-            };
-        };
-        reader.readAsDataURL(file);
+const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
+    const TILE_SIZE = 1000;
+    const startX = txVal * TILE_SIZE + pxVal;
+    const startY = tyVal * TILE_SIZE + pyVal;
+    const endX = startX + width;
+    const endY = startY + height;
+    const startTileX = Math.floor(startX / TILE_SIZE);
+    const startTileY = Math.floor(startY / TILE_SIZE);
+    const endTileX = Math.floor((endX - 1) / TILE_SIZE);
+    const endTileY = Math.floor((endY - 1) / TILE_SIZE);
+
+    previewCanvas.width = width;
+    previewCanvas.height = height;
+    const ctx = previewCanvas.getContext('2d');
+    ctx.clearRect(0, 0, width, height);
+
+    for (let txi = startTileX; txi <= endTileX; txi++) {
+        for (let tyi = startTileY; tyi <= endTileY; tyi++) {
+            try {
+                const response = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
+                const img = new Image();
+                img.src = response.data.image;
+                await img.decode();
+                const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
+                const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
+                const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
+                const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                const sw = ex - sx;
+                const sh = ey - sy;
+                const dx = txi * TILE_SIZE + sx - startX;
+                const dy = tyi * TILE_SIZE + sy - startY;
+                ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
+            } catch (error) {
+                handleError(error);
+                return;
+            }
+        }
     }
+
+    const baseImage = ctx.getImageData(0, 0, width, height);
+    const templateCtx = templateCanvas.getContext('2d');
+    const templateImage = templateCtx.getImageData(0, 0, width, height);
+    ctx.globalAlpha = 0.5;
+    ctx.drawImage(templateCanvas, 0, 0);
+    ctx.globalAlpha = 1;
+    const b = baseImage.data;
+    const t = templateImage.data;
+    for (let i = 0; i < t.length; i += 4) {
+        // skip transparent template pixels
+        if (t[i + 3] === 0) continue;
+        if (b[i + 3] === 0) continue;
+
+        const idx = i / 4;
+        const x = idx % width;
+        const y = Math.floor(idx / width);
+        ctx.fillStyle = 'rgba(255,0,0,0.8)';
+        ctx.fillRect(x, y, 1, 1);
+    }
+};
+
+const ditherimgdecoder = async (imageData, width, height) => {
+    const data = imageData.data;
+    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    let ink = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const a = data[idx + 3];
+            if (a !== 255) {
+                matrix[x][y] = 0;
+                continue;
+            }
+
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+            const id = closest(`${r},${g},${b}`);
+            const [nr, ng, nb] = colorById(id).split(',').map(Number);
+            
+            matrix[x][y] = id;
+            ink++;
+
+            const errR = r - nr;
+            const errG = g - ng;
+            const errB = b - nb;
+            const distribute = (dx, dy, factor) => {
+                const nx = x + dx, ny = y + dy;
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
+                const nIdx = (ny * width + nx) * 4;
+                data[nIdx]     = Math.max(0, Math.min(255, data[nIdx]     + errR * factor));
+                data[nIdx + 1] = Math.max(0, Math.min(255, data[nIdx + 1] + errG * factor));
+                data[nIdx + 2] = Math.max(0, Math.min(255, data[nIdx + 2] + errB * factor));
+            };
+            distribute(1, 0, 7 / 16);
+            distribute(-1, 1, 3 / 16);
+            distribute(0, 1, 5 / 16);
+            distribute(1, 1, 1 / 16);
+        }
+        if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    return { matrix, ink };
+};
+
+const nearestimgdecoder = (imageData, width, height) => {
+    const d = imageData.data;
+    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    let ink = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4;
+            const a = d[i + 3];
+            if (a === 255) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+                const id = closest(`${r},${g},${b}`);
+                matrix[x][y] = id;
+                ink++;
+            } else {
+                matrix[x][y] = 0;
+            }
+        }
+    }
+    return { matrix, ink };
+};
+
+let currentTemplate = { width: 0, height: 0, data: [] };
+
+const processImageFile = (file, callback) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const image = new Image();
+        image.src = e.target.result;
+        image.onload = async () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(image, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const { matrix, ink } = useDitherDecoder.checked
+                ? await ditherimgdecoder(imageData, canvas.width, canvas.height)
+                : nearestimgdecoder(imageData, canvas.width, canvas.height);
+
+            const template = {
+                width: canvas.width,
+                height: canvas.height,
+                ink,
+                data: matrix
+            };
+
+            canvas.remove();
+            callback(template);
+        };
+    };
+    reader.readAsDataURL(file);
 };
 convertInput.addEventListener('change', async () => {
     processImageFile(convertInput.files[0], (template) => {
@@ -218,6 +349,17 @@ convertInput.addEventListener('change', async () => {
         ink.innerHTML = template.ink;
         details.style.display = "block";
     });
+});
+previewCanvasButton.addEventListener('click', async () => {
+    const txVal = parseInt(tx.value, 10);
+    const tyVal = parseInt(ty.value, 10);
+    const pxVal = parseInt(px.value, 10);
+    const pyVal = parseInt(py.value, 10);
+    if (isNaN(txVal) || isNaN(tyVal) || isNaN(pxVal) || isNaN(pyVal) || currentTemplate.width === 0) {
+        showMessage("Error", "Please convert an image and enter valid coordinates before previewing.");
+        return;
+    }
+    await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
 });
 
 canBuyMaxCharges.addEventListener('change', () => {
@@ -568,14 +710,15 @@ openSettings.addEventListener("click", async () => {
         const currentSettings = response.data;
         drawingModeSelect.value = currentSettings.drawingMethod;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        outlineMode.checked = currentSettings.outlineMode;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
         alwaysDrawOnCharge.checked = !!currentSettings.alwaysDrawOnCharge;
-        // Show/hide the threshold input depending on the toggle
         chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
+        useDitherDecoder.checked = !!currentSettings.useDitherDecoder;
     } catch (error) {
         handleError(error);
     }
@@ -652,6 +795,33 @@ antiGriefStandby.addEventListener('change', async () => {
         }
         await axios.put('/settings', { antiGriefStandby: newStandby });
         showMessage("Success", "Anti-grief standby time saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+outlineMode.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { outlineMode: outlineMode.checked });
+        showMessage("Success", "Outline mode saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+useDitherDecoder.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { useDitherDecoder: useDitherDecoder.checked });
+        showMessage("Success", "Color decoder setting saved!");
+        if (convertInput.files && convertInput.files[0]) {
+            processImageFile(convertInput.files[0], (template) => {
+                currentTemplate = template;
+                drawTemplate(template, templateCanvas);
+                size.innerHTML = `${template.width}x${template.height}px`;
+                ink.innerHTML = template.ink;
+                details.style.display = "block";
+            });
+        }
     } catch (error) {
         handleError(error);
     }

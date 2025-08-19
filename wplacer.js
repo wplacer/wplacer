@@ -124,7 +124,7 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = this.me.evaluate((pallete, src) => new Promise((resolve) => {
+                const promise = this.me.evaluate((pallete, useNewDecoder, src) => new Promise((resolve) => {
                     const image = new Image();
                     image.crossOrigin = "Anonymous";
                     image.onload = () => {
@@ -135,12 +135,27 @@ export class WPlacer {
                         ctx.drawImage(image, 0, 0);
                         const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
                         const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const entries = Object.entries(pallete).map(([key, id]) => ({ rgb: key.split(',').map(Number), id }));
                         for (let x = 0; x < canvas.width; x++) {
                             for (let y = 0; y < canvas.height; y++) {
                                 const i = (y * canvas.width + x) * 4;
                                 const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                                if (a === 255) template.data[x][y] = pallete[`${r},${g},${b}`];
-                                else template.data[x][y] = 0;
+                                if (a === 255) {
+                                    if (useNewDecoder) {
+                                        let min = Infinity;
+                                        let colorId = 0;
+                                        for (const p of entries) {
+                                            const diff = Math.abs(r - p.rgb[0]) + Math.abs(g - p.rgb[1]) + Math.abs(b - p.rgb[2]);
+                                            if (diff < min) {
+                                                min = diff;
+                                                colorId = p.id;
+                                            }
+                                        }
+                                        template.data[x][y] = colorId;
+                                    } else {
+                                        template.data[x][y] = pallete[`${r},${g},${b}`] || 0;
+                                    }
+                                } else template.data[x][y] = 0;
                             };
                         };
                         canvas.remove();
@@ -148,12 +163,12 @@ export class WPlacer {
                     };
                     image.onerror = () => resolve(null); // Resolve with null on error
                     image.src = src;
-                }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
-                    .then(tileData => {
-                        if (tileData) {
-                            this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                        }
-                    });
+                }), pallete, this.settings?.useDitherDecoder, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
+                .then(tileData => {
+                    if (tileData) {
+                        this.tiles.set(`${currentTx}_${currentTy}`, tileData);
+                    }
+                });
                 tilePromises.push(promise);
             }
         }
@@ -227,12 +242,19 @@ export class WPlacer {
                 const localPy = globalPy % 1000;
 
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile || !tile.data[localPx]) continue; 
-                
+                if (!tile || !tile.data[localPx]) continue;
+
                 const tileColor = tile.data[localPx][localPy];
 
                 if (templateColor !== tileColor && this.hasColor(templateColor)) {
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor });
+                    const neighbors = [
+                        this.template.data[x - 1]?.[y],
+                        this.template.data[x + 1]?.[y],
+                        this.template.data[x]?.[y - 1],
+                        this.template.data[x]?.[y + 1]
+                    ];
+                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
+                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge });
                 }
             }
         }
@@ -254,55 +276,67 @@ export class WPlacer {
 
         while (true) {
             await this.loadTiles();
+            let outlineFirst = this.settings?.outlineMode;
             if (!this.token) await this.waitForToken();
-        
+            
             let mismatchedPixels = this._getMismatchedPixels();
             if (mismatchedPixels.length === 0) return 0;
             
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🔍 Found ${mismatchedPixels.length} mismatched pixels.`);
-
-            switch (method) {
-                case 'linear-reversed':
-                    mismatchedPixels.reverse();
-                    break;
-                case 'linear-ltr': {
-                    const [startX, startY] = this.coords;
-                    mismatchedPixels.sort((a, b) => {
-                        const aGlobalX = (a.tx - startX) * 1000 + a.px;
-                        const bGlobalX = (b.tx - startX) * 1000 + b.px;
-                        if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
-                        return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-                    });
-                    break;
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+            
+            if (outlineFirst) {
+                const edgePixels = mismatchedPixels.filter(p => p.isEdge);
+                if (edgePixels.length > 0) {
+                    mismatchedPixels = edgePixels;
+                } else {
+                    outlineFirst = false;
                 }
-                case 'linear-rtl': {
-                    const [startX, startY] = this.coords;
-                    mismatchedPixels.sort((a, b) => {
-                        const aGlobalX = (a.tx - startX) * 1000 + a.px;
-                        const bGlobalX = (b.tx - startX) * 1000 + b.px;
-                        if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
-                        return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-                    });
-                    break;
-                }
-                case 'singleColorRandom':
-                case 'colorByColor':
-                    const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
-                        if (!acc[p.color]) acc[p.color] = [];
-                        acc[p.color].push(p);
-                        return acc;
-                    }, {});
-                    const colors = Object.keys(pixelsByColor);
-                    if (method === 'singleColorRandom') {
-                        for (let i = colors.length - 1; i > 0; i--) {
-                            const j = Math.floor(Math.random() * (i + 1));
-                            [colors[i], colors[j]] = [colors[j], colors[i]];
-                        }
-                    }
-                    mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
-                    break;
             }
-    
+
+            if (!outlineFirst) {
+                switch (method) {
+                    case 'linear-reversed':
+                        mismatchedPixels.reverse();
+                        break;
+                    case 'linear-ltr': {
+                        const [startX, startY] = this.coords;
+                        mismatchedPixels.sort((a, b) => {
+                            const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                            const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                            if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
+                            return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                        });
+                        break;
+                    }
+                    case 'linear-rtl': {
+                        const [startX, startY] = this.coords;
+                        mismatchedPixels.sort((a, b) => {
+                            const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                            const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                            if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
+                            return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                        });
+                        break;
+                    }
+                    case 'singleColorRandom':
+                    case 'colorByColor': {
+                        const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
+                            if (!acc[p.color]) acc[p.color] = [];
+                            acc[p.color].push(p);
+                            return acc;
+                        }, {});
+                        const colors = Object.keys(pixelsByColor);
+                        if (method === 'singleColorRandom') {
+                            for (let i = colors.length - 1; i > 0; i--) {
+                                const j = Math.floor(Math.random() * (i + 1));
+                                [colors[i], colors[j]] = [colors[j], colors[i]];
+                            }
+                        }
+                        mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                        break;
+                    }
+                }
+            }
             const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
             const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
                 const key = `${p.tx},${p.ty}`;

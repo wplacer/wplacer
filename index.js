@@ -39,6 +39,8 @@ let currentSettings = {
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
     chargeThreshold: 0.5,
+    useDitherDecoder: false,
+    outlineMode: false,
     alwaysDrawOnCharge: false
 };
 if (existsSync("settings.json")) {
@@ -544,6 +546,28 @@ app.put("/template/restart/:id", async (req, res) => {
 });
 
 // client endpoints
+app.get("/canvas", async (req, res) => {
+    const { tx, ty } = req.query;
+    // Validate tx and ty: must be non-negative integers
+    const txInt = Number.isInteger(Number(tx)) ? Number(tx) : NaN;
+    const tyInt = Number.isInteger(Number(ty)) ? Number(ty) : NaN;
+    if (
+        tx === undefined || ty === undefined ||
+        isNaN(txInt) || isNaN(tyInt) ||
+        txInt < 0 || tyInt < 0
+    ) {
+        return res.sendStatus(400);
+    }
+    try {
+        const url = `https://backend.wplace.live/files/s0/tiles/${txInt}/${tyInt}.png`;
+        const response = await fetch(url);
+        if (!response.ok) return res.sendStatus(response.status);
+        const buffer = Buffer.from(await response.arrayBuffer());
+        res.json({ image: `data:image/png;base64,${buffer.toString('base64')}` });
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 app.get("/ping", (_, res) => res.send("Pong!"));
 app.post("/t", async (req, res) => {
     const { t } = req.body;
