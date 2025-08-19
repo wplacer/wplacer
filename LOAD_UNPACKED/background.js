@@ -73,3 +73,34 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
         });
     }
 });
+
+// --- Create a recurring alarm for the keep alive check ---
+chrome.runtime.onInstalled.addListener(() => {
+    console.log("wplacer: Extension installed/updated. Creating keep-alive alarm.");
+    chrome.alarms.create('cookieRefreshAlarm', {
+        delayInMinutes: 1,
+        periodInMinutes: 20
+    });
+});
+
+chrome.runtime.onStartup.addListener(() => {
+    console.log("wplacer: Browser startup. Creating keep-alive alarm.");
+    chrome.alarms.create('cookieRefreshAlarm', {
+        delayInMinutes: 1,
+        periodInMinutes: 20
+    });
+});
+
+// --- Listen for the alarm to fire ---
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'cookieRefreshAlarm') {
+        console.log("wplacer: Keep-alive alarm triggered. Sending cookie to refresh session.");
+        sendCookie((response) => {
+            if (response.success) {
+                console.log(`wplacer: Periodic cookie refresh successful for ${response.name}.`);
+            } else {
+                console.warn(`wplacer: Periodic cookie refresh failed: ${response.error}`);
+            }
+        });
+    }
+});

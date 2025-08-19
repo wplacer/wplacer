@@ -2,11 +2,12 @@
   "manifest_version": 3,
   "name": "wplacer",
   "version": "2.0",
-  "description": "Automatically sends session and Turnstile tokens from wplace.live to wplacer",
+  "description": "Automatically sends session and Turnstile tokens from wplace.live to wplacer.",
   "permissions": [
     "cookies",
     "tabs",
-    "scripting"
+    "scripting",
+    "alarms"
   ],
   "host_permissions": [
     "https://wplace.live/",
