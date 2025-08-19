@@ -375,7 +375,7 @@ app.put('/settings', (req, res) => {
     saveSettings();
 
     // Interrupt sleep for all running templates if the drawing policy changes.
-    if (oldSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge) {
+    if (oldSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge || oldSettings.chargeThreshold !== currentSettings.chargeThreshold) {
         for (const id in templates) {
             if (templates[id].running) {
                 templates[id].interruptSleep();
