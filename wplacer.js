@@ -39,9 +39,10 @@ export const log = async (id, name, data, error) => {
     };
 };
 export class WPlacer {
-    constructor(template, coords, canBuyCharges, requestTokenCallback, settings) {
+    constructor(template, coords, canBuyCharges, requestTokenCallback, settings, templateName) {
         this.status = "Waiting until called to start.";
         this.template = template;
+        this.templateName = templateName;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.requestTokenCallback = requestTokenCallback;
@@ -75,12 +76,17 @@ export class WPlacer {
         await this.me.waitForSelector('body', { timeout: 15000 });
         const bodyText = await this.me.evaluate(() => document.body.innerText);
 
-        if (bodyText.includes('1015')) {
+        if (bodyText.includes('Error 1015')) {
             throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
         }
 
         try {
-            const userInfo = JSON.parse(bodyText);
+            const jsonMatch = bodyText.match(/{.*}/s);
+            if (!jsonMatch) {
+                throw new Error(`No JSON object found in response.`);
+            }
+            const userInfo = JSON.parse(jsonMatch[0]);
+            
             if (userInfo.error) {
                 throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
             }
@@ -193,17 +199,17 @@ export class WPlacer {
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
         if (response.data.painted && response.data.painted == body.colors.length) {
-            log(this.userInfo.id, this.userInfo.name, `🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
             return { painted: body.colors.length, success: true };
         } else if (response.status === 403 && response.data.error === "refresh") {
             this.token = null;
             this.tokenPromise = new Promise((resolve) => { this._resolveToken = resolve; });
             return { painted: 0, success: false, reason: 'refresh' };
         } else if (response.status === 500) {
-            log(this.userInfo.id, this.userInfo.name, "⏱️ Rate limited by the server. Waiting 40 seconds before retrying...");
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
             return { painted: 0, success: false, reason: 'ratelimit' };
-        } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
+        } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
             throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
         } else {
             throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
@@ -226,8 +232,8 @@ export class WPlacer {
                 const localPy = globalPy % 1000;
 
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile || !tile.data[localPx]) continue;
-
+                if (!tile || !tile.data[localPx]) continue; 
+                
                 const tileColor = tile.data[localPx][localPy];
 
                 if (templateColor !== tileColor && this.hasColor(templateColor)) {
@@ -242,21 +248,23 @@ export class WPlacer {
         await this.loadUserInfo();
 
         switch (method) {
-            case 'linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)..."); break;
-            case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)..."); break;
-            case 'linear-ltr': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Left to Right)..."); break;
-            case 'linear-rtl': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Right to Left)..."); break;
-            case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`); break;
-            case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`); break;
+            case 'linear': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Top to Bottom)...`); break;
+            case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Bottom to Top)...`); break;
+            case 'linear-ltr': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Left to Right)...`); break;
+            case 'linear-rtl': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Right to Left)...`); break;
+            case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Random Color)...`); break;
+            case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Color by Color)...`); break;
             default: throw new Error(`Unknown paint method: ${method}`);
         }
 
         while (true) {
             await this.loadTiles();
             if (!this.token) await this.waitForToken();
-
+        
             let mismatchedPixels = this._getMismatchedPixels();
             if (mismatchedPixels.length === 0) return 0;
+            
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 
             switch (method) {
                 case 'linear-reversed':
@@ -299,7 +307,7 @@ export class WPlacer {
                     mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
                     break;
             }
-
+    
             const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
             const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
                 const key = `${p.tx},${p.ty}`;
@@ -308,24 +316,27 @@ export class WPlacer {
                 acc[key].coords.push(p.px, p.py);
                 return acc;
             }, {});
-
+    
             let totalPainted = 0;
             let needsRetry = false;
             for (const tileKey in bodiesByTile) {
                 const [tx, ty] = tileKey.split(',').map(Number);
                 const body = { ...bodiesByTile[tileKey], t: this.token };
                 const result = await this._executePaint(tx, ty, body);
-
-                if (result.success) totalPainted += result.painted;
-                else {
+                
+                if (result.success) {
+                    totalPainted += result.painted;
+                } else {
                     needsRetry = true;
                     break;
-                };
-            };
+                }
+            }
 
-            if (!needsRetry) return totalPainted;
-        };
-    };
+            if (!needsRetry) {
+                return totalPainted;
+            }
+        }
+    }
 
     async buyProduct(productId, amount) {
         const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: productId, amount: amount } });
@@ -339,10 +350,10 @@ export class WPlacer {
             } else {
                 purchaseMessage = `🛒 Purchase successful for product #${productId} (amount: ${amount})`;
             }
-            log(this.userInfo.id, this.userInfo.name, purchaseMessage);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ${purchaseMessage}`);
             return true;
-        } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
-            throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
+        } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
+             throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
         } else {
             throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
         }
