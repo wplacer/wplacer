@@ -68,7 +68,6 @@ function updateUserCount() {
     userCount.textContent = `(${userList.children.length})`;
 }
 
-
 const showMessage = (title, content) => {
     messageBoxTitle.textContent = title;
     messageBoxContent.textContent = content;
