@@ -52,7 +52,6 @@ export class WPlacer {
         this.tokenPromise = new Promise((resolve) => {
             this._resolveToken = resolve;
         });
-        this.currentCharge = 0;
     };
     async login(cookies) {
         this.cookies = cookies;
@@ -81,10 +80,6 @@ export class WPlacer {
                 throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
             }
             if (userInfo.id && userInfo.name) {
-
-                // Fix token invalidation from overloading paint calls.
-                this.currentCharge = Math.floor(userInfo.charges.count);
-
                 this.userInfo = userInfo;
                 return true;
             } else {
@@ -234,32 +229,6 @@ export class WPlacer {
         return mismatched;
     }
 
-    _placeTemplate(coords, template, limiter) {
-        const [tx, ty, px, py] = coords;
-        const tiles = {};
-        let total = 0;
-        for (let y = 0; y < template.height; y++) {
-            for (let x = 0; x < template.width; x++) {
-                const color = template.data[x][y];
-                if (color === 0) continue;
-                if (limiter && total >= limiter) break;
-                const gx = px + x;
-                const gy = py + y;
-                const tileX = Math.floor(gx / 1000) + tx;
-                const tileY = Math.floor(gy / 1000) + ty;
-                const localX = gx % 1000;
-                const localY = gy % 1000;
-                const key = `${tileX},${tileY}`;
-                if (!tiles[key]) tiles[key] = { colors: [], coords: [] };
-                tiles[key].colors.push(color);
-                tiles[key].coords.push(localX, localY);
-                total++;
-            }
-            if (limiter && total >= limiter) break;
-        }
-        return tiles;
-    }
-
     async paint(method = 'linear') {
         await this.loadUserInfo();
 
@@ -285,7 +254,7 @@ export class WPlacer {
                     mismatchedPixels.reverse();
                     break;
                 case 'linear-ltr': {
-                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    const [startX, startY] = this.coords;
                     mismatchedPixels.sort((a, b) => {
                         const aGlobalX = (a.tx - startX) * 1000 + a.px;
                         const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -295,7 +264,7 @@ export class WPlacer {
                     break;
                 }
                 case 'linear-rtl': {
-                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    const [startX, startY] = this.coords;
                     mismatchedPixels.sort((a, b) => {
                         const aGlobalX = (a.tx - startX) * 1000 + a.px;
                         const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -322,13 +291,20 @@ export class WPlacer {
                     break;
             }
 
-            const bodies = this._placeTemplate(this.coords, this.template, this.currentCharge);
+            const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
+            const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
+                const key = `${p.tx},${p.ty}`;
+                if (!acc[key]) acc[key] = { colors: [], coords: [] };
+                acc[key].colors.push(p.color);
+                acc[key].coords.push(p.px, p.py);
+                return acc;
+            }, {});
 
             let totalPainted = 0;
             let needsRetry = false;
-            for (const tileKey in bodies) {
+            for (const tileKey in bodiesByTile) {
                 const [tx, ty] = tileKey.split(',').map(Number);
-                const body = { ...bodies[tileKey], t: this.token };
+                const body = { ...bodiesByTile[tileKey], t: this.token };
                 const result = await this._executePaint(tx, ty, body);
 
                 if (result.success) totalPainted += result.painted;
