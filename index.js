@@ -127,7 +127,7 @@ class TemplateManager {
                     const eta = duration(totalDuration - elapsed);
                     process.stdout.clearLine(0);
                     process.stdout.cursorTo(0);
-                    process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta})`);
+                    process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
                 };
                 updateProgressBar();
                 this.sleepInterval = setInterval(updateProgressBar, 1000);
