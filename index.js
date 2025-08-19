@@ -350,7 +350,7 @@ class TemplateManager {
                 // Compute minimum time until any user meets the target.
                 const times = userStates.map(u => {
                     const target = currentSettings.alwaysDrawOnCharge ? 1 : u.charges.max * currentSettings.chargeThreshold;
-                    return (target - u.charges.count) * u.cooldownMs;
+                    return Math.max(0, (target - u.charges.count) * u.cooldownMs);
                 });
                 const minTimeToReady = times.length ? Math.min(...times) : -1;
                 const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
