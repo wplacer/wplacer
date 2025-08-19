@@ -11,21 +11,16 @@ const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1 // +1 for the transparent color id (0)
 
 export const duration = (durationMs) => {
-    if (durationMs <= 0) return "0 seconds";
-    const seconds = Math.floor((durationMs / 1000) % 60);
-    const minutes = Math.floor((durationMs / (1000 * 60)) % 60);
-    const hours = Math.floor(durationMs / (1000 * 60 * 60));
+    if (durationMs <= 0) return "0s";
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
     const parts = [];
-    if (hours) parts.push(`${hours} hour${hours === 1 ? '' : 's'}`);
-    if (minutes) parts.push(`${minutes} minute${minutes === 1 ? '' : 's'}`);
-    if (seconds || parts.length === 0) parts.push(`${seconds} second${seconds === 1 ? '' : 's'}`);
-    if (parts.length === 1) {
-        return parts[0];
-    } else if (parts.length === 2) {
-        return parts.join(' and ');
-    } else {
-        return parts.slice(0, -1).join(', ') + ' and ' + parts.slice(-1);
-    };
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+    return parts.join(' ');
 };
 export const log = async (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
