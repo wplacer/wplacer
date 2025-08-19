@@ -264,7 +264,7 @@ export class WPlacer {
             let mismatchedPixels = this._getMismatchedPixels();
             if (mismatchedPixels.length === 0) return 0;
             
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+            log(this.userInfo.id, this.userInfo.name, `🔍 [${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 
             switch (method) {
                 case 'linear-reversed':

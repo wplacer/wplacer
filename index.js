@@ -125,7 +125,7 @@ class TemplateManager {
                     const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
                     const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
                     const eta = duration(totalDuration - elapsed);
-                    process.stdout.write(`\r${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
+                    process.stdout.write(`\r⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
                 };
                 updateProgressBar();
                 this.sleepInterval = setInterval(updateProgressBar, 1000);
@@ -582,6 +582,7 @@ const keepAlive = async () => {
 // starting
 const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
+    console.clear();
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
 
