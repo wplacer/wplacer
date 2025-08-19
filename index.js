@@ -95,6 +95,7 @@ class TemplateManager {
         this.sleepResolve = null;
         this.sleepInterval = null;
         this.sleepTimeout = null;
+        this.lastTurnTimestamp = 0;
     }
     sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
@@ -301,6 +302,15 @@ class TemplateManager {
             }
 
             if (userToRun) {
+                const now = Date.now();
+                const timeSinceLastTurn = now - this.lastTurnTimestamp;
+
+                if (this.userIds.length > 1 && timeSinceLastTurn < currentSettings.accountCooldown) {
+                    const waitTime = currentSettings.accountCooldown - timeSinceLastTurn;
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Respecting account cooldown. Waiting ${duration(waitTime)}...`);
+                    await this.sleep(waitTime);
+                }
+
                 if (activeBrowserUsers.has(userToRun.userId)) continue;
                 activeBrowserUsers.add(userToRun.userId);
                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
@@ -313,16 +323,13 @@ class TemplateManager {
                     await wplacer.paint(currentSettings.drawingMethod);
                     this.turnstileToken = wplacer.token;
                     await this.handleUpgrades(wplacer);
+                    this.lastTurnTimestamp = Date.now();
                 } catch (error) {
                     logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                 } finally {
                     await wplacer.close();
                     this.activeWplacer = null;
                     activeBrowserUsers.delete(userToRun.userId);
-                }
-                if (this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
-                    await this.sleep(currentSettings.accountCooldown);
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
