@@ -92,8 +92,63 @@ class TemplateManager {
         this.masterName = users[this.masterId].name;
         this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
         this.isFirstRun = true;
+        this.sleepResolve = null;
+        this.sleepInterval = null;
+        this.sleepTimeout = null;
     }
-    sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    sleep(ms, withProgressBar = false) {
+        return new Promise(resolve => {
+            this.sleepResolve = resolve;
+            
+            this.sleepTimeout = setTimeout(() => {
+                if (this.sleepInterval) {
+                    clearInterval(this.sleepInterval);
+                    this.sleepInterval = null;
+                    if (withProgressBar) process.stdout.write('\n');
+                }
+                if (this.sleepResolve) {
+                    this.sleepResolve = null;
+                    this.sleepTimeout = null;
+                    resolve();
+                }
+            }, ms);
+
+            if (withProgressBar && ms > 1000) {
+                const totalDuration = ms;
+                const barWidth = 40;
+                let elapsed = 0;
+
+                const updateProgressBar = () => {
+                    elapsed += 1000;
+                    if (elapsed > totalDuration) elapsed = totalDuration;
+                    const percentage = (elapsed / totalDuration) * 100;
+                    const filledWidth = Math.round((barWidth * percentage) / 100);
+                    const emptyWidth = barWidth - filledWidth;
+                    const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
+                    const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
+                    const eta = duration(totalDuration - elapsed);
+                    process.stdout.write(`\r⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
+                };
+                updateProgressBar();
+                this.sleepInterval = setInterval(updateProgressBar, 1000);
+            }
+        });
+    }
+
+    interruptSleep() {
+        if (this.sleepResolve) {
+            log('SYSTEM', 'wplacer', `[${this.name}] ⚙️ Settings changed, waking up.`);
+            clearTimeout(this.sleepTimeout);
+            if (this.sleepInterval) {
+                clearInterval(this.sleepInterval);
+                this.sleepInterval = null;
+                process.stdout.write('\n');
+            }
+            this.sleepResolve();
+            this.sleepResolve = null;
+            this.sleepTimeout = null;
+        }
+    }
     setToken(t) { 
         this.turnstileToken = t;
         if (this.activeWplacer) this.activeWplacer.setToken(t); 
@@ -229,16 +284,18 @@ class TemplateManager {
                  }
             }
             
-            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
-            let userToRun = null;
+            // Determine per-user target based on settings. If alwaysDrawOnCharge is enabled,
+            // target is 1 charge (any available charge). Otherwise use the percentage threshold.
+            const readyUsers = userStates.filter(u => {
+                const target = currentSettings.alwaysDrawOnCharge ? 1 : u.charges.max * currentSettings.chargeThreshold;
+                return u.charges.count >= target;
+            });
 
+            let userToRun = null;
             if (readyUsers.length > 0) {
+                // Sort by who has the most charges and pick them.
+                readyUsers.sort((a, b) => b.charges.count - a.charges.count);
                 userToRun = readyUsers[0];
-            } else {
-                userStates.sort((a, b) => b.charges.count - a.charges.count);
-                if (userStates.length > 0 && userStates[0].charges.count > 0) {
-                    userToRun = userStates[0];
-                }
             }
 
             if (userToRun) {
@@ -292,11 +349,16 @@ class TemplateManager {
                     }
                 }
                 
-                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs));
+                // Compute minimum time until any user meets the target.
+                const times = userStates.map(u => {
+                    const target = currentSettings.alwaysDrawOnCharge ? 1 : u.charges.max * currentSettings.chargeThreshold;
+                    return Math.max(0, (target - u.charges.count) * u.cooldownMs);
+                });
+                const minTimeToReady = times.length ? Math.min(...times) : -1;
                 const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
-                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users have reached charge threshold. Waiting for next recharge in ${duration(waitTime)}...`);
-                await this.sleep(waitTime);
+                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users have reached charge threshold. Waiting for next recharge...`);
+                await this.sleep(waitTime, true);
             }
         }
         if (this.status !== "Finished.") {
@@ -347,8 +409,18 @@ app.get("/templates", (_, res) => {
 });
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
+    const oldSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
     saveSettings();
+
+    // Interrupt sleep for all running templates if the drawing policy changes.
+    if (oldSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge || oldSettings.chargeThreshold !== currentSettings.chargeThreshold) {
+        for (const id in templates) {
+            if (templates[id].running) {
+                templates[id].interruptSleep();
+            }
+        }
+    }
     res.sendStatus(200);
 });
 app.get("/user/status/:id", async (req, res) => {
@@ -534,6 +606,7 @@ const keepAlive = async () => {
 // starting
 const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
+    console.clear();
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
 
