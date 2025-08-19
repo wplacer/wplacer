@@ -52,6 +52,7 @@ export class WPlacer {
         this.tokenPromise = new Promise((resolve) => {
             this._resolveToken = resolve;
         });
+        this.currentCharge = 0;
     };
     async login(cookies) {
         this.cookies = cookies;
@@ -80,6 +81,10 @@ export class WPlacer {
                 throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
             }
             if (userInfo.id && userInfo.name) {
+
+                // Fix token invalidation from overloading paint calls.
+                this.currentCharge = Math.floor(userInfo.charges.count);
+
                 this.userInfo = userInfo;
                 return true;
             } else {
@@ -229,13 +234,15 @@ export class WPlacer {
         return mismatched;
     }
 
-    _placeTemplate(coords, template) {
+    _placeTemplate(coords, template, limiter) {
         const [tx, ty, px, py] = coords;
         const tiles = {};
+        let total = 0;
         for (let y = 0; y < template.height; y++) {
             for (let x = 0; x < template.width; x++) {
                 const color = template.data[x][y];
                 if (color === 0) continue;
+                if (limiter && total >= limiter) break;
                 const gx = px + x;
                 const gy = py + y;
                 const tileX = Math.floor(gx / 1000) + tx;
@@ -246,7 +253,9 @@ export class WPlacer {
                 if (!tiles[key]) tiles[key] = { colors: [], coords: [] };
                 tiles[key].colors.push(color);
                 tiles[key].coords.push(localX, localY);
+                total++;
             }
+            if (limiter && total >= limiter) break;
         }
         return tiles;
     }
@@ -313,7 +322,7 @@ export class WPlacer {
                     break;
             }
 
-            const bodies = this._placeTemplate(this.coords, this.template);
+            const bodies = this._placeTemplate(this.coords, this.template, this.currentCharge);
 
             let totalPainted = 0;
             let needsRetry = false;
