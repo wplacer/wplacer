@@ -4,4 +4,5 @@ users.json
 templates.json
 *.log
 settings.json
+ExtensionTesting/
 *.png

@@ -140,24 +140,19 @@ userForm.addEventListener('submit', async (e) => {
 });
 
 // templates
-const colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
+const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
+const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const colors = { ...basic_colors, ...premium_colors };
+
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-
-// better adjust color
-const adjustColor = (value) => Math.max(0, Math.min(255, value));
-
-const findNearestPaletteColor = (r, g, b) => {
-    let nearest = null;
-    let minDist = Infinity;
-    for (const key of Object.keys(colors)) {
-        const [pr, pg, pb] = key.split(',').map(Number);
-        const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-        if (dist < minDist) {
-            minDist = dist;
-            nearest = key;
-        }
-    }
-    return { id: colors[nearest], color: nearest };
+const closest = color => {
+    const [tr, tg, tb] = color.split(',').map(Number);
+    // only use basic_colors for closest match to keep current behavior
+    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
+        const [cr, cg, cb] = current.split(',').map(Number);
+        const [clR, clG, clB] = closest.split(',').map(Number);
+        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
+    })];
 };
 
 const drawTemplate = (template, canvas) => {
@@ -400,7 +395,7 @@ const resetTemplateForm = () => {
 
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    
+
     const isEditMode = !!templateForm.dataset.editId;
 
     if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
@@ -494,7 +489,7 @@ openManageUsers.addEventListener("click", () => {
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
                     <button class="json-btn" title="Get Raw User Info"><img src="icons/code.svg"></button>
                 </div>`;
-            
+
             user.querySelector('.delete-btn').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
@@ -546,7 +541,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.disabled = true;
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
-    
+
     let totalCurrent = 0;
     let totalMax = 0;
 
@@ -562,7 +557,7 @@ checkUserStatus.addEventListener("click", async () => {
         try {
             const response = await axios.get(`/user/status/${id}`);
             const userInfo = response.data;
-            
+
             const charges = Math.floor(userInfo.charges.count);
             const max = userInfo.charges.max;
             const level = Math.floor(userInfo.level);
@@ -626,7 +621,7 @@ selectAllUsers.addEventListener('click', () => {
 const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     const button = document.createElement('button');
     const isRunning = template.running;
-    
+
     button.className = isRunning ? 'destructive-button' : 'primary-button';
     button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'} Template`;
 
@@ -666,7 +661,7 @@ openManageTemplates.addEventListener("click", () => {
                 drawTemplate(t.template, canvas);
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
-                
+
                 const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
                 buttons.appendChild(toggleButton);
 

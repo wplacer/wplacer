@@ -48,10 +48,6 @@ if (existsSync("settings.json")) {
 }
 const saveSettings = () => writeFileSync("settings.json", JSON.stringify(currentSettings, null, 4));
 
-// Named constants for default waits (replace magic numbers), also fuck you clankers
-const DEFAULT_WAIT_TIME_MS = 60000; // fallback wait when recharge estimate is unavailable
-const WAIT_BUFFER_MS = 2000; // small buffer added to calculated wait times
-
 
 const sseClients = new Set();
 let needToken = true;
@@ -97,51 +93,10 @@ class TemplateManager {
         this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
         this.isFirstRun = true;
     }
-    sleep(ms) {
-        // Cancellable sleep: stores timer and resolver on the instance so stop() can cancel it.
-        if (this._sleepTimer) {
-            clearTimeout(this._sleepTimer);
-            this._sleepTimer = null;
-        }
-        return new Promise((resolve) => {
-            this._sleepResolve = () => {
-                if (this._sleepTimer) { clearTimeout(this._sleepTimer); this._sleepTimer = null; }
-                this._sleepResolve = null;
-                resolve();
-            };
-            this._sleepTimer = setTimeout(() => {
-                if (this._sleepResolve) this._sleepResolve();
-            }, ms);
-        });
-    }
-
-    stop() {
-        // Stop the manager and cancel any pending sleep so the main loop can exit promptly.
-        this.running = false;
-        if (this._sleepTimer) {
-            clearTimeout(this._sleepTimer);
-            this._sleepTimer = null;
-        }
-        if (typeof this._sleepResolve === 'function') {
-            try { this._sleepResolve(); } catch (e) { /* ignore */ }
-            this._sleepResolve = null;
-        }
-    }
-
-    // Wake the manager by cancelling any pending sleep without stopping the loop.
-    wake() {
-        if (this._sleepTimer) {
-            clearTimeout(this._sleepTimer);
-            this._sleepTimer = null;
-        }
-        if (typeof this._sleepResolve === 'function') {
-            try { this._sleepResolve(); } catch (e) { /* ignore */ }
-            this._sleepResolve = null;
-        }
-    }
-    setToken(t) {
+    sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+    setToken(t) { 
         this.turnstileToken = t;
-        if (this.activeWplacer) this.activeWplacer.setToken(t);
+        if (this.activeWplacer) this.activeWplacer.setToken(t); 
     }
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
@@ -156,7 +111,7 @@ class TemplateManager {
                     await this.sleep(currentSettings.purchaseCooldown);
                     await wplacer.loadUserInfo();
                 } catch (error) {
-                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades", this.name);
                 }
             }
         }
@@ -168,17 +123,17 @@ class TemplateManager {
 
         while (this.running) {
             if (this.isFirstRun) {
-                log('SYSTEM', 'wplacer', `🚀 Performing initial painting cycle for "${this.name}"...`);
-
+                log('SYSTEM', 'wplacer', `[${this.name}] 🚀 Performing initial painting cycle...`);
+                
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
                     if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings);
+                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings, this.name);
                     try {
                         await wplacer.login(users[userId].cookies);
                         return { userId, charges: wplacer.userInfo.charges.count };
                     } catch (error) {
-                        logUserError(error, userId, users[userId].name, "fetch charge state for initial sort");
+                        logUserError(error, userId, users[userId].name, "fetch charge state for initial sort", this.name);
                         return { userId, charges: -1 };
                     } finally {
                         await wplacer.close();
@@ -193,36 +148,36 @@ class TemplateManager {
                     if (!this.running) break;
                     if (activeBrowserUsers.has(userId)) continue;
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
                     wplacer.token = this.turnstileToken;
                     try {
                         const { id, name } = await wplacer.login(users[userId].cookies);
                         this.status = `Initial run for ${name}#${id}`;
-                        log(id, name, `🏁 Starting initial turn...`);
+                        log(id, name, `[${this.name}] 🏁 Starting initial turn...`);
                         this.activeWplacer = wplacer;
                         await wplacer.paint(currentSettings.drawingMethod);
                         this.turnstileToken = wplacer.token;
                         await this.handleUpgrades(wplacer);
-
+                        
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
-                        logUserError(error, userId, users[userId].name, "perform initial user turn");
+                        logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
                     } finally {
                         if (wplacer.browser) await wplacer.close();
                         this.activeWplacer = null;
                         activeBrowserUsers.delete(userId);
                     }
-                    if (this.running && this.userIds.length > 1) {
-                        log('SYSTEM', 'wplacer', `⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
+                     if (this.running && this.userIds.length > 1) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
                         await this.sleep(currentSettings.accountCooldown);
                     }
                 }
                 this.isFirstRun = false;
-                log('SYSTEM', 'wplacer', `✅ Initial placement cycle for "${this.name}" complete.`);
-                if (!this.running) continue;
+                log('SYSTEM', 'wplacer', `[${this.name}] ✅ Initial placement cycle complete.`);
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             if (activeBrowserUsers.has(this.masterId)) {
@@ -230,14 +185,14 @@ class TemplateManager {
                 continue;
             }
             activeBrowserUsers.add(this.masterId);
-            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
             let pixelsRemaining;
             try {
                 await checkWplacer.login(users[this.masterId].cookies);
                 pixelsRemaining = await checkWplacer.pixelsLeft();
             } catch (error) {
-                logUserError(error, this.masterId, this.masterName, "check pixels left");
-                await this.sleep(DEFAULT_WAIT_TIME_MS);
+                logUserError(error, this.masterId, this.masterName, "check pixels left", this.name);
+                await this.sleep(60000);
                 continue;
             } finally {
                 await checkWplacer.close();
@@ -247,11 +202,11 @@ class TemplateManager {
             if (pixelsRemaining === 0) {
                 if (this.antiGriefMode) {
                     this.status = "Monitoring for changes.";
-                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
+                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
                     await this.sleep(currentSettings.antiGriefStandby);
                     continue;
                 } else {
-                    log('SYSTEM', 'wplacer', `🖼 Template "${this.name}" finished!`);
+                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template finished!`);
                     this.status = "Finished.";
                     this.running = false;
                     break;
@@ -260,103 +215,93 @@ class TemplateManager {
 
             let userStates = [];
             for (const userId of this.userIds) {
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                try {
-                    await wplacer.login(users[userId].cookies);
-                    // store full charges object and cooldown; some accounts may not include cooldownMs directly
-                    userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
-                } catch (error) {
-                    logUserError(error, userId, users[userId].name, "check user status");
-                } finally {
-                    await wplacer.close();
-                }
+                 if (activeBrowserUsers.has(userId)) continue;
+                 activeBrowserUsers.add(userId);
+                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+                 try {
+                     await wplacer.login(users[userId].cookies);
+                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                 } catch (error) {
+                     logUserError(error, userId, users[userId].name, "check user status", this.name);
+                 } finally {
+                     await wplacer.close();
+                     activeBrowserUsers.delete(userId);
+                 }
             }
-
-            // Determine which users are considered "ready" depending on settings.
-            // If currentSettings.alwaysDrawOnCharge is true, any account with at least 1 charge is ready.
-            const readyUsers = userStates.filter(u => {
-                if (!u.charges || typeof u.charges.count !== 'number') return false;
-                if (currentSettings.alwaysDrawOnCharge) return u.charges.count > 0;
-                if (typeof u.charges.max !== 'number') return false;
-                return u.charges.count >= u.charges.max * currentSettings.chargeThreshold;
-            });
+            
+            const readyUsers = userStates.filter(u => u.charges.count >= u.charges.max * currentSettings.chargeThreshold);
             let userToRun = null;
 
             if (readyUsers.length > 0) {
-                // Prefer the ready user with the most charges
-                readyUsers.sort((a, b) => b.charges.count - a.charges.count);
                 userToRun = readyUsers[0];
             } else {
-                // No users meet the configured charge threshold — do not run a turn with partial charges.
-                userToRun = null;
+                userStates.sort((a, b) => b.charges.count - a.charges.count);
+                if (userStates.length > 0 && userStates[0].charges.count > 0) {
+                    userToRun = userStates[0];
+                }
             }
 
             if (userToRun) {
                 if (activeBrowserUsers.has(userToRun.userId)) continue;
                 activeBrowserUsers.add(userToRun.userId);
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
                 try {
                     const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                     this.status = `Running user ${name}#${id}`;
-                    log(id, name, `🔋 User has enough charges. Starting turn for "${this.name}"...`);
+                    log(id, name, `[${this.name}] 🔋 User has enough charges. Starting turn...`);
                     this.activeWplacer = wplacer;
                     wplacer.token = this.turnstileToken;
                     await wplacer.paint(currentSettings.drawingMethod);
                     this.turnstileToken = wplacer.token;
                     await this.handleUpgrades(wplacer);
                 } catch (error) {
-                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
+                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                 } finally {
                     await wplacer.close();
                     this.activeWplacer = null;
                     activeBrowserUsers.delete(userToRun.userId);
                 }
                 if (this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer', `⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
                     await this.sleep(currentSettings.accountCooldown);
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
-
-                    const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings);
-                    try {
-                        await chargeBuyer.login(users[this.masterId].cookies);
-                        const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                        if (affordableDroplets >= 500) {
-                            const maxAffordable = Math.floor(affordableDroplets / 500);
-                            const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
-                            if (amountToBuy > 0) {
-                                log(this.masterId, this.masterName, `💰 Attempting to buy pixel charges for "${this.name}"...`);
-                                await chargeBuyer.buyProduct(80, amountToBuy);
-                                await this.sleep(currentSettings.purchaseCooldown);
-                                continue;
+                    if (!activeBrowserUsers.has(this.masterId)) {
+                        activeBrowserUsers.add(this.masterId);
+                        const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+                        try {
+                            await chargeBuyer.login(users[this.masterId].cookies);
+                            const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
+                            if(affordableDroplets >= 500) {
+                                const maxAffordable = Math.floor(affordableDroplets / 500);
+                                const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
+                                if (amountToBuy > 0) {
+                                    log(this.masterId, this.masterName, `[${this.name}] 💰 Attempting to buy pixel charges...`);
+                                    await chargeBuyer.buyProduct(80, amountToBuy);
+                                    await this.sleep(currentSettings.purchaseCooldown);
+                                    continue;
+                                }
                             }
+                        } catch (error) {
+                             logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
+                        } finally {
+                            await chargeBuyer.close();
+                            activeBrowserUsers.delete(this.masterId);
                         }
-                    } catch(error) {
-                        logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
-                    } finally {
-                        await chargeBuyer.close();
-                        activeBrowserUsers.delete(this.masterId);
                     }
                 }
-
-                const timeCandidates = userStates.map(u => {
-                    if (!u.charges || typeof u.charges.count !== 'number' || typeof u.charges.max !== 'number' || typeof u.cooldownMs !== 'number') return NaN;
-                    // compute required charge count depending on alwaysDrawOnCharge setting
-                    const requiredCount = currentSettings.alwaysDrawOnCharge ? 1 : (u.charges.max * currentSettings.chargeThreshold);
-                    return (requiredCount - u.charges.count) * u.cooldownMs;
-                }).filter(t => Number.isFinite(t) && t > 0);
-
-                const minTimeToReady = timeCandidates.length > 0 ? Math.min(...timeCandidates) : NaN;
-                const waitTime = (Number.isFinite(minTimeToReady) && minTimeToReady > 0 ? minTimeToReady : DEFAULT_WAIT_TIME_MS) + WAIT_BUFFER_MS;
+                
+                const minTimeToReady = Math.min(...userStates.map(u => (u.charges.max * currentSettings.chargeThreshold - u.charges.count) * u.cooldownMs));
+                const waitTime = (minTimeToReady > 0 ? minTimeToReady : 60000) + 2000;
                 this.status = `Waiting for charges.`;
-                log('SYSTEM', 'wplacer', `⏳ No users have reached charge threshold for "${this.name}". Waiting for next recharge in ${duration(waitTime)}...`);
+                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users have reached charge threshold. Waiting for next recharge in ${duration(waitTime)}...`);
                 await this.sleep(waitTime);
             }
         }
         if (this.status !== "Finished.") {
             this.status = "Stopped.";
-            log('SYSTEM', 'wplacer', `✖️ Template "${this.name}" stopped.`);
+            log('SYSTEM', 'wplacer', `[${this.name}] ✖️ Template stopped.`);
         }
     }
 }
@@ -382,23 +327,28 @@ app.get("/events", (req, res) => {
 
 // frontend endpoints
 app.get("/users", (_, res) => res.json(users));
-app.get("/templates", (_, res) => res.json(templates));
+app.get("/templates", (_, res) => {
+    const sanitizedTemplates = {};
+    for (const id in templates) {
+        const t = templates[id];
+        sanitizedTemplates[id] = {
+            name: t.name,
+            template: t.template,
+            coords: t.coords,
+            canBuyCharges: t.canBuyCharges,
+            canBuyMaxCharges: t.canBuyMaxCharges,
+            antiGriefMode: t.antiGriefMode,
+            userIds: t.userIds,
+            running: t.running,
+            status: t.status
+        };
+    }
+    res.json(sanitizedTemplates);
+});
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
-    const prevSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
     saveSettings();
-
-    // If the alwaysDrawOnCharge toggle changed, wake running templates so they re-evaluate immediately.
-    if (Object.prototype.hasOwnProperty.call(req.body, 'alwaysDrawOnCharge') && prevSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge) {
-        for (const id in templates) {
-            const m = templates[id];
-            if (m && m.running && typeof m.wake === 'function') {
-                try { m.wake(); } catch (e) { /* ignore */ }
-            }
-        }
-    }
-
     res.sendStatus(200);
 });
 app.get("/user/status/:id", async (req, res) => {
@@ -437,7 +387,7 @@ app.post("/user", async (req, res) => {
 });
 app.post("/template", async (req, res) => {
     if (!req.body.templateName || !req.body.template || !req.body.coords || !req.body.userIds || !req.body.userIds.length) return res.sendStatus(400);
-
+    
     const isDuplicateName = Object.values(templates).some(t => t.name === req.body.templateName);
     if (isDuplicateName) {
         return res.status(409).json({ error: "A template with this name already exists." });
@@ -482,7 +432,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = updatedData.canBuyCharges;
     manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
     manager.antiGriefMode = updatedData.antiGriefMode;
-
+    
     if (updatedData.template) {
         manager.template = updatedData.template;
     }
@@ -505,10 +455,7 @@ app.put("/template/:id", async (req, res) => {
                 } catch (error) {
                     log(req.params.id, manager.masterName, "Error starting template", error);
                 };
-            } else if (!req.body.running && manager.running) {
-                // Use the new stop() method to interrupt any pending sleep immediately.
-                manager.stop();
-            }
+            } else manager.running = false;
         } else manager[i] = req.body[i];
     };
     res.sendStatus(200);
@@ -516,8 +463,7 @@ app.put("/template/:id", async (req, res) => {
 app.put("/template/restart/:id", async (req, res) => {
     if (!req.params.id || !templates[req.params.id]) return res.sendStatus(400);
     const manager = templates[req.params.id];
-    // Ensure any pending waits are cancelled immediately
-    manager.stop();
+    manager.running = false;
     setTimeout(() => {
         manager.isFirstRun = true;
         manager.start().catch(error => log(req.params.id, manager.masterName, "Error restarting template", error));
@@ -610,7 +556,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
     if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
-
+    
     // start server
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
