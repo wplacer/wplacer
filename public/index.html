@@ -160,12 +160,17 @@
                 <label for="alwaysDrawOnCharge">
                     Always draw when at least one charge is available 
                     <span class="help-icon" title="When enabled, It'll attempt to paint as soon as it can.">?</span> </label>
-                    Always draw when at least one charge is available 
-                    <span class="help-icon" title="When enabled, It'll attempt to paint as soon as it can.">?</span></label>
                 <label class="switch">
                     <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox">
                     <span class="slider"></span>
                 </label>
+            </div>
+            <div id="chargeThresholdContainer">
+                <label for="chargeThreshold">
+                    Charge Threshold (%)
+                    <span class="help-icon" title="Percentage of charges needed for the user to paint.">?</span>
+                </label>
+                <input type="number" id="chargeThreshold" min="1" max="100" value="50">
             </div>
             <label for="accountCooldown">Account Turn Cooldown (seconds) <span class="help-icon" title="Delay between switching to another account to paint.">?</span></label>
             <input type="number" id="accountCooldown" min="0" value="20">
@@ -176,13 +181,6 @@
             <label for="antiGriefStandby">Anti-Grief Standby Time (minutes) <span class="help-icon" title="Delay between checking for grief on your templates.">?</span></label>
             <input type="number" id="antiGriefStandby" min="1" value="10">
 
-            <div id="chargeThresholdContainer">
-                <label for="chargeThreshold">
-                    Charge Threshold (%)
-                    <span class="help-icon" title="Percentage of charges needed for the user to paint.">?</span>
-                </label>
-                <input type="number" id="chargeThreshold" min="1" max="100" value="50">
-            </div>
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
         
