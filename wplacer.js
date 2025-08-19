@@ -161,6 +161,12 @@ export class WPlacer {
             this.token = t;
         };
     };
+    hasColor(id) {
+        if (id < 32) {
+            return true;
+        }
+        return (this.userInfo.extraColorsBitmap & (1 << (id - 32)));
+    }
     async waitForToken() {
         if (this.requestTokenCallback) {
             this.requestTokenCallback(`user-${this.userInfo.name}`);
@@ -221,7 +227,7 @@ export class WPlacer {
 
                 const tileColor = tile.data[localPx][localPy];
 
-                if (templateColor !== tileColor) {
+                if (templateColor !== tileColor && this.hasColor(templateColor)) {
                     mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor });
                 }
             }
