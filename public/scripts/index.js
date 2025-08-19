@@ -40,6 +40,8 @@ const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
+const outlineMode = $("outlineMode");
+const useDitherDecoder = $("useDitherDecoder");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
@@ -158,47 +160,6 @@ const findNearestPaletteColor = (r, g, b) => {
     return { id: colors[nearest], color: nearest };
 };
 
-const ditherImage = async (imageData, width, height) => {
-    const data = imageData.data;
-    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
-    let ink = 0;
-
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            const a = data[idx + 3];
-            if (a !== 255) {
-                matrix[x][y] = 0;
-                continue;
-            }
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            const { id, color } = findNearestPaletteColor(r, g, b);
-            const [nr, ng, nb] = color.split(',').map(Number);
-            matrix[x][y] = id;
-            ink += 1;
-            const errR = r - nr;
-            const errG = g - ng;
-            const errB = b - nb;
-            const distribute = (dx, dy, factor) => {
-                const nx = x + dx;
-                const ny = y + dy;
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
-                const nIdx = (ny * width + nx) * 4;
-                data[nIdx] = adjustColor(data[nIdx] + errR * factor);
-                data[nIdx + 1] = adjustColor(data[nIdx + 1] + errG * factor);
-                data[nIdx + 2] = adjustColor(data[nIdx + 2] + errB * factor);
-            };
-            distribute(1, 0, 7 / 16);
-            distribute(-1, 1, 3 / 16);
-            distribute(0, 1, 5 / 16);
-            distribute(1, 1, 1 / 16);
-        }
-        if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-    }
-    return { matrix, ink };
-};
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
@@ -286,30 +247,114 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         ctx.fillRect(x, y, 1, 1);
     }
 };
-let currentTemplate = { width: 0, height: 0, data: [] };
-const processImageFile = (file, callback) => {
-    if (file) {
-        const reader = new FileReader();
-        reader.onload = e => {
-            const image = new Image();
-            image.src = e.target.result;
-            image.onload = async () => {
-                const canvas = document.createElement("canvas");
-                canvas.width = image.width;
-                canvas.height = image.height;
-                const ctx = canvas.getContext("2d");
-                ctx.drawImage(image, 0, 0);
-                const template = { width: canvas.width, height: canvas.height, ink: 0, data: [] };
-                const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                const { matrix, ink } = await ditherImage(d, canvas.width, canvas.height);
-                template.data = matrix;
-                template.ink = ink;
-                canvas.remove();
-                callback(template);
+
+const ditherimgdecoder = async (imageData, width, height) => {
+    const data = imageData.data;
+    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    let ink = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const idx = (y * width + x) * 4;
+            const a = data[idx + 3];
+            if (a !== 255) {
+                matrix[x][y] = 0;
+                continue;
+            }
+            const r = data[idx];
+            const g = data[idx + 1];
+            const b = data[idx + 2];
+            const { id, color } = findNearestPaletteColor(r, g, b);
+            const [nr, ng, nb] = color.split(',').map(Number);
+            matrix[x][y] = id;
+            ink += 1;
+            const errR = r - nr;
+            const errG = g - ng;
+            const errB = b - nb;
+            const distribute = (dx, dy, factor) => {
+                const nx = x + dx;
+                const ny = y + dy;
+                if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
+                const nIdx = (ny * width + nx) * 4;
+                data[nIdx] = adjustColor(data[nIdx] + errR * factor);
+                data[nIdx + 1] = adjustColor(data[nIdx + 1] + errG * factor);
+                data[nIdx + 2] = adjustColor(data[nIdx + 2] + errB * factor);
             };
-        };
-        reader.readAsDataURL(file);
+            distribute(1, 0, 7 / 16);
+            distribute(-1, 1, 3 / 16);
+            distribute(0, 1, 5 / 16);
+            distribute(1, 1, 1 / 16);
+        }
+        if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
     }
+    return { matrix, ink };
+};
+
+const nearestimgdecoder = (imageData, width, height) => {
+    const d = imageData.data;
+    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    let ink = 0;
+
+    for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+            const i = (y * width + x) * 4;
+            const a = d[i + 3];
+            if (a === 255) {
+                const r = d[i], g = d[i + 1], b = d[i + 2];
+
+                let bestKey = null;
+                let min = Infinity;
+                for (const key of Object.keys(colors)) {
+                    const [pr, pg, pb] = key.split(',').map(Number);
+                    const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+                    if (dist < min) {
+                        min = dist;
+                        bestKey = key;
+                    }
+                }
+                matrix[x][y] = colors[bestKey];
+                ink += 1;
+            } else {
+                matrix[x][y] = 0;
+            }
+        }
+    }
+    return { matrix, ink };
+};
+
+let currentTemplate = { width: 0, height: 0, data: [] };
+
+const processImageFile = (file, callback) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+        const image = new Image();
+        image.src = e.target.result;
+        image.onload = async () => {
+            const canvas = document.createElement("canvas");
+            canvas.width = image.width;
+            canvas.height = image.height;
+            const ctx = canvas.getContext("2d");
+            ctx.drawImage(image, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+            const { matrix, ink } = useDitherDecoder.checked
+                ? await ditherimgdecoder(imageData, canvas.width, canvas.height)
+                : nearestimgdecoder(imageData, canvas.width, canvas.height);
+
+            const template = {
+                width: canvas.width,
+                height: canvas.height,
+                ink,
+                data: matrix
+            };
+
+            canvas.remove();
+            callback(template);
+        };
+    };
+    reader.readAsDataURL(file);
 };
 convertInput.addEventListener('change', async () => {
     processImageFile(convertInput.files[0], (template) => {
@@ -686,8 +731,8 @@ openSettings.addEventListener("click", async () => {
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
         alwaysDrawOnCharge.checked = !!currentSettings.alwaysDrawOnCharge;
-        // Show/hide the threshold input depending on the toggle
         chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
+        useDitherDecoder.checked = !!currentSettings.useDitherDecoder;
     } catch (error) {
         handleError(error);
     }
@@ -764,6 +809,33 @@ antiGriefStandby.addEventListener('change', async () => {
         }
         await axios.put('/settings', { antiGriefStandby: newStandby });
         showMessage("Success", "Anti-grief standby time saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+outlineMode.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { outlineMode: outlineMode.checked });
+        showMessage("Success", "Outline mode saved!");
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+useDitherDecoder.addEventListener('change', async () => {
+    try {
+        await axios.put('/settings', { useDitherDecoder: useDitherDecoder.checked });
+        showMessage("Success", "Color decoder setting saved!");
+        if (convertInput.files && convertInput.files[0]) {
+            processImageFile(convertInput.files[0], (template) => {
+                currentTemplate = template;
+                drawTemplate(template, templateCanvas);
+                size.innerHTML = `${template.width}x${template.height}px`;
+                ink.innerHTML = template.ink;
+                details.style.display = "block";
+            });
+        }
     } catch (error) {
         handleError(error);
     }

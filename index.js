@@ -39,6 +39,8 @@ let currentSettings = {
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
     chargeThreshold: 0.5,
+    useDitherDecoder: false,
+    outlineMode: false,
     alwaysDrawOnCharge: false
 };
 if (existsSync("settings.json")) {
