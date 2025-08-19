@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -18,4 +18,5 @@
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   }
+
 }
