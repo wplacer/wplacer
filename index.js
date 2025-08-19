@@ -63,13 +63,12 @@ function requestTokenFromClients(reason = "unknown") {
     sseBroadcast("request-token", { reason });
 }
 
-function logUserError(error, id, name, context, templateName) {
+function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
-    const templatePrefix = templateName ? `[${templateName}] ` : '';
     if (message.includes("(500)") || message.includes("(1015)")) {
-        log(id, name, `${templatePrefix}❌ Failed to ${context}: ${message}`);
+        log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
-        log(id, name, `${templatePrefix}❌ Failed to ${context}`, error);
+        log(id, name, `❌ Failed to ${context}`, error);
     }
 }
 
@@ -103,7 +102,7 @@ class TemplateManager {
             const amountToBuy = Math.floor(affordableDroplets / 500);
 
             if (amountToBuy > 0) {
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
                 try {
                     await wplacer.buyProduct(70, amountToBuy);
                     await this.sleep(currentSettings.purchaseCooldown);
@@ -158,8 +157,8 @@ class TemplateManager {
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false;
-                            break;
+                            this.running = false; // Stop the main loop
+                            break; // Exit the initial run loop
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
@@ -175,7 +174,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `[${this.name}] ✅ Initial placement cycle complete.`);
-                if (!this.running) continue;
+                if (!this.running) continue; // Skip to the main loop's completion check
             }
 
             if (activeBrowserUsers.has(this.masterId)) {
@@ -325,7 +324,24 @@ app.get("/events", (req, res) => {
 
 // frontend endpoints
 app.get("/users", (_, res) => res.json(users));
-app.get("/templates", (_, res) => res.json(templates));
+app.get("/templates", (_, res) => {
+    const sanitizedTemplates = {};
+    for (const id in templates) {
+        const t = templates[id];
+        sanitizedTemplates[id] = {
+            name: t.name,
+            template: t.template,
+            coords: t.coords,
+            canBuyCharges: t.canBuyCharges,
+            canBuyMaxCharges: t.canBuyMaxCharges,
+            antiGriefMode: t.antiGriefMode,
+            userIds: t.userIds,
+            running: t.running,
+            status: t.status
+        };
+    }
+    res.json(sanitizedTemplates);
+});
 app.get('/settings', (_, res) => res.json(currentSettings));
 app.put('/settings', (req, res) => {
     currentSettings = { ...currentSettings, ...req.body };
