@@ -67,21 +67,30 @@
                 <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
                 
                 <div class="setting-toggle">
-                    <label for="canBuyMaxCharges">Buy max charge upgrades</label>
+                    <label for="canBuyMaxCharges">
+                        Buy max charge upgrades
+                        <span class="help-icon" title="When enabled, It'll attempt to buy max charges upgrades when possible.">?</span>
+                    </label>
                     <label class="switch">
                         <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="setting-toggle">
-                    <label for="canBuyCharges">Buy paint charges when running out</label>
+                    <label for="canBuyCharges">
+                        Buy paint charges when running out
+                        <span class="help-icon" title="When enabled, It'll attempt to buy paint charges when possible.">?</span>
+                    </label>
                     <label class="switch">
                         <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="setting-toggle">
-                    <label for="antiGriefMode">Enable Anti Grief mode</label>
+                    <label for="antiGriefMode">
+                        Enable Anti Grief mode
+                        <span class="help-icon" title="When enabled, the bot will check for grief and attempt to fix it.">?</span>
+                    </label>
                     <label class="switch">
                         <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
                         <span class="slider"></span>
@@ -105,7 +114,10 @@
 
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
-            <label for="drawingModeSelect">Drawing Mode</label>
+            <label for="drawingModeSelect">
+                Drawing Mode
+                <span class="help-icon" title="Which direction to paint your art.">?</span>
+            </label>
             <select id="drawingModeSelect">
                 <option value="linear">Top to Bottom</option>
                 <option value="linear-reversed">Bottom to Top</option>
@@ -115,41 +127,53 @@
                 <option value="colorByColor">Color by Color</option>
             </select>
             <div class="setting-toggle">
-                <label for="outlineMode">Enable stroke mode</label>
+                <label for="outlineMode">
+                    Enable stroke mode 
+                    <span class="help-icon" title="When enabled, strokes will be drawn instead of fills.">?</span>
+                </label>
                 <label class="switch">
                     <input id="outlineMode" name="outlineMode" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-toggle">
-                <label for="useDitherDecoder">Use dither color decoder</label>
+                <label for="useDitherDecoder">
+                    Use dither color decoder
+                    <span class="help-icon" title="When enabled, the template will be dithered using our decoder. Recommended for larger images.">?</span>
+                </label>
                 <label class="switch">
                     <input id="useDitherDecoder" name="useDitherDecoder" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
             <div class="setting-toggle">
-                <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
+                <label for="turnstileNotifications">
+                    Enable desktop notifications for Turnstile
+                    <span class="help-icon" title="When enabled, you will receive desktop notifications when Turnstile needs user input.">?</span>
+                </label>
                 <label class="switch">
                     <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
-            <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
-            <input type="number" id="accountCooldown" min="0" value="20">
-            <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
-            <input type="number" id="purchaseCooldown" min="0" value="5">
-            <label for="dropletReserve">Minimum Droplets Before Buying</label>
-            <input type="number" id="dropletReserve" min="0" value="0">
-            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
-            <input type="number" id="antiGriefStandby" min="1" value="10">
             <div class="setting-toggle">
-                <label for="alwaysDrawOnCharge">Always draw when at least one charge is available</label>
+                <label for="alwaysDrawOnCharge">
+                    Always draw when at least one charge is available 
+                    <span class="help-icon" title="When enabled, It'll attempt to paint as soon as it can.">?</span> </label>
                 <label class="switch">
                     <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
+            <label for="accountCooldown">Account Turn Cooldown (seconds) <span class="help-icon" title="Delay between switching to another account to paint.">?</span></label>
+            <input type="number" id="accountCooldown" min="0" value="20">
+            <label for="purchaseCooldown">Purchase Cooldown (seconds) <span class="help-icon" title="Delay between purchases of upgrades.">?</span></label>
+            <input type="number" id="purchaseCooldown" min="0" value="5">
+            <label for="dropletReserve">Minimum Droplets Before Buying <span class="help-icon" title="Minimum of droplets needed before making a purchase.">?</span> </label>
+            <input type="number" id="dropletReserve" min="0" value="0">
+            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes) <span class="help-icon" title="Delay between checking for grief on your templates.">?</span></label>
+            <input type="number" id="antiGriefStandby" min="1" value="10">
+
             <div id="chargeThresholdContainer">
                 <label for="chargeThreshold">Charge Threshold (%)</label>
                 <input type="number" id="chargeThreshold" min="1" max="100" value="50">
