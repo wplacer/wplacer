@@ -256,24 +256,24 @@ const ditherimgdecoder = async (imageData, width, height) => {
                 matrix[x][y] = 0;
                 continue;
             }
-            const r = data[idx];
-            const g = data[idx + 1];
-            const b = data[idx + 2];
-            const { id, color } = findNearestPaletteColor(r, g, b);
-            const [nr, ng, nb] = color.split(',').map(Number);
+
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+            const id = closest(`${r},${g},${b}`);
+            const [nr, ng, nb] = colorById(id).split(',').map(Number);
+            
             matrix[x][y] = id;
-            ink += 1;
+            ink++;
+
             const errR = r - nr;
             const errG = g - ng;
             const errB = b - nb;
             const distribute = (dx, dy, factor) => {
-                const nx = x + dx;
-                const ny = y + dy;
+                const nx = x + dx, ny = y + dy;
                 if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
                 const nIdx = (ny * width + nx) * 4;
-                data[nIdx] = adjustColor(data[nIdx] + errR * factor);
-                data[nIdx + 1] = adjustColor(data[nIdx + 1] + errG * factor);
-                data[nIdx + 2] = adjustColor(data[nIdx + 2] + errB * factor);
+                data[nIdx]     = Math.max(0, Math.min(255, data[nIdx]     + errR * factor));
+                data[nIdx + 1] = Math.max(0, Math.min(255, data[nIdx + 1] + errG * factor));
+                data[nIdx + 2] = Math.max(0, Math.min(255, data[nIdx + 2] + errB * factor));
             };
             distribute(1, 0, 7 / 16);
             distribute(-1, 1, 3 / 16);
@@ -296,19 +296,9 @@ const nearestimgdecoder = (imageData, width, height) => {
             const a = d[i + 3];
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
-
-                let bestKey = null;
-                let min = Infinity;
-                for (const key of Object.keys(colors)) {
-                    const [pr, pg, pb] = key.split(',').map(Number);
-                    const dist = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
-                    if (dist < min) {
-                        min = dist;
-                        bestKey = key;
-                    }
-                }
-                matrix[x][y] = colors[bestKey];
-                ink += 1;
+                const id = closest(`${r},${g},${b}`);
+                matrix[x][y] = id;
+                ink++;
             } else {
                 matrix[x][y] = 0;
             }
@@ -720,6 +710,7 @@ openSettings.addEventListener("click", async () => {
         const currentSettings = response.data;
         drawingModeSelect.value = currentSettings.drawingMethod;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        outlineMode.checked = currentSettings.outlineMode;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;

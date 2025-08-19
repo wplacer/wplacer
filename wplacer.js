@@ -251,7 +251,7 @@ export class WPlacer {
 
                 const tileColor = tile.data[localPx][localPy];
 
-                if (templateColor !== tileColor) {
+                if (templateColor !== tileColor && this.hasColor(templateColor)) {
                     const neighbors = [
                         this.template.data[x - 1]?.[y],
                         this.template.data[x + 1]?.[y],
@@ -287,21 +287,24 @@ export class WPlacer {
             let mismatchedPixels = this._getMismatchedPixels();
             if (mismatchedPixels.length === 0) return 0;
             
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+            
             if (outlineFirst) {
                 const edgePixels = mismatchedPixels.filter(p => p.isEdge);
                 if (edgePixels.length > 0) {
                     mismatchedPixels = edgePixels;
                 } else {
                     outlineFirst = false;
-                    continue;
                 }
-            } else {
+            }
+
+            if (!outlineFirst) {
                 switch (method) {
                     case 'linear-reversed':
                         mismatchedPixels.reverse();
                         break;
                     case 'linear-ltr': {
-                        const [startX, startY, _startPx, _startPy] = this.coords;
+                        const [startX, startY] = this.coords;
                         mismatchedPixels.sort((a, b) => {
                             const aGlobalX = (a.tx - startX) * 1000 + a.px;
                             const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -311,7 +314,7 @@ export class WPlacer {
                         break;
                     }
                     case 'linear-rtl': {
-                        const [startX, startY, _startPx, _startPy] = this.coords;
+                        const [startX, startY] = this.coords;
                         mismatchedPixels.sort((a, b) => {
                             const aGlobalX = (a.tx - startX) * 1000 + a.px;
                             const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -321,7 +324,7 @@ export class WPlacer {
                         break;
                     }
                     case 'singleColorRandom':
-                    case 'colorByColor':
+                    case 'colorByColor': {
                         const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
                             if (!acc[p.color]) acc[p.color] = [];
                             acc[p.color].push(p);
@@ -336,6 +339,7 @@ export class WPlacer {
                         }
                         mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
                         break;
+                    }
                 }
             }
             const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
