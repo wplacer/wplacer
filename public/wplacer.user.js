@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.6.3
+// @version      1.6.5
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -9,7 +9,6 @@
 // @updateURL    https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @downloadURL  https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/public/wplacer.user.js
 // @match        https://wplace.live/*
-// @connect      localhost
 // @connect      127.0.0.1
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
@@ -30,7 +29,10 @@
             url: `http://${host}/t`,
             data: JSON.stringify({ t: token }),
             headers: { "Content-Type": "application/json" },
-            onload: (res) => console.log("✅ wplacer: Server response:", res.responseText),
+            onload: (res) => {
+                console.log("✅ wplacer: Server response:", res.responseText);
+                window.location.reload();
+            },
             onerror: (err) => console.error("❌ wplacer: Request failed:", err)
         });
     }
@@ -43,12 +45,12 @@
     });
 
     const promptForHost = () => {
-        const newHost = prompt('Please enter your server\'s IP and port (example: "127.0.0.1:80"):', host);
-        if (newHost && /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d):\d{1,5}$/.test(newHost)) {
+        const newHost = prompt('Please enter your server\'s IP and port (example: "127.0.0.1"):', host);
+        if (newHost && newHost.match(/^(localhost(?::\d{1,5})?|\d{1,3}(?:\.\d{1,3}){3}(?::\d{1,5})?)$/)) {
             GM_setValue("wplacer_server_host", newHost);
             location.reload();
         } else {
-            alert("Invalid IP address or port. Please try again.");
+            alert("Invalid. Please try again.");
             promptForHost();
         }
     };
@@ -89,7 +91,7 @@
                     } catch { /* ignore */ }
                 }, true);
 
-                // --- Secondary Method: Server-Sent Events (SSE) to check for existing tokens ---
+                // --- Secondary Method: Server-Sent Events (SSE) to check for existing tokens or force a refresh ---
                 try {
                     const es = new EventSource(\`http://\${host}/events\`);
                     es.addEventListener("request-token", () => {
@@ -98,11 +100,11 @@
                         if (input?.value) {
                             postToken(input.value, "sse-request");
                         } else {
-                            console.log("wplacer: No existing token found on page. Waiting for next automatic token generation.");
+                            console.log("wplacer: No existing token found on page. Refreshing to generate a new one.");
+                            location.reload();
                         }
                     });
                 } catch (e) { console.error("wplacer: Failed to connect to event source:", e) }
-
             })();`;
             document.documentElement.appendChild(script);
         },

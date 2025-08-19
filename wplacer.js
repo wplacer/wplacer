@@ -3,7 +3,7 @@ import { appendFileSync } from "node:fs";
 import puppeteer from 'puppeteer-extra';
 import notifier from 'node-notifier';
 import path from 'node:path';
-
+const methods = { 'linear': 'Top to Bottom', 'linear-reversed': 'Bottom to Top', 'linear-ltr': 'Left to Right', 'linear-rtl': 'Right to Left', 'singleColorRandom': 'Random Color', 'colorByColor': 'Color by Color' };
 const pallete = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31, "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
 export const duration = (durationMs) => {
     if (durationMs <= 0) return "0 seconds";
@@ -110,11 +110,10 @@ export class WPlacer {
     async loadTiles() {
         this.tiles.clear();
         const [tx, ty, px, py] = this.coords;
-        const endPx = px + this.template.width;
-        const endPy = py + this.template.height;
-        const endTx = tx + Math.floor(endPx / 1000);
-        const endTy = ty + Math.floor(endPy / 1000);
-
+        const endPx = px + this.template.width - 1;
+        const endPy = py + this.template.height - 1;
+        const endTx = tx + Math.ceil((endPx + 1) / 1000) - 1;
+        const endTy = ty + Math.ceil((endPy + 1) / 1000) - 1;
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
@@ -140,17 +139,15 @@ export class WPlacer {
                         canvas.remove();
                         resolve(template);
                     };
-                    image.onerror = () => resolve(null); // Resolve with null on error
+                    image.onerror = () => resolve({ width: 1000, height: 1000, data: Array.from({ length: 1000 }, () => Array(1000).fill(0)) });
                     image.src = src;
                 }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
-                .then(tileData => {
-                    if (tileData) {
-                        this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                    }
-                });
+                    .then(tileData => {
+                        if (tileData) this.tiles.set(`${currentTx},${currentTy}`, tileData);
+                    });
                 tilePromises.push(promise);
-            }
-        }
+            };
+        };
         await Promise.all(tilePromises);
         return true;
     }
@@ -162,29 +159,24 @@ export class WPlacer {
         };
     };
     async waitForToken() {
-        if (this.requestTokenCallback) {
-            this.requestTokenCallback(`user-${this.userInfo.name}`);
-        }
+        if (this.requestTokenCallback) this.requestTokenCallback(`user-${this.userInfo.name}`);
         log(this.userInfo.id, this.userInfo.name, "⚠️ No Turnstile token, requesting one from clients...");
-        if (this.settings && this.settings.turnstileNotifications) {
-            notifier.notify({
-                title: 'wplacer: Action Required',
-                message: `User ${this.userInfo.name} (#${this.userInfo.id}) needs a new captcha token to continue. Please open wplace.live or solve a captcha.`,
-                icon: path.join(process.cwd(), 'public', 'icons', 'favicon.png'),
-                sound: true,
-                wait: true
-            });
-        }
+        if (this.settings && this.settings.turnstileNotifications) notifier.notify({
+            title: 'wplacer: Action Required',
+            message: `User ${this.userInfo.name} (#${this.userInfo.id}) needs a new captcha token to continue. Please open wplace.live or solve a captcha.`,
+            icon: path.join(process.cwd(), 'public', 'icons', 'favicon.png'),
+            sound: true,
+            wait: true
+        });
         await this.tokenPromise;
         log(this.userInfo.id, this.userInfo.name, "✅ Got Turnstile token!");
-    }
-
+    };
     async _executePaint(tx, ty, body) {
         if (body.colors.length === 0) return { painted: 0, success: true };
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
         if (response.data.painted && response.data.painted == body.colors.length) {
-            log(this.userInfo.id, this.userInfo.name, `🎨 Painted ${body.colors.length} pixels on tile ${tx},${ty}.`);
+            log(this.userInfo.id, this.userInfo.name, `🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
             return { painted: body.colors.length, success: true };
         } else if (response.status === 403 && response.data.error === "refresh") {
             this.token = null;
@@ -194,16 +186,14 @@ export class WPlacer {
             log(this.userInfo.id, this.userInfo.name, "⏱️ Rate limited by the server. Waiting 40 seconds before retrying...");
             await this.sleep(40000);
             return { painted: 0, success: false, reason: 'ratelimit' };
-        } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
-             throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
-        } else {
-            throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
-        }
-    }
-
+        } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+        else throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
+    };
     _getMismatchedPixels() {
         const [startX, startY, startPx, startPy] = this.coords;
         const mismatched = [];
+
+        // Add debug for actual pixel positions
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 const templateColor = this.template.data[x][y];
@@ -234,35 +224,32 @@ export class WPlacer {
             }
         }
         return mismatched;
-    }
-
+    };
+    _bodyify(mismatchedPixels) {
+        const bodies = {};
+        for (const p of mismatchedPixels) {
+            const key = `${p.tx},${p.ty}`;
+            if (!bodies[key]) bodies[key] = { colors: [], coords: [] };
+            bodies[key].colors.push(p.color);
+            bodies[key].coords.push(p.px, p.py);
+        };
+        return bodies;
+    };
     async paint(method = 'linear') {
         await this.loadUserInfo();
-
-        switch (method) {
-            case 'linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Top to Bottom)..."); break;
-            case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Bottom to Top)..."); break;
-            case 'linear-ltr': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Left to Right)..."); break;
-            case 'linear-rtl': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Right to Left)..."); break;
-            case 'outline-linear': log(this.userInfo.id, this.userInfo.name, "🎨 Painting (Edges then Top to Bottom)..."); break;
-            case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Random Color)...`); break;
-            case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `🎨 Painting (Color by Color)...`); break;
-            default: throw new Error(`Unknown paint method: ${method}`);
-        }
-
+        if (methods[method]) log(this.userInfo.id, this.userInfo.name, `🎨 Painting (${methods[method]})...`);
+        else throw new Error(`Unknown paint method: ${method}`);
         while (true) {
             await this.loadTiles();
             if (!this.token) await this.waitForToken();
-        
             let mismatchedPixels = this._getMismatchedPixels();
             if (mismatchedPixels.length === 0) return 0;
-    
             switch (method) {
                 case 'linear-reversed':
                     mismatchedPixels.reverse();
                     break;
                 case 'linear-ltr': {
-                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    const [startX, startY] = this.coords;
                     mismatchedPixels.sort((a, b) => {
                         const aGlobalX = (a.tx - startX) * 1000 + a.px;
                         const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -270,9 +257,9 @@ export class WPlacer {
                         return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
                     });
                     break;
-                }
+                };
                 case 'linear-rtl': {
-                    const [startX, startY, _startPx, _startPy] = this.coords;
+                    const [startX, startY] = this.coords;
                     mismatchedPixels.sort((a, b) => {
                         const aGlobalX = (a.tx - startX) * 1000 + a.px;
                         const bGlobalX = (b.tx - startX) * 1000 + b.px;
@@ -280,12 +267,7 @@ export class WPlacer {
                         return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
                     });
                     break;
-                }
-                case 'outline-linear':
-                    const edgePixels = mismatchedPixels.filter(p => p.isEdge);
-                    const innerPixels = mismatchedPixels.filter(p => !p.isEdge);
-                    mismatchedPixels = edgePixels.concat(innerPixels);
-                    break;
+                };
                 case 'singleColorRandom':
                 case 'colorByColor':
                     const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
@@ -302,37 +284,24 @@ export class WPlacer {
                     }
                     mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
                     break;
-            }
-    
+            };
             const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
-            const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
-                const key = `${p.tx}_${p.ty}`;
-                if (!acc[key]) acc[key] = { colors: [], coords: [] };
-                acc[key].colors.push(p.color);
-                acc[key].coords.push(p.px, p.py);
-                return acc;
-            }, {});
-    
+            const bodies = this._bodyify(pixelsToPaint);
             let totalPainted = 0;
             let needsRetry = false;
-            for (const tileKey in bodiesByTile) {
-                const [tx, ty] = tileKey.split('_').map(Number);
-                const body = { ...bodiesByTile[tileKey], t: this.token };
+            for (const tileKey in bodies) {
+                const [tx, ty] = tileKey.split(',').map(Number);
+                const body = { ...bodies[tileKey], t: this.token };
                 const result = await this._executePaint(tx, ty, body);
-                
-                if (result.success) {
-                    totalPainted += result.painted;
-                } else {
+                if (result.success) totalPainted += result.painted;
+                else {
                     needsRetry = true;
                     break;
-                }
-            }
-
-            if (!needsRetry) {
-                return totalPainted;
-            }
-        }
-    }
+                };
+            };
+            if (!needsRetry) return totalPainted;
+        };
+    };
 
     async buyProduct(productId, amount) {
         const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: productId, amount: amount } });
@@ -349,7 +318,7 @@ export class WPlacer {
             log(this.userInfo.id, this.userInfo.name, purchaseMessage);
             return true;
         } else if (response.status === 429 || (response.data.error && response.data.error.includes("1015"))) {
-             throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
+            throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
         } else {
             throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
         }

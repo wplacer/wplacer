@@ -128,8 +128,17 @@
             <input type="number" id="dropletReserve" min="0" value="0">
             <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
             <input type="number" id="antiGriefStandby" min="1" value="10">
-            <label for="chargeThreshold">Charge Threshold (%)</label>
-            <input type="number" id="chargeThreshold" min="1" max="100" value="50">
+            <div class="setting-toggle">
+                <label for="alwaysDrawOnCharge">Always draw when at least one charge is available</label>
+                <label class="switch">
+                    <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="chargeThresholdContainer">
+                <label for="chargeThreshold">Charge Threshold (%)</label>
+                <input type="number" id="chargeThreshold" min="1" max="100" value="50">
+            </div>
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
         
