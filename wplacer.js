@@ -34,13 +34,14 @@ export const log = async (id, name, data, error) => {
     };
 };
 export class WPlacer {
-    constructor(template, coords, canBuyCharges, requestTokenCallback, settings) {
+    constructor(template, coords, canBuyCharges, requestTokenCallback, settings, unlockedColors) {
         this.status = "Waiting until called to start.";
         this.template = template;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.requestTokenCallback = requestTokenCallback;
         this.settings = settings;
+        this.unlockedColors = unlockedColors;
         this.cookies = null;
         this.browser = null;
         this.me = null;
@@ -204,11 +205,12 @@ export class WPlacer {
     _getMismatchedPixels() {
         const [startX, startY, startPx, startPy] = this.coords;
         const mismatched = [];
+        const unlockedColors = this.unlockedColors;
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 const templateColor = this.template.data[x][y];
                 if (templateColor === 0) continue;
-
+                if (templateColor >= 32 && !unlockedColors.includes(templateColor)) continue;
                 const globalPx = startPx + x;
                 const globalPy = startPy + y;
                 const targetTx = startX + Math.floor(globalPx / 1000);
