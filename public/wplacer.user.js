@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         wplacer
-// @version      1.6.3
+// @version      1.6.4
 // @description  Send token to local server
 // @namespace    https://github.com/luluwaffless/
 // @homepageURL  https://github.com/luluwaffless/wplacer
@@ -89,7 +89,7 @@
                     } catch { /* ignore */ }
                 }, true);
 
-                // --- Secondary Method: Server-Sent Events (SSE) to check for existing tokens ---
+                // --- Secondary Method: Server-Sent Events (SSE) to check for existing tokens or force a refresh ---
                 try {
                     const es = new EventSource(\`http://\${host}/events\`);
                     es.addEventListener("request-token", () => {
@@ -98,7 +98,8 @@
                         if (input?.value) {
                             postToken(input.value, "sse-request");
                         } else {
-                            console.log("wplacer: No existing token found on page. Waiting for next automatic token generation.");
+                            console.log("wplacer: No existing token found on page. Refreshing to generate a new one.");
+                            location.reload();
                         }
                     });
                 } catch (e) { console.error("wplacer: Failed to connect to event source:", e) }
