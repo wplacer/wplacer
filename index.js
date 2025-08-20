@@ -5,7 +5,7 @@ import cors from "cors";
 
 // User data handling
 const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
-const saveUsers = () => writeFileSync("users.json", JSON.stringify(users));
+const saveUsers = () => writeFileSync("users.json", JSON.stringify(users, null, 4));
 
 // Template data handling
 const templates = {};
@@ -39,9 +39,7 @@ let currentSettings = {
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
     chargeThreshold: 0.5,
-    useDitherDecoder: false,
     outlineMode: false,
-    alwaysDrawOnCharge: false
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
@@ -68,7 +66,7 @@ function requestTokenFromClients(reason = "unknown") {
 
 function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
-    if (message.includes("(500)") || message.includes("(1015)")) {
+    if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)")) {
         log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
         log(id, name, `❌ Failed to ${context}`, error);
@@ -287,10 +285,8 @@ class TemplateManager {
                  }
             }
             
-            // Determine per-user target based on settings. If alwaysDrawOnCharge is enabled,
-            // target is 1 charge (any available charge). Otherwise use the percentage threshold.
             const readyUsers = userStates.filter(u => {
-                const target = currentSettings.alwaysDrawOnCharge ? 1 : u.charges.max * currentSettings.chargeThreshold;
+                const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                 return u.charges.count >= target;
             });
 
@@ -358,9 +354,8 @@ class TemplateManager {
                     }
                 }
                 
-                // Compute minimum time until any user meets the target.
                 const times = userStates.map(u => {
-                    const target = currentSettings.alwaysDrawOnCharge ? 1 : u.charges.max * currentSettings.chargeThreshold;
+                    const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                     return Math.max(0, (target - u.charges.count) * u.cooldownMs);
                 });
                 const minTimeToReady = times.length ? Math.min(...times) : -1;
@@ -459,7 +454,11 @@ app.post("/user", async (req, res) => {
         const userInfo = await wplacer.login(req.body.cookies);
         if (activeBrowserUsers.has(userInfo.id)) return res.sendStatus(409);
         activeBrowserUsers.add(userInfo.id);
-        users[userInfo.id] = { name: userInfo.name, cookies: req.body.cookies };
+        users[userInfo.id] = { 
+            name: userInfo.name, 
+            cookies: req.body.cookies,
+            expirationDate: req.body.expirationDate 
+        };
         saveUsers();
         res.json(userInfo);
     } catch (error) {

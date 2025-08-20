@@ -71,16 +71,8 @@ export class WPlacer {
         await this.me.waitForSelector('body', { timeout: 15000 });
         const bodyText = await this.me.evaluate(() => document.body.innerText);
 
-        if (bodyText.includes('Error 1015')) {
-            throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
-        }
-
         try {
-            const jsonMatch = bodyText.match(/{.*}/s);
-            if (!jsonMatch) {
-                throw new Error(`No JSON object found in response.`);
-            }
-            const userInfo = JSON.parse(jsonMatch[0]);
+            const userInfo = JSON.parse(bodyText);
             
             if (userInfo.error) {
                 throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
@@ -92,7 +84,13 @@ export class WPlacer {
                 throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
             }
         } catch (e) {
-            throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText}"`);
+            if (bodyText.includes('Error 1015')) {
+                throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
+            }
+            if (bodyText.includes('502') && bodyText.includes('gateway')) {
+                throw new Error(`(502) Bad Gateway: The server is temporarily unavailable. Please try again later. Response: "${bodyText.substring(0, 150)}..."`);
+            }
+            throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText.substring(0, 150)}..."`);
         }
     };
     cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
@@ -124,7 +122,7 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = this.me.evaluate((pallete, useNewDecoder, src) => new Promise((resolve) => {
+                const promise = this.me.evaluate((pallete, src) => new Promise((resolve) => {
                     const image = new Image();
                     image.crossOrigin = "Anonymous";
                     image.onload = () => {
@@ -135,26 +133,12 @@ export class WPlacer {
                         ctx.drawImage(image, 0, 0);
                         const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
                         const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const entries = Object.entries(pallete).map(([key, id]) => ({ rgb: key.split(',').map(Number), id }));
                         for (let x = 0; x < canvas.width; x++) {
                             for (let y = 0; y < canvas.height; y++) {
                                 const i = (y * canvas.width + x) * 4;
                                 const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
                                 if (a === 255) {
-                                    if (useNewDecoder) {
-                                        let min = Infinity;
-                                        let colorId = 0;
-                                        for (const p of entries) {
-                                            const diff = Math.abs(r - p.rgb[0]) + Math.abs(g - p.rgb[1]) + Math.abs(b - p.rgb[2]);
-                                            if (diff < min) {
-                                                min = diff;
-                                                colorId = p.id;
-                                            }
-                                        }
-                                        template.data[x][y] = colorId;
-                                    } else {
-                                        template.data[x][y] = pallete[`${r},${g},${b}`] || 0;
-                                    }
+                                    template.data[x][y] = pallete[`${r},${g},${b}`] || 0;
                                 } else template.data[x][y] = 0;
                             };
                         };
@@ -163,7 +147,7 @@ export class WPlacer {
                     };
                     image.onerror = () => resolve(null); // Resolve with null on error
                     image.src = src;
-                }), pallete, this.settings?.useDitherDecoder, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
+                }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
                 .then(tileData => {
                     if (tileData) {
                         this.tiles.set(`${currentTx}_${currentTy}`, tileData);
@@ -211,7 +195,7 @@ export class WPlacer {
         if (response.data.painted && response.data.painted == body.colors.length) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
             return { painted: body.colors.length, success: true };
-        } else if (response.status === 403 && response.data.error === "refresh") {
+        } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
             this.token = null;
             this.tokenPromise = new Promise((resolve) => { this._resolveToken = resolve; });
             return { painted: 0, success: false, reason: 'refresh' };
@@ -262,8 +246,6 @@ export class WPlacer {
     }
 
     async paint(method = 'linear') {
-        await this.loadUserInfo();
-
         switch (method) {
             case 'linear': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Top to Bottom)...`); break;
             case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Bottom to Top)...`); break;
@@ -275,6 +257,7 @@ export class WPlacer {
         }
 
         while (true) {
+            await this.loadUserInfo();
             await this.loadTiles();
             let outlineFirst = this.settings?.outlineMode;
             if (!this.token) await this.waitForToken();

@@ -10,6 +10,7 @@ const scookie = $("scookie");
 const jcookie = $("jcookie");
 const submitUser = $("submitUser");
 const manageUsers = $("manageUsers");
+const manageUsersTitle = $("manageUsersTitle");
 const userList = $("userList");
 const checkUserStatus = $("checkUserStatus");
 const addTemplate = $("addTemplate");
@@ -41,19 +42,15 @@ const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingModeSelect = $("drawingModeSelect");
 const outlineMode = $("outlineMode");
-const useDitherDecoder = $("useDitherDecoder");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
-const chargeThresholdContainer = $("chargeThresholdContainer");
 const totalCharges = $("totalCharges");
 const totalMaxCharges = $("totalMaxCharges");
 const messageBoxOverlay = $("messageBoxOverlay");
-// add reference for new toggle
-const alwaysDrawOnCharge = $("alwaysDrawOnCharge");
 const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
@@ -61,12 +58,6 @@ const messageBoxCancel = $("messageBoxCancel");
 
 // Message Box
 let confirmCallback = null;
-
-const userCount = $("userCount");
-
-function updateUserCount() {
-    userCount.textContent = `(${userList.children.length})`;
-}
 
 const showMessage = (title, content) => {
     messageBoxTitle.textContent = title;
@@ -114,8 +105,10 @@ const handleError = (error) => {
             message = "You are being rate-limited by the server. Please wait a moment before trying again.";
         } else if (errMsg.includes("(500)")) {
             message = "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
+        } else if (errMsg.includes("(502)")) {
+            message = "The server reported a 'Bad Gateway' error. It might be temporarily down or restarting. Please try again in a few moments.";
         } else {
-            message = errMsg; // Show the full error if it's not a known one
+            message = errMsg;
         }
     }
     showMessage("Error", message);
@@ -249,48 +242,6 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     }
 };
 
-const ditherimgdecoder = async (imageData, width, height) => {
-    const data = imageData.data;
-    const matrix = Array.from({ length: width }, () => Array(height).fill(0));
-    let ink = 0;
-
-    for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-            const idx = (y * width + x) * 4;
-            const a = data[idx + 3];
-            if (a !== 255) {
-                matrix[x][y] = 0;
-                continue;
-            }
-
-            const r = data[idx], g = data[idx + 1], b = data[idx + 2];
-            const id = closest(`${r},${g},${b}`);
-            const [nr, ng, nb] = colorById(id).split(',').map(Number);
-            
-            matrix[x][y] = id;
-            ink++;
-
-            const errR = r - nr;
-            const errG = g - ng;
-            const errB = b - nb;
-            const distribute = (dx, dy, factor) => {
-                const nx = x + dx, ny = y + dy;
-                if (nx < 0 || nx >= width || ny < 0 || ny >= height) return;
-                const nIdx = (ny * width + nx) * 4;
-                data[nIdx]     = Math.max(0, Math.min(255, data[nIdx]     + errR * factor));
-                data[nIdx + 1] = Math.max(0, Math.min(255, data[nIdx + 1] + errG * factor));
-                data[nIdx + 2] = Math.max(0, Math.min(255, data[nIdx + 2] + errB * factor));
-            };
-            distribute(1, 0, 7 / 16);
-            distribute(-1, 1, 3 / 16);
-            distribute(0, 1, 5 / 16);
-            distribute(1, 1, 1 / 16);
-        }
-        if (y % 50 === 0) await new Promise(resolve => setTimeout(resolve, 0));
-    }
-    return { matrix, ink };
-};
-
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
@@ -329,10 +280,7 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-
-            const { matrix, ink } = useDitherDecoder.checked
-                ? await ditherimgdecoder(imageData, canvas.width, canvas.height)
-                : nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
                 width: canvas.width,
@@ -469,16 +417,22 @@ openManageUsers.addEventListener("click", () => {
     totalCharges.textContent = "?";
     totalMaxCharges.textContent = "?";
     loadUsers(users => {
+        const userCount = Object.keys(users).length;
+        manageUsersTitle.textContent = `Existing Users (${userCount})`;
         for (const id of Object.keys(users)) {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
+            const expirationDate = users[id].expirationDate;
+            const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
+
             user.innerHTML = `
                 <div class="user-info">
                     <span>${users[id].name}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span>
+                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
+                        Expires: <b>${expirationStr}</b>
                     </div>
                 </div>
                 <div class="user-actions">
@@ -511,7 +465,6 @@ openManageUsers.addEventListener("click", () => {
             });
             userList.appendChild(user);
         };
-        updateUserCount();
     });
     changeTab(manageUsers);
 });
@@ -723,9 +676,6 @@ openSettings.addEventListener("click", async () => {
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
-        alwaysDrawOnCharge.checked = !!currentSettings.alwaysDrawOnCharge;
-        chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
-        useDitherDecoder.checked = !!currentSettings.useDitherDecoder;
     } catch (error) {
         handleError(error);
     }
@@ -733,135 +683,63 @@ openSettings.addEventListener("click", async () => {
 });
 
 // Settings
-drawingModeSelect.addEventListener('change', async () => {
+const saveSetting = async (setting) => {
     try {
-        await axios.put('/settings', { drawingMethod: drawingModeSelect.value });
-        showMessage("Success", "Drawing mode saved!");
+        await axios.put('/settings', setting);
+        showMessage("Success", "Setting saved!");
     } catch (error) {
         handleError(error);
     }
-});
+};
 
-turnstileNotifications.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { turnstileNotifications: turnstileNotifications.checked });
-        showMessage("Success", "Notification setting saved!");
-    } catch (error) {
-        handleError(error);
+drawingModeSelect.addEventListener('change', () => saveSetting({ drawingMethod: drawingModeSelect.value }));
+turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
+outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
+
+accountCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
     }
+    saveSetting({ accountCooldown: value });
 });
 
-accountCooldown.addEventListener('change', async () => {
-    try {
-        const newCooldown = parseInt(accountCooldown.value, 10) * 1000;
-        if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
-            return;
-        }
-        await axios.put('/settings', { accountCooldown: newCooldown });
-        showMessage("Success", "Account cooldown saved!");
-    } catch (error) {
-        handleError(error);
+purchaseCooldown.addEventListener('change', () => {
+    const value = parseInt(purchaseCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
     }
+    saveSetting({ purchaseCooldown: value });
 });
 
-purchaseCooldown.addEventListener('change', async () => {
-    try {
-        const newCooldown = parseInt(purchaseCooldown.value, 10) * 1000;
-        if (isNaN(newCooldown) || newCooldown < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
-            return;
-        }
-        await axios.put('/settings', { purchaseCooldown: newCooldown });
-        showMessage("Success", "Purchase cooldown saved!");
-    } catch (error) {
-        handleError(error);
+dropletReserve.addEventListener('change', () => {
+    const value = parseInt(dropletReserve.value, 10);
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
     }
+    saveSetting({ dropletReserve: value });
 });
 
-dropletReserve.addEventListener('change', async () => {
-    try {
-        const newReserve = parseInt(dropletReserve.value, 10);
-        if (isNaN(newReserve) || newReserve < 0) {
-            showMessage("Error", "Please enter a valid non-negative number.");
-            return;
-        }
-        await axios.put('/settings', { dropletReserve: newReserve });
-        showMessage("Success", "Droplet reserve saved!");
-    } catch (error) {
-        handleError(error);
+antiGriefStandby.addEventListener('change', () => {
+    const value = parseInt(antiGriefStandby.value, 10) * 60000;
+    if (isNaN(value) || value < 60000) {
+        showMessage("Error", "Please enter a valid number (at least 1 minute).");
+        return;
     }
+    saveSetting({ antiGriefStandby: value });
 });
 
-antiGriefStandby.addEventListener('change', async () => {
-    try {
-        const newStandby = parseInt(antiGriefStandby.value, 10) * 60000;
-        if (isNaN(newStandby) || newStandby < 60000) {
-            showMessage("Error", "Please enter a valid number (at least 1 minute).");
-            return;
-        }
-        await axios.put('/settings', { antiGriefStandby: newStandby });
-        showMessage("Success", "Anti-grief standby time saved!");
-    } catch (error) {
-        handleError(error);
+chargeThreshold.addEventListener('change', () => {
+    const value = parseInt(chargeThreshold.value, 10);
+    if (isNaN(value) || value < 0 || value > 100) {
+        showMessage("Error", "Please enter a valid percentage between 0 and 100.");
+        return;
     }
+    saveSetting({ chargeThreshold: value / 100 });
 });
-
-outlineMode.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { outlineMode: outlineMode.checked });
-        showMessage("Success", "Outline mode saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-useDitherDecoder.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { useDitherDecoder: useDitherDecoder.checked });
-        showMessage("Success", "Color decoder setting saved!");
-        if (convertInput.files && convertInput.files[0]) {
-            processImageFile(convertInput.files[0], (template) => {
-                currentTemplate = template;
-                drawTemplate(template, templateCanvas);
-                size.innerHTML = `${template.width}x${template.height}px`;
-                ink.innerHTML = template.ink;
-                details.style.display = "block";
-            });
-        }
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-chargeThreshold.addEventListener('change', async () => {
-    try {
-        const newThreshold = parseInt(chargeThreshold.value, 10);
-        if (isNaN(newThreshold) || newThreshold < 1 || newThreshold > 100) {
-            showMessage("Error", "Please enter a valid percentage between 1 and 100.");
-            return;
-        }
-        await axios.put('/settings', { chargeThreshold: newThreshold / 100 });
-        showMessage("Success", "Charge threshold saved!");
-    } catch (error) {
-        handleError(error);
-    }
-});
-
-// New toggle: alwaysDrawOnCharge
-alwaysDrawOnCharge.addEventListener('change', async () => {
-    try {
-        await axios.put('/settings', { alwaysDrawOnCharge: alwaysDrawOnCharge.checked });
-        showMessage("Success", "Always-draw-on-charge setting saved!");
-        // Hide the threshold input if immediate-draw is enabled, show otherwise
-        chargeThresholdContainer.style.display = alwaysDrawOnCharge.checked ? 'none' : 'block';
-        // Wake running templates so they re-evaluate immediately
-        // (server will also wake them; this keeps UI responsive)
-    } catch (error) {
-        handleError(error);
-    }
-});
-
 
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
@@ -891,5 +769,3 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
-
-window.addEventListener("DOMContentLoaded", updateUserCount);
