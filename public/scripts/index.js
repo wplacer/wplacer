@@ -295,13 +295,18 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
+
+const displayTemplateCanvas = (template) => {
+    currentTemplate = template;
+    drawTemplate(template, templateCanvas);
+    size.innerHTML = `${template.width}x${template.height}px`;
+    ink.innerHTML = template.ink;
+    details.style.display = "block";
+};
+
 convertInput.addEventListener('change', async () => {
     processImageFile(convertInput.files[0], (template) => {
-        currentTemplate = template;
-        drawTemplate(template, templateCanvas);
-        size.innerHTML = `${template.width}x${template.height}px`;
-        ink.innerHTML = template.ink;
-        details.style.display = "block";
+        displayTemplateCanvas(template);
     });
 });
 previewCanvasButton.addEventListener('click', async () => {
@@ -625,6 +630,7 @@ openManageTemplates.addEventListener("click", () => {
                     templateForm.dataset.editId = id;
 
                     templateName.value = t.name;
+                    displayTemplateCanvas(t.template);
                     [tx.value, ty.value, px.value, py.value] = t.coords;
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
