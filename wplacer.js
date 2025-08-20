@@ -51,7 +51,7 @@ export class WPlacer {
     async login(cookies) {
         this.cookies = cookies;
         let jar = new CookieJar();
-        for (const cookie of Object.keys(this.cookies)) jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live")
+        for (const cookie of Object.keys(this.cookies)) jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
         this.browser = new Impit({cookieJar:jar, browser:"chrome", ignoreTlsErrors:true});
         await this.loadUserInfo();
         return this.userInfo;
