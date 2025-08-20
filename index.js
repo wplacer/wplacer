@@ -70,7 +70,7 @@ const TokenManager = {
     resolvePromise: null,
     requestTimeout: null,
     isWaitingForClient: false,
-    TOKEN_REQUEST_TIMEOUT: 30000,
+    TOKEN_REQUEST_TIMEOUT: 10000,
 
     _requestNewToken() {
         log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: Requesting new token from clients...');
