@@ -28,19 +28,42 @@ try {
     const es = new EventSource(`http://127.0.0.1:80/events`);
     es.addEventListener("request-token", () => {
         console.log("wplacer: Received token request from server.");
-        
-        // Leader election to prevent all tabs from refreshing
-        const lock = localStorage.getItem('wplacer_refresh_lock');
-        const now = Date.now();
 
-        if (lock && (now - parseInt(lock, 10)) < 15000) { // Increased lock time to 15s
-            console.log("wplacer: Another tab is already handling the refresh. Standing by.");
+        // --- Leader Election
+        const REFRESH_LOCK_KEY = 'wplacer_refresh_lock';
+        const ELECTION_CANDIDATE_KEY = 'wplacer_election_candidate';
+        const LOCK_DURATION_MS = 20000;
+        const ELECTION_WAIT_MS = 250;
+
+        const now = Date.now();
+        const lock = localStorage.getItem(REFRESH_LOCK_KEY);
+
+        if (lock && (now - parseInt(lock, 10)) < LOCK_DURATION_MS) {
+            console.log("wplacer: A refresh is already in progress. Standing by.");
             return;
         }
 
-        localStorage.setItem('wplacer_refresh_lock', now.toString());
-        console.log("wplacer: This tab is handling the refresh.");
-        location.reload();
+        const myCandidateId = Math.random();
+        localStorage.setItem(ELECTION_CANDIDATE_KEY, JSON.stringify({ id: myCandidateId, ts: now }));
+
+        setTimeout(() => {
+            try {
+                const winnerData = localStorage.getItem(ELECTION_CANDIDATE_KEY);
+                if (!winnerData) return;
+
+                const winner = JSON.parse(winnerData);
+
+                if (winner.id === myCandidateId) {
+                    console.log("wplacer: This tab won the election and is handling the refresh.");
+                    localStorage.setItem(REFRESH_LOCK_KEY, Date.now().toString());
+                    location.reload();
+                } else {
+                    console.log("wplacer: Another tab won the election. Standing by.");
+                }
+            } catch (e) {
+                console.error("wplacer: Error during leader election.", e);
+            }
+        }, ELECTION_WAIT_MS);
     });
 } catch (e) { 
     console.error("wplacer: Failed to connect to event source. On-demand token refresh will not work.", e);

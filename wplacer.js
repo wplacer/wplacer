@@ -34,13 +34,12 @@ export const log = async (id, name, data, error) => {
     };
 };
 export class WPlacer {
-    constructor(template, coords, canBuyCharges, requestTokenCallback, settings, templateName) {
+    constructor(template, coords, canBuyCharges, settings, templateName) {
         this.status = "Waiting until called to start.";
         this.template = template;
         this.templateName = templateName;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
-        this.requestTokenCallback = requestTokenCallback;
         this.settings = settings;
         this.cookies = null;
         this.browser = null;
@@ -48,11 +47,6 @@ export class WPlacer {
         this.userInfo = null;
         this.tiles = new Map();
         this.token = null;
-        this.running = false;
-        this._resolveToken = null;
-        this.tokenPromise = new Promise((resolve) => {
-            this._resolveToken = resolve;
-        });
     };
     async login(cookies) {
         this.cookies = cookies;
@@ -145,7 +139,7 @@ export class WPlacer {
                         canvas.remove();
                         resolve(template);
                     };
-                    image.onerror = () => resolve(null); // Resolve with null on error
+                    image.onerror = () => resolve(null);
                     image.src = src;
                 }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
                 .then(tileData => {
@@ -159,50 +153,24 @@ export class WPlacer {
         await Promise.all(tilePromises);
         return true;
     }
-    setToken(t) {
-        if (this._resolveToken) {
-            this._resolveToken(t);
-            this._resolveToken = null;
-            this.token = t;
-        };
-    };
     hasColor(id) {
         if (id < colorBitmapShift) return true;
         return !!(this.userInfo.extraColorsBitmap & (1 << (id - colorBitmapShift)));
     }
-    async waitForToken() {
-        if (this.requestTokenCallback) {
-            this.requestTokenCallback(`user-${this.userInfo.name}`);
-        }
-        log(this.userInfo.id, this.userInfo.name, "⚠️ No Turnstile token, requesting one from clients...");
-        if (this.settings && this.settings.turnstileNotifications) {
-            notifier.notify({
-                title: 'wplacer: Action Required',
-                message: `User ${this.userInfo.name} (#${this.userInfo.id}) needs a new captcha token to continue. Please open wplace.live or solve a captcha.`,
-                icon: path.join(process.cwd(), 'public', 'icons', 'favicon.png'),
-                sound: true,
-                wait: true
-            });
-        }
-        await this.tokenPromise;
-        log(this.userInfo.id, this.userInfo.name, "✅ Got Turnstile token!");
-    }
 
     async _executePaint(tx, ty, body) {
-        if (body.colors.length === 0) return { painted: 0, success: true };
+        if (body.colors.length === 0) return { painted: 0 };
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
         if (response.data.painted && response.data.painted == body.colors.length) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
-            return { painted: body.colors.length, success: true };
+            return { painted: body.colors.length };
         } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
-            this.token = null;
-            this.tokenPromise = new Promise((resolve) => { this._resolveToken = resolve; });
-            return { painted: 0, success: false, reason: 'refresh' };
+            throw new Error('REFRESH_TOKEN');
         } else if (response.status === 500) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
-            return { painted: 0, success: false, reason: 'ratelimit' };
+            return { painted: 0 };
         } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
             throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
         } else {
@@ -246,108 +214,87 @@ export class WPlacer {
     }
 
     async paint(method = 'linear') {
+        await this.loadUserInfo();
+        await this.loadTiles();
+        if (!this.token) throw new Error("Token not provided to paint method.");
+
+        let outlineFirst = this.settings?.outlineMode;
+        let mismatchedPixels = this._getMismatchedPixels();
+        
+        if (mismatchedPixels.length === 0) {
+            return 0;
+        }
+        
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+        
+        if (outlineFirst) {
+            const edgePixels = mismatchedPixels.filter(p => p.isEdge);
+            if (edgePixels.length > 0) {
+                mismatchedPixels = edgePixels;
+            }
+        }
+
         switch (method) {
-            case 'linear': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Top to Bottom)...`); break;
-            case 'linear-reversed': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Bottom to Top)...`); break;
-            case 'linear-ltr': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Left to Right)...`); break;
-            case 'linear-rtl': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Right to Left)...`); break;
-            case 'singleColorRandom': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Random Color)...`); break;
-            case 'colorByColor': log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painting (Color by Color)...`); break;
-            default: throw new Error(`Unknown paint method: ${method}`);
-        }
-
-        while (true) {
-            await this.loadUserInfo();
-            await this.loadTiles();
-            let outlineFirst = this.settings?.outlineMode;
-            if (!this.token) await this.waitForToken();
-            
-            let mismatchedPixels = this._getMismatchedPixels();
-            if (mismatchedPixels.length === 0) return 0;
-            
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-            
-            if (outlineFirst) {
-                const edgePixels = mismatchedPixels.filter(p => p.isEdge);
-                if (edgePixels.length > 0) {
-                    mismatchedPixels = edgePixels;
-                } else {
-                    outlineFirst = false;
-                }
+            case 'linear-reversed':
+                mismatchedPixels.reverse();
+                break;
+            case 'linear-ltr': {
+                const [startX, startY] = this.coords;
+                mismatchedPixels.sort((a, b) => {
+                    const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                    const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                    if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
+                    return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                });
+                break;
             }
-
-            if (!outlineFirst) {
-                switch (method) {
-                    case 'linear-reversed':
-                        mismatchedPixels.reverse();
-                        break;
-                    case 'linear-ltr': {
-                        const [startX, startY] = this.coords;
-                        mismatchedPixels.sort((a, b) => {
-                            const aGlobalX = (a.tx - startX) * 1000 + a.px;
-                            const bGlobalX = (b.tx - startX) * 1000 + b.px;
-                            if (aGlobalX !== bGlobalX) return aGlobalX - bGlobalX;
-                            return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-                        });
-                        break;
-                    }
-                    case 'linear-rtl': {
-                        const [startX, startY] = this.coords;
-                        mismatchedPixels.sort((a, b) => {
-                            const aGlobalX = (a.tx - startX) * 1000 + a.px;
-                            const bGlobalX = (b.tx - startX) * 1000 + b.px;
-                            if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
-                            return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
-                        });
-                        break;
-                    }
-                    case 'singleColorRandom':
-                    case 'colorByColor': {
-                        const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
-                            if (!acc[p.color]) acc[p.color] = [];
-                            acc[p.color].push(p);
-                            return acc;
-                        }, {});
-                        const colors = Object.keys(pixelsByColor);
-                        if (method === 'singleColorRandom') {
-                            for (let i = colors.length - 1; i > 0; i--) {
-                                const j = Math.floor(Math.random() * (i + 1));
-                                [colors[i], colors[j]] = [colors[j], colors[i]];
-                            }
-                        }
-                        mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
-                        break;
+            case 'linear-rtl': {
+                const [startX, startY] = this.coords;
+                mismatchedPixels.sort((a, b) => {
+                    const aGlobalX = (a.tx - startX) * 1000 + a.px;
+                    const bGlobalX = (b.tx - startX) * 1000 + b.px;
+                    if (aGlobalX !== bGlobalX) return bGlobalX - aGlobalX;
+                    return (a.ty - startY) * 1000 + a.py - ((b.ty - startY) * 1000 + b.py);
+                });
+                break;
+            }
+            case 'singleColorRandom':
+            case 'colorByColor': {
+                const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
+                    if (!acc[p.color]) acc[p.color] = [];
+                    acc[p.color].push(p);
+                    return acc;
+                }, {});
+                const colors = Object.keys(pixelsByColor);
+                if (method === 'singleColorRandom') {
+                    for (let i = colors.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [colors[i], colors[j]] = [colors[j], colors[i]];
                     }
                 }
-            }
-            const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
-            const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
-                const key = `${p.tx},${p.ty}`;
-                if (!acc[key]) acc[key] = { colors: [], coords: [] };
-                acc[key].colors.push(p.color);
-                acc[key].coords.push(p.px, p.py);
-                return acc;
-            }, {});
-    
-            let totalPainted = 0;
-            let needsRetry = false;
-            for (const tileKey in bodiesByTile) {
-                const [tx, ty] = tileKey.split(',').map(Number);
-                const body = { ...bodiesByTile[tileKey], t: this.token };
-                const result = await this._executePaint(tx, ty, body);
-                
-                if (result.success) {
-                    totalPainted += result.painted;
-                } else {
-                    needsRetry = true;
-                    break;
-                }
-            }
-
-            if (!needsRetry) {
-                return totalPainted;
+                mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                break;
             }
         }
+        
+        const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
+        const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
+            const key = `${p.tx},${p.ty}`;
+            if (!acc[key]) acc[key] = { colors: [], coords: [] };
+            acc[key].colors.push(p.color);
+            acc[key].coords.push(p.px, p.py);
+            return acc;
+        }, {});
+
+        let totalPainted = 0;
+        for (const tileKey in bodiesByTile) {
+            const [tx, ty] = tileKey.split(',').map(Number);
+            const body = { ...bodiesByTile[tileKey], t: this.token };
+            const result = await this._executePaint(tx, ty, body);
+            totalPainted += result.painted;
+        }
+
+        return totalPainted;
     }
 
     async buyProduct(productId, amount) {

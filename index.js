@@ -48,7 +48,6 @@ const saveSettings = () => writeFileSync("settings.json", JSON.stringify(current
 
 
 const sseClients = new Set();
-let needToken = true;
 const activeBrowserUsers = new Set(); // --- BROWSER LOCK ---
 
 function sseBroadcast(event, data) {
@@ -58,11 +57,83 @@ function sseBroadcast(event, data) {
 
 function requestTokenFromClients(reason = "unknown") {
     if (sseClients.size === 0) {
-        needToken = true;
-        return;
+        log('SYSTEM', 'wplacer', '⚠️ Cannot request token: No clients connected. Please open a wplace.live tab.');
+        return false;
     }
     sseBroadcast("request-token", { reason });
+    return true;
 }
+
+const TokenManager = {
+    token: null,
+    tokenPromise: null,
+    resolvePromise: null,
+    requestTimeout: null,
+    isWaitingForClient: false,
+    TOKEN_REQUEST_TIMEOUT: 30000,
+
+    _requestNewToken() {
+        log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: Requesting new token from clients...');
+        const success = requestTokenFromClients("server-request");
+
+        if (success) {
+            this.isWaitingForClient = false;
+            clearTimeout(this.requestTimeout);
+            this.requestTimeout = setTimeout(() => {
+                log('SYSTEM', 'wplacer', '⚠️ Token request timed out. Retrying...');
+                this._requestNewToken();
+            }, this.TOKEN_REQUEST_TIMEOUT);
+        } else {
+            this.isWaitingForClient = true;
+            clearTimeout(this.requestTimeout);
+            log('SYSTEM', 'wplacer', '🛑 TOKEN_MANAGER: Stalled. Waiting for a browser client to connect...');
+        }
+    },
+
+    getToken() {
+        if (this.token) {
+            return Promise.resolve(this.token);
+        }
+        if (!this.tokenPromise) {
+            this.tokenPromise = new Promise((resolve) => {
+                this.resolvePromise = resolve;
+            });
+            this._requestNewToken();
+        }
+        return this.tokenPromise;
+    },
+
+    setToken(t) {
+        log('SYSTEM', 'wplacer', '✅ TOKEN_MANAGER: Token received.');
+        this.token = t;
+        if (this.resolvePromise) {
+            this.resolvePromise(t);
+        }
+        this._reset();
+    },
+
+    invalidateToken() {
+        log('SYSTEM', 'wplacer', '🔄 TOKEN_MANAGER: Invalidating current token.');
+        this.token = null;
+    },
+    
+    _reset() {
+        clearTimeout(this.requestTimeout);
+        this.requestTimeout = null;
+        this.tokenPromise = null;
+        this.resolvePromise = null;
+        this.isWaitingForClient = false;
+    },
+
+    clientConnected() {
+        if (this.isWaitingForClient && this.tokenPromise) {
+            log('SYSTEM', 'wplacer', '✅ TOKEN_MANAGER: Client connected! Resuming token request.');
+            this.isWaitingForClient = false;
+            this._requestNewToken();
+        }
+    }
+};
+
 
 function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
@@ -84,8 +155,6 @@ class TemplateManager {
         this.userIds = userIds;
         this.running = false;
         this.status = "Waiting to be started.";
-        this.activeWplacer = null;
-        this.turnstileToken = null;
         this.masterId = this.userIds[0];
         this.masterName = users[this.masterId].name;
         this.masterIdentifier = this.userIds.map(id => `${users[id].name}#${id}`).join(', ');
@@ -149,10 +218,7 @@ class TemplateManager {
             this.sleepTimeout = null;
         }
     }
-    setToken(t) { 
-        this.turnstileToken = t;
-        if (this.activeWplacer) this.activeWplacer.setToken(t); 
-    }
+
     async handleUpgrades(wplacer) {
         if (this.canBuyMaxCharges) {
             await wplacer.loadUserInfo();
@@ -171,6 +237,27 @@ class TemplateManager {
             }
         }
     }
+
+    async _performPaintTurn(wplacer) {
+        let paintingComplete = false;
+        while (!paintingComplete && this.running) {
+            try {
+                const token = await TokenManager.getToken();
+                wplacer.token = token;
+                await wplacer.paint(currentSettings.drawingMethod);
+                paintingComplete = true; // Succeeded
+            } catch (error) {
+                if (error.message === 'REFRESH_TOKEN') {
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Requesting a new one...`);
+                    TokenManager.invalidateToken();
+                    await this.sleep(2000); // Brief pause before retrying
+                } else {
+                    throw error; // Re-throw other errors
+                }
+            }
+        }
+    }
+
     async start() {
         this.running = true;
         this.status = "Started.";
@@ -183,7 +270,7 @@ class TemplateManager {
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
                     if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(null, null, null, requestTokenFromClients, currentSettings, this.name);
+                    const wplacer = new WPlacer(null, null, null, currentSettings, this.name);
                     try {
                         await wplacer.login(users[userId].cookies);
                         return { userId, charges: wplacer.userInfo.charges.count };
@@ -203,26 +290,23 @@ class TemplateManager {
                     if (!this.running) break;
                     if (activeBrowserUsers.has(userId)) continue;
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
-                    wplacer.token = this.turnstileToken;
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                     try {
                         const { id, name } = await wplacer.login(users[userId].cookies);
                         this.status = `Initial run for ${name}#${id}`;
                         log(id, name, `[${this.name}] 🏁 Starting initial turn...`);
-                        this.activeWplacer = wplacer;
-                        await wplacer.paint(currentSettings.drawingMethod);
-                        this.turnstileToken = wplacer.token;
+                        
+                        await this._performPaintTurn(wplacer);
                         await this.handleUpgrades(wplacer);
                         
                         if (await wplacer.pixelsLeft() === 0) {
-                            this.running = false; // Stop the main loop
-                            break; // Exit the initial run loop
+                            this.running = false;
+                            break;
                         }
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
                     } finally {
                         if (wplacer.browser) await wplacer.close();
-                        this.activeWplacer = null;
                         activeBrowserUsers.delete(userId);
                     }
                      if (this.running && this.userIds.length > 1) {
@@ -232,7 +316,7 @@ class TemplateManager {
                 }
                 this.isFirstRun = false;
                 log('SYSTEM', 'wplacer', `[${this.name}] ✅ Initial placement cycle complete.`);
-                if (!this.running) continue; // Skip to the main loop's completion check
+                if (!this.running) continue;
             }
 
             if (activeBrowserUsers.has(this.masterId)) {
@@ -240,7 +324,7 @@ class TemplateManager {
                 continue;
             }
             activeBrowserUsers.add(this.masterId);
-            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+            const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
             let pixelsRemaining;
             try {
                 await checkWplacer.login(users[this.masterId].cookies);
@@ -272,7 +356,7 @@ class TemplateManager {
             for (const userId of this.userIds) {
                  if (activeBrowserUsers.has(userId)) continue;
                  activeBrowserUsers.add(userId);
-                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                  try {
                      await wplacer.login(users[userId].cookies);
                      userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
@@ -291,7 +375,6 @@ class TemplateManager {
 
             let userToRun = null;
             if (readyUsers.length > 0) {
-                // Sort by who has the most charges and pick them.
                 readyUsers.sort((a, b) => b.charges.count - a.charges.count);
                 userToRun = readyUsers[0];
             }
@@ -299,21 +382,18 @@ class TemplateManager {
             if (userToRun) {
                 if (activeBrowserUsers.has(userToRun.userId)) continue;
                 activeBrowserUsers.add(userToRun.userId);
-                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                 try {
                     const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                     this.status = `Running user ${name}#${id}`;
                     log(id, name, `[${this.name}] 🔋 User has enough charges. Starting turn...`);
-                    this.activeWplacer = wplacer;
-                    wplacer.token = this.turnstileToken;
-                    await wplacer.paint(currentSettings.drawingMethod);
-                    this.turnstileToken = wplacer.token;
+                    
+                    await this._performPaintTurn(wplacer);
                     await this.handleUpgrades(wplacer);
                 } catch (error) {
                     logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                 } finally {
                     await wplacer.close();
-                    this.activeWplacer = null;
                     activeBrowserUsers.delete(userToRun.userId);
                 }
                 if (this.running && this.userIds.length > 1) {
@@ -324,7 +404,7 @@ class TemplateManager {
                 if (this.canBuyCharges) {
                     if (!activeBrowserUsers.has(this.masterId)) {
                         activeBrowserUsers.add(this.masterId);
-                        const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, requestTokenFromClients, currentSettings, this.name);
+                        const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                         try {
                             await chargeBuyer.login(users[this.masterId].cookies);
                             const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
@@ -373,10 +453,10 @@ app.get("/events", (req, res) => {
     res.write("retry: 1000\n\n");
 
     sseClients.add(res);
+    TokenManager.clientConnected();
 
-    if (needToken) {
-        res.write(`event: request-token\ndata: ${JSON.stringify({ reason: "client-connect" })}\n\n`);
-        needToken = false;
+    if (TokenManager.tokenPromise && !TokenManager.token) {
+        sseBroadcast("request-token", { reason: "new-client-join" });
     }
 
     req.on("close", () => {
@@ -546,7 +626,6 @@ app.put("/template/restart/:id", async (req, res) => {
 // client endpoints
 app.get("/canvas", async (req, res) => {
     const { tx, ty } = req.query;
-    // Validate tx and ty: must be non-negative integers
     const txInt = Number.isInteger(Number(tx)) ? Number(tx) : NaN;
     const tyInt = Number.isInteger(Number(ty)) ? Number(ty) : NaN;
     if (
@@ -570,11 +649,7 @@ app.get("/ping", (_, res) => res.send("Pong!"));
 app.post("/t", async (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
-    for (const id in templates) {
-        if (templates[id]) {
-            templates[id].setToken(t);
-        }
-    }
+    TokenManager.setToken(t);
     res.sendStatus(200);
 });
 
@@ -610,7 +685,6 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
 
-    // Load saved templates
     if (existsSync("templates.json")) {
         const loadedTemplates = JSON.parse(readFileSync("templates.json", "utf8"));
         for (const id in loadedTemplates) {
@@ -624,18 +698,16 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
     }
 
-    // check for updates
     const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
     if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
     
-    // start server
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
     app.listen(port, host, () => {
         console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
-        requestTokenFromClients("server-start");
-        setInterval(keepAlive, 20 * 60 * 1000); // Run keep-alive every 20 minutes
+        TokenManager.getToken().catch(() => {}); // Initial token request
+        setInterval(keepAlive, 20 * 60 * 1000);
     });
 })();
