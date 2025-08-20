@@ -56,6 +56,23 @@ const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 
+const progressIntervals = {};
+const progressTotals = {};
+const progressHistory = {};
+const progressSessions = {};
+
+const formatDuration = (seconds) => {
+    if (!isFinite(seconds) || seconds <= 0) return '—';
+    const s = Math.round(seconds);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 99) return '99h+'; // cap for absurdly long ETAs
+    if (h > 0) return `${h}h ${m.toString().padStart(2,'0')}m`;
+    if (m > 0) return `${m}m ${sec.toString().padStart(2,'0')}s`;
+    return `${sec}s`;
+};
+
 // Message Box
 let confirmCallback = null;
 
@@ -112,6 +129,271 @@ const handleError = (error) => {
         }
     }
     showMessage("Error", message);
+};
+
+// Progress Bar (Manage Templates)
+const createProgressBar = () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'progress-wrapper';
+    wrapper.style.width = '100%';
+    wrapper.style.margin = '8px 0';
+
+    const bar = document.createElement('div');
+    bar.className = 'progress-bar';
+    bar.style.width = '100%';
+    bar.style.height = '12px';
+    bar.style.borderRadius = '6px';
+    bar.style.overflow = 'hidden';
+    bar.style.background = 'rgba(0,0,0,0.1)';
+
+    const fill = document.createElement('div');
+    fill.className = 'progress-fill';
+    fill.style.width = '0%';
+    fill.style.height = '100%';
+    fill.style.transition = 'width 200ms linear';
+    fill.style.background = 'var(--accent-primary)';
+
+    bar.appendChild(fill);
+
+    const text = document.createElement('div');
+    text.className = 'progress-text';
+    text.style.fontSize = '12px';
+    text.style.opacity = '0.85';
+    text.style.marginTop = '6px';
+    text.textContent = '0 px painted / 0 px remaining — 0% — Total: 0 px — ETA: —';
+    text.style.cursor = 'pointer';
+    text.title = 'Click to expand details';
+
+
+    wrapper.appendChild(bar);
+    wrapper.appendChild(text);
+
+    const details = document.createElement('div');
+    details.className = 'progress-details';
+    details.style.display = 'none';
+    details.style.marginTop = '6px';
+    details.style.padding = '8px';
+    details.style.borderRadius = '6px';
+    details.style.background = 'rgba(0,0,0,0.05)';
+    details.innerHTML = `
+        <div class="pd-row"><b>Summary:</b> <span class="pd-summary">—</span></div>
+        <div class="pd-row"><b>Counters:</b> <span class="pd-counts">painted 0, remaining 0, total 0</span></div>
+        <div class="pd-row"><b>Rate:</b> <span class="pd-rates">last minute 0 px/min, since session 0 px/min</span></div>
+        <div class="pd-row"><b>Finish:</b> <span class="pd-finish">ETA —, at —</span></div>
+        <div class="pd-row"><b>Update:</b> <span class="pd-updated">—</span><b>Last progress:</b> <span class="pd-lastpos">—</span></div>
+    `;
+    wrapper.appendChild(details);
+
+    const pd = {
+        root: details,
+        summary: details.querySelector('.pd-summary'),
+        counts: details.querySelector('.pd-counts'),
+        rates: details.querySelector('.pd-rates'),
+        finish: details.querySelector('.pd-finish'),
+        updated: details.querySelector('.pd-updated'),
+        lastpos: details.querySelector('.pd-lastpos')
+    };
+
+    text.addEventListener('click', () => {
+        pd.root.style.display = pd.root.style.display === 'none' ? 'block' : 'none';
+    });
+
+    return { wrapper, bar, fill, text, details: pd };
+};
+
+const updateProgressBar = (ui, painted, remaining, id, totalHint) => {
+    const p = Math.max(0, painted | 0);
+    const r = Math.max(0, remaining | 0);
+    let total = progressTotals[id] || totalHint || (p + r);
+    if (!progressTotals[id] && total) progressTotals[id] = total;
+    else if (total && total > progressTotals[id]) progressTotals[id] = total;
+    total = progressTotals[id] || total || (p + r);
+
+    const pct = total > 0 ? Math.min(100, Math.max(0, (p / total) * 100)) : 0;
+    ui.fill.style.width = Math.round(pct) + '%';
+
+    // --- history for short-term rate ---
+    const now = Date.now();
+    if (!progressHistory[id]) progressHistory[id] = [];
+    const hist = progressHistory[id];
+    hist.push({ t: now, p });
+    while (hist.length > 12) hist.shift(); // ~60s
+
+    let deltaP = 0;
+    let deltaT = 0;
+    for (let i = 1; i < hist.length; i++) {
+        const dp = hist[i].p - hist[i - 1].p;
+        const dt = (hist[i].t - hist[i - 1].t) / 1000;
+        if (dt > 0) {
+            if (dp > 0) {
+                deltaP += dp;
+                deltaT += dt;
+            }
+        }
+    }
+    const recentRate = deltaT > 0 ? (deltaP / deltaT) : 0; // px/s
+
+    // --- session baseline including idle time ---
+    if (!progressSessions[id]) progressSessions[id] = { t0: now, p0: p, lastPosT: p > 0 ? now : null, lastP: p };
+    const sess = progressSessions[id];
+    if (p > sess.lastP) sess.lastPosT = now;
+    sess.lastP = p;
+
+    const totalElapsed = Math.max(0, (now - sess.t0) / 1000);
+    const paintedSinceStart = Math.max(0, p - sess.p0);
+    const sessionRate = totalElapsed > 0 ? (paintedSinceStart / totalElapsed) : 0; // px/s
+
+    let etaRate = 0;
+    if (recentRate > 0 && sessionRate > 0) etaRate = 0.6 * recentRate + 0.4 * sessionRate;
+    else etaRate = Math.max(recentRate, sessionRate);
+
+    const etaSeconds = (r > 0 && etaRate > 0) ? (r / etaRate) : null;
+
+    // pretty numbers
+    const pStr = p.toLocaleString();
+    const rStr = r.toLocaleString();
+    const tStr = (total || 0).toLocaleString();
+    const pctStr = (total > 0) ? (pct >= 100 ? '100%' : `${pct.toFixed(1)}%`) : '0%';
+    const etaStr = (r === 0 || pct >= 100) ? 'done' : formatDuration(etaSeconds || 0);
+    ui.text.textContent = `${pStr} px painted / ${rStr} px remaining — ${pctStr} — Total: ${tStr} px — ETA: ${etaStr}`;
+
+    // --- update details panel ---
+    if (ui.details) {
+        const recentPerMin = Math.round(recentRate * 60);
+        const sessionPerMin = Math.round(sessionRate * 60);
+        const finishAt = (etaSeconds && isFinite(etaSeconds)) ? new Date(now + etaSeconds * 1000).toLocaleString() : '—';
+        const lastPosStr = sess.lastPosT ? new Date(sess.lastPosT).toLocaleString() : '—';
+        ui.details.summary.textContent = `${pctStr}`;
+        ui.details.counts.textContent = `painted ${pStr}, remaining ${rStr}, total ${tStr}`;
+        ui.details.rates.textContent = `last minute ${recentPerMin} px/min, since session ${sessionPerMin} px/min`;
+        ui.details.finish.textContent = `ETA ${etaStr}, at ${finishAt}`;
+        ui.details.updated.textContent = new Date(now).toLocaleString();
+        ui.details.lastpos.textContent = lastPosStr;
+    }
+};
+
+const startProgressPolling = (id, ui, tpl) => {
+    let mode = 'server'; // try server first, then fall back to client
+
+    const pollServerOnce = async () => {
+        try {
+            const res = await axios.get(`/template/progress/${id}`);
+            if (res && res.data && typeof res.data.painted === 'number' && typeof res.data.remaining === 'number') {
+                const totalHint = (typeof res.data.total === 'number') ? res.data.total : (res.data.painted + res.data.remaining);
+                updateProgressBar(ui, res.data.painted, res.data.remaining, id, totalHint);
+                return true;
+            }
+            ui.text.textContent = 'N/A';
+            return false;
+        } catch (e) {
+            ui.text.textContent = 'N/A';
+            return false;
+        }
+    };
+
+    const computeClientOnce = async () => {
+        try {
+            if (!tpl || !tpl.template || !tpl.coords) {
+                ui.text.textContent = 'N/A';
+                return;
+            }
+            const { width, height, data: matrix } = tpl.template;
+            const [txVal, tyVal, pxVal, pyVal] = tpl.coords.map(Number);
+            const TILE_SIZE = 1000;
+            const startX = txVal * TILE_SIZE + pxVal;
+            const startY = tyVal * TILE_SIZE + pyVal;
+            const endX = startX + width;
+            const endY = startY + height;
+            const startTileX = Math.floor(startX / TILE_SIZE);
+            const startTileY = Math.floor(startY / TILE_SIZE);
+            const endTileX = Math.floor((endX - 1) / TILE_SIZE);
+            const endTileY = Math.floor((endY - 1) / TILE_SIZE);
+
+            // offscreen canvas to draw the fetched tiles into the exact region
+            const off = document.createElement('canvas');
+            off.width = width;
+            off.height = height;
+            const ctx = off.getContext('2d');
+            ctx.clearRect(0, 0, width, height);
+
+            for (let txi = startTileX; txi <= endTileX; txi++) {
+                for (let tyi = startTileY; tyi <= endTileY; tyi++) {
+                    try {
+                        const response = await axios.get('/canvas', { params: { tx: txi, ty: tyi } });
+                        const img = new Image();
+                        img.src = response.data.image;
+                        await img.decode();
+                        const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
+                        const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
+                        const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
+                        const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                        const sw = ex - sx;
+                        const sh = ey - sy;
+                        const dx = txi * TILE_SIZE + sx - startX;
+                        const dy = tyi * TILE_SIZE + sy - startY;
+                        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
+                    } catch (err) {
+                        // If any tile fails, mark as N/A and stop this round
+                        ui.text.textContent = 'N/A';
+                        return;
+                    }
+                }
+            }
+
+            // Compare the pixels with the template matrix
+            const base = ctx.getImageData(0, 0, width, height).data;
+            let painted = 0;
+            let remaining = 0;
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    const tplId = matrix[x][y];
+                    if (tplId === 0) continue;
+                    const i = (y * width + x) * 4;
+                    const r = base[i], g = base[i + 1], b = base[i + 2];
+                    const idGuess = closest(`${r},${g},${b}`);
+                    if (idGuess === tplId) painted++; else remaining++;
+                }
+            }
+            let totalHint = undefined;
+            if (typeof tpl.template.ink === 'number' && tpl.template.ink > 0) {
+                totalHint = tpl.template.ink;
+            } else if (!progressTotals[id]) {
+                // compute once: count non-zero ids in matrix
+                let count = 0;
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        if (matrix[x][y] !== 0) count++;
+                    }
+                }
+                totalHint = count;
+            }
+            updateProgressBar(ui, painted, remaining, id, totalHint);
+        } catch (e) {
+            ui.text.textContent = 'N/A';
+        }
+    };
+
+    const startServerMode = async () => {
+        const ok = await pollServerOnce();
+        if (!ok) {
+            // switch to client mode
+            startClientMode();
+            return;
+        }
+        const interval = setInterval(pollServerOnce, 5000);
+        progressIntervals[id] = interval;
+    };
+
+    const startClientMode = () => {
+        mode = 'client';
+        computeClientOnce();
+        const interval = setInterval(computeClientOnce, 5000);
+        if (progressIntervals[id]) clearInterval(progressIntervals[id]);
+        progressIntervals[id] = interval;
+    };
+
+    // kick off
+    startServerMode();
 };
 
 
@@ -591,6 +873,13 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
 
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
+    // clear previous progress intervals to avoid duplicates when reopening the tab
+    for (const key of Object.keys(progressIntervals)) {
+        clearInterval(progressIntervals[key]);
+        delete progressIntervals[key];
+    }
+    for (const key of Object.keys(progressHistory)) delete progressHistory[key];
+    for (const key of Object.keys(progressTotals)) delete progressTotals[key];
     loadUsers(users => {
         loadTemplates(templates => {
             for (const id of Object.keys(templates)) {
@@ -609,6 +898,9 @@ openManageTemplates.addEventListener("click", () => {
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
+                // Progress UI
+                const progressUI = createProgressBar();
+
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
@@ -657,7 +949,9 @@ openManageTemplates.addEventListener("click", () => {
                 buttons.append(editButton);
                 buttons.append(delButton);
                 template.append(canvas);
+                template.append(progressUI.wrapper);
                 template.append(buttons);
+                startProgressPolling(id, progressUI, { template: t.template, coords: t.coords });
                 templateList.append(template);
             };
         });
