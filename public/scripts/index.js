@@ -560,7 +560,7 @@ const initializeTemplateForm = (userIds = null) => {
             checkbox.id = `user_${id}`;
             checkbox.name = 'user_checkbox';
             checkbox.value = id;
-            checkbox.checked = userIds && userIds.includes(id);
+            checkbox.checked = userIds && userIds.map(String).includes(id);
             const label = document.createElement('label');
             label.htmlFor = `user_${id}`;
             label.textContent = `${users[id].name} (#${id})`;
