@@ -62,12 +62,6 @@ const messageBoxCancel = $("messageBoxCancel");
 // Message Box
 let confirmCallback = null;
 
-const userCount = $("userCount");
-
-function updateUserCount() {
-    userCount.textContent = `(${userList.children.length})`;
-}
-
 const showMessage = (title, content) => {
     messageBoxTitle.textContent = title;
     messageBoxContent.textContent = content;
@@ -511,7 +505,6 @@ openManageUsers.addEventListener("click", () => {
             });
             userList.appendChild(user);
         };
-        updateUserCount();
     });
     changeTab(manageUsers);
 });
@@ -891,5 +884,3 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
-
-window.addEventListener("DOMContentLoaded", updateUserCount);

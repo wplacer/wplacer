@@ -461,18 +461,3 @@ input:checked + .slider:before {
 .hidden {
     display: none !important;
 }
-
-.help-icon {
-  display: inline-block;
-  margin-left: 6px;
-  font-weight: bold;
-  background: #ccc;
-  color: #000;
-  border-radius: 50%;
-  width: 16px;
-  height: 16px;
-  text-align: center;
-  font-size: 12px;
-  line-height: 16px;
-  cursor: help;
-}
