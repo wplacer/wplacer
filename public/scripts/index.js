@@ -185,7 +185,7 @@ const loadTemplates = async (f) => {
 };
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
-    const radius = parseInt(previewBorder.value, 10) || 0;
+    const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
     
     const startX = txVal * TILE_SIZE + pxVal - radius;
     const startY = tyVal * TILE_SIZE + pyVal - radius;
