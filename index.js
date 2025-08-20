@@ -278,7 +278,6 @@ class TemplateManager {
                         logUserError(error, userId, users[userId].name, "fetch charge state for initial sort", this.name);
                         return { userId, charges: -1 };
                     } finally {
-                        await wplacer.close();
                         activeBrowserUsers.delete(userId);
                     }
                 }));
@@ -306,7 +305,6 @@ class TemplateManager {
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
                     } finally {
-                        if (wplacer.browser) await wplacer.close();
                         activeBrowserUsers.delete(userId);
                     }
                      if (this.running && this.userIds.length > 1) {
@@ -334,7 +332,6 @@ class TemplateManager {
                 await this.sleep(60000);
                 continue;
             } finally {
-                await checkWplacer.close();
                 activeBrowserUsers.delete(this.masterId);
             }
 
@@ -363,7 +360,6 @@ class TemplateManager {
                  } catch (error) {
                      logUserError(error, userId, users[userId].name, "check user status", this.name);
                  } finally {
-                     await wplacer.close();
                      activeBrowserUsers.delete(userId);
                  }
             }
@@ -393,7 +389,6 @@ class TemplateManager {
                 } catch (error) {
                     logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                 } finally {
-                    await wplacer.close();
                     activeBrowserUsers.delete(userToRun.userId);
                 }
                 if (this.running && this.userIds.length > 1) {
@@ -421,7 +416,6 @@ class TemplateManager {
                         } catch (error) {
                              logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
                         } finally {
-                            await chargeBuyer.close();
                             activeBrowserUsers.delete(this.masterId);
                         }
                     }
@@ -511,7 +505,6 @@ app.get("/user/status/:id", async (req, res) => {
         logUserError(error, id, users[id].name, "validate cookie");
         res.status(500).json({ error: error.message });
     } finally {
-        await wplacer.close();
         activeBrowserUsers.delete(id);
     }
 });
@@ -534,7 +527,6 @@ app.post("/user", async (req, res) => {
         res.status(500).json({ error: error.message });
     } finally {
         if (wplacer.userInfo) activeBrowserUsers.delete(wplacer.userInfo.id);
-        await wplacer.close();
     }
 });
 app.post("/template", async (req, res) => {
@@ -556,7 +548,7 @@ app.post("/template", async (req, res) => {
         logUserError(error, req.body.userIds[0], users[req.body.userIds[0]].name, "create template");
         res.status(500).json({ error: error.message });
     } finally {
-        await wplacer.close();
+
     }
 });
 app.delete("/user/:id", async (req, res) => {
@@ -671,7 +663,6 @@ const keepAlive = async () => {
         } catch (error) {
             logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
-            if (wplacer.browser) await wplacer.close();
             activeBrowserUsers.delete(userId);
         }
     }

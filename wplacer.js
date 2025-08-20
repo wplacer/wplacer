@@ -1,6 +1,7 @@
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { CookieJar } from "tough-cookie";
+import { Impit } from "impit";
+import {Image, createCanvas} from "canvas"
 import { appendFileSync } from "node:fs";
-import puppeteer from 'puppeteer-extra';
 import notifier from 'node-notifier';
 import path from 'node:path';
 
@@ -43,27 +44,24 @@ export class WPlacer {
         this.settings = settings;
         this.cookies = null;
         this.browser = null;
-        this.me = null;
         this.userInfo = null;
         this.tiles = new Map();
         this.token = null;
     };
     async login(cookies) {
         this.cookies = cookies;
-        puppeteer.use(StealthPlugin());
-        this.browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-        for (const cookie of Object.keys(this.cookies)) await this.browser.setCookie({ name: cookie, value: this.cookies[cookie], domain: 'backend.wplace.live' });
+        let jar = new CookieJar();
+        for (const cookie of Object.keys(this.cookies)) jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
+        this.browser = new Impit({cookieJar:jar, browser:"chrome", ignoreTlsErrors:true});
         await this.loadUserInfo();
         return this.userInfo;
     };
     async close() {
-        if (this.browser) await this.browser.close();
+        return;
     }
     async loadUserInfo() {
-        if (!this.me) this.me = await this.browser.newPage();
-        await this.me.goto('https://backend.wplace.live/me');
-        await this.me.waitForSelector('body', { timeout: 15000 });
-        const bodyText = await this.me.evaluate(() => document.body.innerText);
+        let me = await this.browser.fetch("https://backend.wplace.live/me");
+        let bodyText = await me.text();
 
         try {
             const userInfo = JSON.parse(bodyText);
@@ -89,21 +87,18 @@ export class WPlacer {
     };
     cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
     async post(url, body) {
-        const response = await this.me.evaluate((url, cookies, body) => new Promise(async (resolve) => {
-            const request = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Accept": "*/*",
-                    "Content-Type": "text/plain;charset=UTF-8",
-                    "Cookie": cookies,
-                    "Referer": "https://wplace.live/"
-                },
-                body: JSON.stringify(body)
-            });
-            const data = await request.json();
-            resolve({ status: request.status, data: data });
-        }), url, this.cookieStr(this.cookies), body);
-        return response;
+        // We already have a cookie jar
+        const request = await this.browser.fetch(url, {
+            method: "POST",
+            headers: {
+                "Accept": "*/*",
+                "Content-Type": "text/plain;charset=UTF-8",
+                "Referer": "https://wplace.live/"
+            },
+            body: JSON.stringify(body)
+        });
+        const data = await request.json();
+        return { status: request.status, data: data };
     };
     async loadTiles() {
         this.tiles.clear();
@@ -116,13 +111,11 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = this.me.evaluate((pallete, src) => new Promise((resolve) => {
+                const promise = new Promise((resolve) => {
                     const image = new Image();
                     image.crossOrigin = "Anonymous";
                     image.onload = () => {
-                        const canvas = document.createElement("canvas");
-                        canvas.width = image.width;
-                        canvas.height = image.height;
+                        const canvas = createCanvas(image.width, image.height);
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(image, 0, 0);
                         const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
@@ -136,12 +129,11 @@ export class WPlacer {
                                 } else template.data[x][y] = 0;
                             };
                         };
-                        canvas.remove();
                         resolve(template);
                     };
                     image.onerror = () => resolve(null);
-                    image.src = src;
-                }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
+                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
+                })
                 .then(tileData => {
                     if (tileData) {
                         this.tiles.set(`${currentTx}_${currentTy}`, tileData);
