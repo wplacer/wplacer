@@ -20,6 +20,9 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 -   **Desktop Notifications:** The program will now send a desktop notification when it needs a new Turnstile token, so you don't have to constantly check the console.
 
 ## Installation and Usage 💻
+
+[Video Tutorial](https://youtu.be/YR978U84LSY)
+
 ### Requirements:
 - [Node.js and NPM](https://nodejs.org/en/download)
 - [Tampermonkey](https://www.tampermonkey.net/)
@@ -63,5 +66,6 @@ And to our amazing contributors!
 ### License 📜
 
 [GNU AGPL v3](LICENSE)
+
 
 
