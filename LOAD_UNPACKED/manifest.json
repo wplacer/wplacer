@@ -7,12 +7,13 @@
     "cookies",
     "tabs",
     "scripting",
-    "alarms"
+    "alarms",
+    "storage"
   ],
   "host_permissions": [
     "https://wplace.live/",
     "https://backend.wplace.live/",
-    "http://127.0.0.1:80/"
+    "http://127.0.0.1:*/"
   ],
   "action": {
     "default_popup": "popup.html",

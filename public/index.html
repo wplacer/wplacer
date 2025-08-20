@@ -31,13 +31,13 @@
                 <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add User</button>
             </form>
 
-            <h2 class="section-title">Existing Users</h2>
-            <div id="userList"></div>
+            <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
             <div id="chargeSummary">
                 <b>Total Available Charges:</b> <span id="totalCharges">?</span> | 
                 <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
             </div>
             <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
+            <div id="userList"></div>
             
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
@@ -105,6 +105,7 @@
 
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
+            
             <label for="drawingModeSelect">Drawing Mode</label>
             <select id="drawingModeSelect">
                 <option value="linear">Top to Bottom</option>
@@ -114,17 +115,11 @@
                 <option value="singleColorRandom">Random Color</option>
                 <option value="colorByColor">Color by Color</option>
             </select>
+
             <div class="setting-toggle">
-                <label for="outlineMode">Enable stroke mode</label>
+                <label for="outlineMode">Enable outline mode</label>
                 <label class="switch">
                     <input id="outlineMode" name="outlineMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
-                <label for="useDitherDecoder">Use dither color decoder</label>
-                <label class="switch">
-                    <input id="useDitherDecoder" name="useDitherDecoder" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
@@ -135,6 +130,7 @@
                     <span class="slider"></span>
                 </label>
             </div>
+
             <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
             <input type="number" id="accountCooldown" min="0" value="20">
             <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
@@ -143,17 +139,9 @@
             <input type="number" id="dropletReserve" min="0" value="0">
             <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
             <input type="number" id="antiGriefStandby" min="1" value="10">
-            <div class="setting-toggle">
-                <label for="alwaysDrawOnCharge">Always draw when at least one charge is available</label>
-                <label class="switch">
-                    <input id="alwaysDrawOnCharge" name="alwaysDrawOnCharge" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div id="chargeThresholdContainer">
-                <label for="chargeThreshold">Charge Threshold (%)</label>
-                <input type="number" id="chargeThreshold" min="1" max="100" value="50">
-            </div>
+            <label for="chargeThreshold">Charge Threshold (%)</label>
+            <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
         

@@ -33,7 +33,7 @@ try {
         const lock = localStorage.getItem('wplacer_refresh_lock');
         const now = Date.now();
 
-        if (lock && (now - parseInt(lock, 10)) < 5000) {
+        if (lock && (now - parseInt(lock, 10)) < 15000) { // Increased lock time to 15s
             console.log("wplacer: Another tab is already handling the refresh. Standing by.");
             return;
         }

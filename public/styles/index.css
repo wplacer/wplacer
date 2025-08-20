@@ -202,6 +202,7 @@ label {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
     gap: 16px;
+    margin-top: 24px;
     margin-bottom: 24px;
 }
 
@@ -261,6 +262,7 @@ label {
 .user-stats {
     font-size: 0.9rem;
     color: var(--text-secondary);
+    line-height: 1.5;
 }
 
 .user-stats b {

@@ -1,10 +1,18 @@
+const getServerUrl = async (path) => {
+    return new Promise((resolve) => {
+        chrome.storage.local.get(['wplacerPort'], (result) => {
+            const port = result.wplacerPort || 80;
+            resolve(`http://127.0.0.1:${port}${path}`);
+        });
+    });
+};
+
 // --- Function to send the user cookie to the server ---
-function sendCookie(callback) {
+async function sendCookie(callback) {
     let attempts = 0;
     const maxAttempts = 5;
     const retryDelay = 500;
 
-    // Helper to promisify the chrome.cookies.get function
     const getCookie = (details) => new Promise(resolve => chrome.cookies.get(details, cookie => resolve(cookie)));
 
     const tryGetCookies = () => {
@@ -13,17 +21,19 @@ function sendCookie(callback) {
         const jCookiePromise = getCookie({ url: "https://backend.wplace.live", name: "j" });
         const sCookiePromise = getCookie({ url: "https://backend.wplace.live", name: "s" });
 
-        Promise.all([jCookiePromise, sCookiePromise]).then(([jCookie, sCookie]) => {
+        Promise.all([jCookiePromise, sCookiePromise]).then(async ([jCookie, sCookie]) => {
             if (jCookie) {
                 const cookies = { j: jCookie.value };
-                if (sCookie) { // Fine whatever
+                if (sCookie) {
                     cookies.s = sCookie.value;
                 }
+                const expirationDate = jCookie.expirationDate;
+                const url = await getServerUrl("/user");
 
-                fetch("http://127.0.0.1:80/user", {
+                fetch(url, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ cookies })
+                    body: JSON.stringify({ cookies, expirationDate })
                 })
                 .then(response => {
                     if (!response.ok) throw new Error(`Server responded with status: ${response.status}`);
@@ -52,10 +62,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; // Indicates an asynchronous response
     }
     if (request.type === "SEND_TOKEN") {
-        fetch("http://127.0.0.1:80/t", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ t: request.token })
+        getServerUrl("/t").then(url => {
+            fetch(url, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ t: request.token })
+            });
         });
     }
 });
