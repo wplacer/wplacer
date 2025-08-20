@@ -1,17 +1,18 @@
 {
   "name": "wplacer",
-  "version": "3.3.0",
+  "version": "3.2.0",
   "main": "index.js",
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env ."
   },
   "dependencies": {
-    "canvas": "^3.2.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "impit": "0.5.3",
     "node-notifier": "^10.0.1",
+    "puppeteer": "^24.16.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "tough-cookie": "^6.0.0"
   },
   "engines": {
@@ -19,4 +20,3 @@
     "npm": ">=10.0.0"
   }
 }
-
