@@ -7,7 +7,8 @@
     "cookies",
     "tabs",
     "scripting",
-    "alarms"
+    "alarms",
+    "storage"
   ],
   "host_permissions": [
     "https://wplace.live/",
