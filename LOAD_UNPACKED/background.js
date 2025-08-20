@@ -1,3 +1,18 @@
+//we're pulling ports
+let port = 80
+
+
+// firefox polyfills "chrome.storage.*" 
+// so it should work on gecko based browsers!
+chrome.storage.local.get(null,function (obj){
+// edge case error handling cuz theres always one!
+    if (obj.port == null)
+        chrome.storage.local.set({"port":"80"},function (){
+        console.log("Storage Succesful");
+    });
+    port = obj.port
+});
+
 // --- Function to send the user cookie to the server ---
 function sendCookie(callback) {
     let attempts = 0;
@@ -20,7 +35,7 @@ function sendCookie(callback) {
                     cookies.s = sCookie.value;
                 }
 
-                fetch("http://127.0.0.1:80/user", {
+                fetch(`http://127.0.0.1:${port}/user`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ cookies })
@@ -52,7 +67,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true; // Indicates an asynchronous response
     }
     if (request.type === "SEND_TOKEN") {
-        fetch("http://127.0.0.1:80/t", {
+        fetch(`http://127.0.0.1:${port}/t`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ t: request.token })

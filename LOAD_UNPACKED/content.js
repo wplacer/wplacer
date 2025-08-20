@@ -1,3 +1,18 @@
+//pulling ports
+let port = 80
+
+// firefox polyfills "chrome.storage.*" 
+// so it should work on gecko based browsers!
+chrome.storage.local.get(null,function (obj){
+// edge case error handling cuz theres always one!
+    if (obj.port == null)
+        chrome.storage.local.set({"port":"80"},function (){
+        console.log("Storage Succesful");
+    });
+    port = obj.port
+});
+
+
 console.log("✅ wplacer: Content script loaded. Listening for Turnstile tokens.");
 const sentInPage = new Set();
 
@@ -25,7 +40,7 @@ window.addEventListener('message', (e) => {
 
 // --- Secondary Method: Server-Sent Events (SSE) to trigger a refresh on demand ---
 try {
-    const es = new EventSource(`http://127.0.0.1:80/events`);
+    const es = new EventSource(`http://127.0.0.1:${port}/events`);
     es.addEventListener("request-token", () => {
         console.log("wplacer: Received token request from server.");
         

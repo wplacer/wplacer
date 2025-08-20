@@ -44,7 +44,7 @@ p {
     color: var(--text-secondary);
     font-size: 14px;
     margin: 0 0 15px 0;
-    min-height: 3em;
+    min-height: 2em;
 }
 
 button {
@@ -64,3 +64,15 @@ button {
 button:hover {
     background-color: var(--accent-hover);
 }
+
+input {
+    width: 60px;
+    margin-bottom: 3px;
+}
+
+#lilNote {
+    color: var(--text-secondary);
+    font-size: 10px;
+    margin-bottom: 15px;
+}
+
