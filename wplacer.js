@@ -1,6 +1,6 @@
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
-import {Image,createCanvas} from "canvas"
+import {Image, createCanvas} from "canvas"
 import { appendFileSync } from "node:fs";
 import notifier from 'node-notifier';
 import path from 'node:path';
