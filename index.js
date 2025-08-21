@@ -662,7 +662,7 @@ const keepAlive = async () => {
         const wplacer = new WPlacer();
         try {
             await wplacer.login(user.cookies);
-            log(userId, user.name, `✅ Cookie keep-alive successful... Checking next user in ${delay} seconds.`);
+            log(userId, user.name, `✅ Cookie keep-alive successful... Checking next user in ${delay / 1000} seconds.`);
         } catch (error) {
             logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
