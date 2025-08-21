@@ -288,9 +288,9 @@ class TemplateManager {
                 const sortedUserIds = userChargeStates.map(u => u.userId);
 
                 for (const userId of sortedUserIds) {
-                     if (!this.running) break;
-                     if (activeBrowserUsers.has(userId)) continue;
-                     activeBrowserUsers.add(userId);
+                    if (!this.running) break;
+                    if (activeBrowserUsers.has(userId)) continue;
+                    activeBrowserUsers.add(userId);
                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                     try {
                         const { id, name } = await wplacer.login(users[userId].cookies);
@@ -701,7 +701,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
     if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
-
+    
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
     app.listen(port, host, () => {
