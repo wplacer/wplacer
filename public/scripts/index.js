@@ -1,5 +1,3 @@
-import { use } from "react";
-
 // elements
 const $ = (id) => document.getElementById(id);
 const main = $("main");

@@ -21,7 +21,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ## Installation and Usage 💻
 
-[Video Tutorial](https://youtu.be/YR978U84LSY)
+[Video Tutorial](https://www.youtube.com/watch?v=YR978U84LSY)
 
 ### Requirements:
 - [Node.js and NPM](https://nodejs.org/en/download)
@@ -48,9 +48,9 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 > This bot is not affiliated with [wplace.live](https://wplace.live/) and its use may be against the site's rules. The developers are not responsible for any punishments against your accounts. Use at your own risk.
 
 ### To-dos ✅
-- [ ] **Add support for paid colors**
 - [ ] **Proxy support**
 - [ ] **Auto-farm EXP and droplets function for users**
+- [x] ~~Add support for paid colors~~
 - [x] ~~Support for painting between multiple tiles~~
 - [x] ~~Easier multi-account support for one template~~
 - [x] ~~Queueing system for multi-accounts~~

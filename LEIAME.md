@@ -20,6 +20,7 @@ Um bot de desenho automático para [wplace.live](https://wplace.live/)
 -   **Notificações na área de trabalho:** O programa envia uma notificação quando precisar de um novo token do Turnstile, assim você não precisa ficar verificando o console.
 
 ## Instalação e Uso 💻
+[Tutorial em Vídeo](https://www.youtube.com/watch?v=YR978U84LSY)
 ### Requisitos:
 - [Node.js e NPM](https://nodejs.org/pt-br/download)
 - [Tampermonkey](https://www.tampermonkey.net/)
@@ -47,10 +48,9 @@ Um bot de desenho automático para [wplace.live](https://wplace.live/)
 > Este bot não é afiliado ao [wplace.live](https://wplace.live/) e vai contra as regras do site. Não me responsabilizo por qualquer tipo de punição contra suas contas.
 
 ### Lista de Tarefas ✅
-- [ ] **Adicionar suporte para cores pagas**
 - [ ] **Função de farm automático de EXP e gotas para usuários**
 - [ ] **Suporte para proxy**
-- [ ] **Resolução automática de Turnstile (se possível)**
+- [x] ~~Adicionar suporte para cores pagas~~
 - [x] ~~Suporte para pintura entre múltiplas telhas~~
 - [x] ~~Sistema de fila para múltiplas contas~~
 - [x] ~~Suporte mais fácil para múltiplas contas em um único modelo~~
