@@ -13,11 +13,12 @@
 <body>
     <div class="container">
         <h1><img src="icons/favicon.png">wplacer</h1>
-        
+
         <div id="main">
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
             <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage Templates</button>
+            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
+                Templates</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
         </div>
 
@@ -28,17 +29,18 @@
                 <input type="password" id="jcookie" required>
                 <label for="scookie">Session Cookie (s) [optional]</label>
                 <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add User</button>
+                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
+                    User</button>
             </form>
 
             <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
             <div id="chargeSummary">
-                <b>Total Available Charges:</b> <span id="totalCharges">?</span> | 
+                <b>Total Available Charges:</b> <span id="totalCharges">?</span> |
                 <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
             </div>
             <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
             <div id="userList"></div>
-            
+
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
@@ -54,8 +56,15 @@
             <form id="templateForm">
                 <input type="file" style="display: none;" accept="image/png" id="convertInput">
                 <label for="templateName">Template Name</label>
-                <input type="text" id="templateName" placeholder="You lost The Game" required>
+                <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
                 <label>Coordinates</label>
+                <div class="setting-toggle">
+                    <label for="usePaidColors">Use paid colors when exact</label>
+                    <label class="switch">
+                        <input id="usePaidColors" name="usePaidColors" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
                 <div class="coordinate-grid">
                     <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
@@ -65,7 +74,7 @@
                 <label for="userSelectList">Users</label>
                 <div id="userSelectList"></div>
                 <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
-                
+
                 <div class="setting-toggle">
                     <label for="canBuyMaxCharges">Buy max charge upgrades</label>
                     <label class="switch">
@@ -87,7 +96,7 @@
                         <span class="slider"></span>
                     </label>
                 </div>
-                
+
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>
             <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
@@ -105,7 +114,7 @@
 
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
-            
+
             <label for="drawingModeSelect">Drawing Mode</label>
             <select id="drawingModeSelect">
                 <option value="linear">Top to Bottom</option>
@@ -144,9 +153,8 @@
 
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
-        
-        <p class="credits">
-            Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
+
+        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
         </p>
     </div>
 

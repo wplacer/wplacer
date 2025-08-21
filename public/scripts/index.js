@@ -1,3 +1,5 @@
+import { use } from "react";
+
 // elements
 const $ = (id) => document.getElementById(id);
 const main = $("main");
@@ -55,6 +57,7 @@ const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
+const usePaidColors = $("usePaidColors");
 
 // Message Box
 let confirmCallback = null;
@@ -253,7 +256,8 @@ const nearestimgdecoder = (imageData, width, height) => {
             const a = d[i + 3];
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
-                const id = closest(`${r},${g},${b}`);
+                const rgb = `${r},${g},${b}`;
+                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
                 matrix[x][y] = id;
                 ink++;
             } else {
@@ -295,15 +299,22 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
-convertInput.addEventListener('change', async () => {
-    processImageFile(convertInput.files[0], (template) => {
-        currentTemplate = template;
-        drawTemplate(template, templateCanvas);
-        size.innerHTML = `${template.width}x${template.height}px`;
-        ink.innerHTML = template.ink;
-        details.style.display = "block";
-    });
-});
+const processEvent = () => () => {
+    const file = convertInput.files[0];
+    if (file) {
+        templateName.value = file.name.replace(/\.[^/.]+$/, "");
+        processImageFile(file, (template) => {
+            currentTemplate = template;
+            drawTemplate(template, templateCanvas);
+            size.innerHTML = `${template.width}x${template.height}px`;
+            ink.innerHTML = template.ink;
+            details.style.display = "block";
+        });
+    };
+};
+convertInput.addEventListener('change', processEvent);
+usePaidColors.addEventListener('change', processEvent);
+
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
     const tyVal = parseInt(ty.value, 10);
