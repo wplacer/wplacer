@@ -20,6 +20,7 @@
             <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
                 Templates</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
+            <button id="openLiveLogs" class="secondary-button"><img src="icons/code.svg">Live Logs</button>
         </div>
 
         <div id="manageUsers" style="display: none;">
@@ -151,6 +152,16 @@
             <label for="chargeThreshold">Charge Threshold (%)</label>
             <input type="number" id="chargeThreshold" min="0" max="100" value="50">
 
+            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+        </div>
+
+        <div id="liveLogs" style="display: none;">
+            <h2>Live Logs</h2>
+            <div class="template-actions-all">
+                <button id="toggleAutoScroll" class="secondary-button">Auto-Scroll: On</button>
+                <button id="clearLogs" class="secondary-button"><img src="icons/remove.svg">Clear</button>
+            </div>
+            <pre id="logsOutput" style="max-height: 240px; overflow: auto; background: #111; color: #ddd; padding: 10px; border-radius: 6px;"></pre>
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 

@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { WPlacer, log, duration } from "./wplacer.js";
+import { WPlacer, log, duration, logEvents } from "./wplacer.js";
 import express from "express";
 import cors from "cors";
 
@@ -56,6 +56,15 @@ function sseBroadcast(event, data) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const res of sseClients) res.write(payload);
 }
+
+// Bridge backend log events to SSE clients
+logEvents.on('log', (entry) => {
+    try {
+        sseBroadcast('log', entry);
+    } catch (_) {
+        // Ignore broadcast errors
+    }
+});
 
 function requestTokenFromClients(reason = "unknown") {
     if (sseClients.size === 0) {

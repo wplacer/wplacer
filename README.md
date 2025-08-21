@@ -18,6 +18,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 -   **Advanced Template Controls:** Options such as restarting, replacing a template's image, or pausing on the fly make management more flexible as well as providing you with real time updates on the template's status.
 -   **Automatic Captcha (Turnstile) Token Handling:** Turnstile handling lets you babysit the bot much less
 -   **Desktop Notifications:** The program will now send a desktop notification when it needs a new Turnstile token, so you don't have to constantly check the console.
+-   **Live Logs Panel (SSE):** View real-time backend logs in the UI. Logs stream over Server-Sent Events and include info/error levels for easier monitoring.
 
 ## Installation and Usage 💻
 

@@ -5,6 +5,7 @@ const openManageUsers = $("openManageUsers");
 const openAddTemplate = $("openAddTemplate");
 const openManageTemplates = $("openManageTemplates");
 const openSettings = $("openSettings");
+const openLiveLogs = $("openLiveLogs");
 const userForm = $("userForm");
 const scookie = $("scookie");
 const jcookie = $("jcookie");
@@ -56,6 +57,34 @@ const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
+const liveLogs = $("liveLogs");
+const toggleAutoScroll = $("toggleAutoScroll");
+const clearLogs = $("clearLogs");
+const logsOutput = $("logsOutput");
+
+// Live Logs state
+let autoScrollLogs = true;
+let es = null; // EventSource instance
+let shouldNotifyTurnstile = false;
+// Log persistence
+const LOG_STORAGE_KEY = 'wplacer_live_logs_v1';
+const MAX_LOG_LINES = 2000;
+let logsBuffer = [];
+
+const saveLogsToStorage = () => {
+    try { localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logsBuffer)); } catch (_) {}
+};
+
+const loadLogsFromStorage = () => {
+    try {
+        const raw = localStorage.getItem(LOG_STORAGE_KEY);
+        if (raw) logsBuffer = JSON.parse(raw) || [];
+    } catch (_) { logsBuffer = []; }
+    if (logsOutput) {
+        logsOutput.textContent = logsBuffer.join('\n') + (logsBuffer.length ? '\n' : '');
+        logsOutput.scrollTop = logsOutput.scrollHeight;
+    }
+};
 
 // Message Box
 let confirmCallback = null;
@@ -691,6 +720,81 @@ openSettings.addEventListener("click", async () => {
     changeTab(settings);
 });
 
+// Live Logs panel
+openLiveLogs.addEventListener("click", () => {
+    changeTab(liveLogs);
+});
+
+const appendLogLine = (text) => {
+    // Always buffer + persist, even if logs panel is hidden
+    logsBuffer.push(text);
+    if (logsBuffer.length > MAX_LOG_LINES) {
+        logsBuffer = logsBuffer.slice(-MAX_LOG_LINES);
+    }
+    saveLogsToStorage();
+
+    // Update UI if available
+    if (logsOutput) {
+        // Append efficiently
+        logsOutput.textContent += text + "\n";
+        if (autoScrollLogs) {
+            logsOutput.scrollTop = logsOutput.scrollHeight;
+        }
+    }
+};
+
+const initEventSource = () => {
+    if (es) return;
+    try {
+        es = new EventSource("/events");
+        es.addEventListener("log", (e) => {
+            try {
+                const entry = JSON.parse(e.data);
+                const { timestamp, id, name, level, message } = entry;
+                const line = `[${timestamp}] (${name}#${id}) [${(level || 'info').toUpperCase()}] ${message}`;
+                appendLogLine(line);
+            } catch (_) {}
+        });
+        es.addEventListener("request-token", (e) => {
+            try {
+                const data = JSON.parse(e.data || '{}');
+                if (shouldNotifyTurnstile) {
+                    if ("Notification" in window) {
+                        if (Notification.permission === "granted") {
+                            new Notification("wplacer: Turnstile Needed", { body: data.reason ? `Reason: ${data.reason}` : "A new token is required.", icon: "/icons/favicon.png" });
+                        } else if (Notification.permission !== "denied") {
+                            Notification.requestPermission().then((perm) => {
+                                if (perm === "granted") {
+                                    new Notification("wplacer: Turnstile Needed", { body: data.reason ? `Reason: ${data.reason}` : "A new token is required.", icon: "/icons/favicon.png" });
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (_) {}
+        });
+        es.onerror = () => {
+            // Let browser auto-reconnect; no-op
+        };
+    } catch (_) {
+        // Ignore init errors; user may not be connected to backend yet
+    }
+};
+
+if (toggleAutoScroll) {
+    toggleAutoScroll.addEventListener('click', () => {
+        autoScrollLogs = !autoScrollLogs;
+        toggleAutoScroll.textContent = `Auto-Scroll: ${autoScrollLogs ? 'On' : 'Off'}`;
+    });
+}
+if (clearLogs) {
+    clearLogs.addEventListener('click', () => {
+        logsBuffer = [];
+        saveLogsToStorage();
+        if (logsOutput) logsOutput.textContent = "";
+    });
+}
+
 // Settings
 const saveSetting = async (setting) => {
     try {
@@ -702,7 +806,7 @@ const saveSetting = async (setting) => {
 };
 
 drawingModeSelect.addEventListener('change', () => saveSetting({ drawingMethod: drawingModeSelect.value }));
-turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
+turnstileNotifications.addEventListener('change', () => { shouldNotifyTurnstile = turnstileNotifications.checked; saveSetting({ turnstileNotifications: turnstileNotifications.checked }); });
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
 
 accountCooldown.addEventListener('change', () => {
@@ -778,3 +882,14 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
+
+// Initialize Live Logs and settings cache
+(async function initLiveLogs() {
+    try {
+        const resp = await axios.get('/settings');
+        shouldNotifyTurnstile = !!resp.data.turnstileNotifications;
+    } catch (_) {}
+    // Restore cached logs before connecting SSE
+    loadLogsFromStorage();
+    initEventSource();
+})();
