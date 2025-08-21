@@ -60,6 +60,10 @@ To pass environment variables when running the container:
   - Or pass specific vars: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
   - Or bake defaults via `ENV` in a custom Dockerfile.
 
+- Example docker run command:
+`docker run -e HOST=0.0.0.0 -e PORT=3000 -p 3000:3000 -v /path/to/your/data:/app/data -it --rm --name wplacer luluwaffless/wplacer`
+Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
+
 ### To-dos ✅
 - [ ] **Proxy support**
 - [ ] **Auto-farm EXP and droplets function for users**
