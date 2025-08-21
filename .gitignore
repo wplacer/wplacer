@@ -6,3 +6,5 @@ templates.json
 settings.json
 ExtensionTesting/
 *.png
+Dockerfile
+.env

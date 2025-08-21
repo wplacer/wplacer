@@ -47,6 +47,12 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 > [!CAUTION]
 > This bot is not affiliated with [wplace.live](https://wplace.live/) and its use may be against the site's rules. The developers are not responsible for any punishments against your accounts. Use at your own risk.
 
+### Running in Docker / non-interactive (non-TTY) environments
+
+Interactive console features (progress bars, cursor movement) are now guarded and will only run when `process.stdout.isTTY` is `true`. In Docker or other non-TTY contexts, these calls are skipped to prevent crashes (for example, `TypeError: process.stdout.clearLine is not a function`).
+
+No interactive features were removed; they simply don't render when there is no TTY.
+
 ### To-dos ✅
 - [ ] **Proxy support**
 - [ ] **Auto-farm EXP and droplets function for users**
