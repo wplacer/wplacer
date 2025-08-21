@@ -297,7 +297,7 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
-const processEvent = () => () => {
+const processEvent = () => {
     const file = convertInput.files[0];
     if (file) {
         templateName.value = file.name.replace(/\.[^/.]+$/, "");
