@@ -53,6 +53,13 @@ Interactive console features (progress bars, cursor movement) are now guarded an
 
 No interactive features were removed; they simply don't render when there is no TTY.
 
+### Docker start command
+The Dockerfile starts the app with `CMD ["node", "."]`.
+To pass environment variables when running the container:
+  - Use `docker run --env-file .env ...`
+  - Or pass specific vars: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
+  - Or bake defaults via `ENV` in a custom Dockerfile.
+
 ### To-dos ✅
 - [ ] **Proxy support**
 - [ ] **Auto-farm EXP and droplets function for users**
