@@ -45,6 +45,8 @@ const outlineMode = $("outlineMode");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
+const keepAliveCooldownMin = $("keepAliveCooldownMin");
+const keepAliveCooldownMax = $("keepAliveCooldownMax");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
@@ -674,6 +676,8 @@ openSettings.addEventListener("click", async () => {
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
+        keepAliveCooldownMin.value = currentSettings.keepAliveCooldownMin / 1000;
+        keepAliveCooldownMax.value = currentSettings.keepAliveCooldownMax / 1000;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
     } catch (error) {
@@ -721,6 +725,24 @@ dropletReserve.addEventListener('change', () => {
         return;
     }
     saveSetting({ dropletReserve: value });
+});
+
+keepAliveCooldownMin.addEventListener('change', () => {
+    const value = parseInt(keepAliveCooldownMin.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
+    }
+    saveSetting({ keepAliveCooldownMin: value });
+});
+
+keepAliveCooldownMax.addEventListener('change', () => {
+    const value = parseInt(keepAliveCooldownMax.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
+    }
+    saveSetting({ keepAliveCooldownM: value });
 });
 
 antiGriefStandby.addEventListener('change', () => {

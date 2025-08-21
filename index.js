@@ -40,6 +40,8 @@ let currentSettings = {
     drawingMethod: 'linear',
     chargeThreshold: 0.5,
     outlineMode: false,
+    keepAliveDelayMin: 3000,
+    keepAliveDelayMax: 7000
 };
 if (existsSync("settings.json")) {
     currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
@@ -116,7 +118,7 @@ const TokenManager = {
         log('SYSTEM', 'wplacer', '🔄 TOKEN_MANAGER: Invalidating current token.');
         this.token = null;
     },
-    
+
     _reset() {
         clearTimeout(this.requestTimeout);
         this.requestTimeout = null;
@@ -166,7 +168,7 @@ class TemplateManager {
     sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
             this.sleepResolve = resolve;
-            
+
             this.sleepTimeout = setTimeout(() => {
                 if (this.sleepInterval) {
                     clearInterval(this.sleepInterval);
@@ -266,7 +268,7 @@ class TemplateManager {
         while (this.running) {
             if (this.isFirstRun) {
                 log('SYSTEM', 'wplacer', `[${this.name}] 🚀 Performing initial painting cycle...`);
-                
+
                 const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
                     if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
                     activeBrowserUsers.add(userId);
@@ -294,10 +296,10 @@ class TemplateManager {
                         const { id, name } = await wplacer.login(users[userId].cookies);
                         this.status = `Initial run for ${name}#${id}`;
                         log(id, name, `[${this.name}] 🏁 Starting initial turn...`);
-                        
+
                         await this._performPaintTurn(wplacer);
                         await this.handleUpgrades(wplacer);
-                        
+
                         if (await wplacer.pixelsLeft() === 0) {
                             this.running = false;
                             break;
@@ -307,7 +309,7 @@ class TemplateManager {
                     } finally {
                         activeBrowserUsers.delete(userId);
                     }
-                     if (this.running && this.userIds.length > 1) {
+                    if (this.running && this.userIds.length > 1) {
                         log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
                         await this.sleep(currentSettings.accountCooldown);
                     }
@@ -351,19 +353,19 @@ class TemplateManager {
 
             let userStates = [];
             for (const userId of this.userIds) {
-                 if (activeBrowserUsers.has(userId)) continue;
-                 activeBrowserUsers.add(userId);
-                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
-                 try {
-                     await wplacer.login(users[userId].cookies);
-                     userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
-                 } catch (error) {
-                     logUserError(error, userId, users[userId].name, "check user status", this.name);
-                 } finally {
-                     activeBrowserUsers.delete(userId);
-                 }
+                if (activeBrowserUsers.has(userId)) continue;
+                activeBrowserUsers.add(userId);
+                const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
+                try {
+                    await wplacer.login(users[userId].cookies);
+                    userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                } catch (error) {
+                    logUserError(error, userId, users[userId].name, "check user status", this.name);
+                } finally {
+                    activeBrowserUsers.delete(userId);
+                }
             }
-            
+
             const readyUsers = userStates.filter(u => {
                 const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                 return u.charges.count >= target;
@@ -383,7 +385,7 @@ class TemplateManager {
                     const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                     this.status = `Running user ${name}#${id}`;
                     log(id, name, `[${this.name}] 🔋 User has enough charges. Starting turn...`);
-                    
+
                     await this._performPaintTurn(wplacer);
                     await this.handleUpgrades(wplacer);
                 } catch (error) {
@@ -414,13 +416,13 @@ class TemplateManager {
                                 }
                             }
                         } catch (error) {
-                             logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
+                            logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
                         } finally {
                             activeBrowserUsers.delete(this.masterId);
                         }
                     }
                 }
-                
+
                 const times = userStates.map(u => {
                     const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                     return Math.max(0, (target - u.charges.count) * u.cooldownMs);
@@ -515,10 +517,10 @@ app.post("/user", async (req, res) => {
         const userInfo = await wplacer.login(req.body.cookies);
         if (activeBrowserUsers.has(userInfo.id)) return res.sendStatus(409);
         activeBrowserUsers.add(userInfo.id);
-        users[userInfo.id] = { 
-            name: userInfo.name, 
+        users[userInfo.id] = {
+            name: userInfo.name,
             cookies: req.body.cookies,
-            expirationDate: req.body.expirationDate 
+            expirationDate: req.body.expirationDate
         };
         saveUsers();
         res.json(userInfo);
@@ -531,7 +533,7 @@ app.post("/user", async (req, res) => {
 });
 app.post("/template", async (req, res) => {
     if (!req.body.templateName || !req.body.template || !req.body.coords || !req.body.userIds || !req.body.userIds.length) return res.sendStatus(400);
-    
+
     const isDuplicateName = Object.values(templates).some(t => t.name === req.body.templateName);
     if (isDuplicateName) {
         return res.status(409).json({ error: "A template with this name already exists." });
@@ -576,7 +578,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = updatedData.canBuyCharges;
     manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
     manager.antiGriefMode = updatedData.antiGriefMode;
-    
+
     if (updatedData.template) {
         manager.template = updatedData.template;
     }
@@ -656,14 +658,20 @@ const keepAlive = async () => {
         }
         activeBrowserUsers.add(userId);
         const user = users[userId];
+        const delay = Math.floor(Math.random() * (currentSettings.keepAliveDelayMax - currentSettings.keepAliveDelayMin + 1) + currentSettings.keepAliveDelayMin);
         const wplacer = new WPlacer();
         try {
             await wplacer.login(user.cookies);
-            log(userId, user.name, '✅ Cookie keep-alive successful.');
+            log(userId, user.name, `✅ Cookie keep-alive successful... Checking next user in ${delay} seconds.`);
         } catch (error) {
             logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
             activeBrowserUsers.delete(userId);
+        }
+
+        // Add random delay between users in keepalive request except for last user
+        if (userIds.indexOf(userId) < userIds.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, delay));
         }
     }
     log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
@@ -693,7 +701,7 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const githubVersion = (await githubPackage.json()).version;
     const diff = diffVer(version, githubVersion);
     if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
-    
+
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
     app.listen(port, host, () => {
