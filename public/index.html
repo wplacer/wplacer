@@ -1,6 +1,5 @@
 <!DOCTYPE html>
 <html>
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +8,6 @@
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
     <title>wplacer</title>
 </head>
-
 <body>
     <div class="container">
         <h1><img src="icons/favicon.png">wplacer</h1>
@@ -17,8 +15,7 @@
         <div id="main">
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
             <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
-                Templates</button>
+            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage Templates</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
             <button id="openLiveLogs" class="secondary-button"><img src="icons/code.svg">Live Logs</button>
         </div>
@@ -30,8 +27,7 @@
                 <input type="password" id="jcookie" required>
                 <label for="scookie">Session Cookie (s) [optional]</label>
                 <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
-                    User</button>
+                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add User</button>
             </form>
 
             <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
@@ -60,54 +56,39 @@
                 <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
                 <label>Coordinates</label>
                 <div class="setting-toggle">
-                    <label for="usePaidColors">Use paid colors when exact</label>
+                    <label for="coordinateMode">Enable coordinate mode</label>
                     <label class="switch">
-                        <input id="usePaidColors" name="usePaidColors" type="checkbox">
+                        <input id="coordinateMode" name="coordinateMode" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
-                <div class="coordinate-grid">
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="px" placeholder="Pixel X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="py" placeholder="Pixel Y" required>
-                </div>
-                <label for="userSelectList">Users</label>
-                <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
-
-                <div class="setting-toggle">
-                    <label for="canBuyMaxCharges">Buy max charge upgrades</label>
-                    <label class="switch">
-                        <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="canBuyCharges">Buy paint charges when running out</label>
-                    <label class="switch">
-                        <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="antiGriefMode">Enable Anti Grief mode</label>
-                    <label class="switch">
-                        <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-
-                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
+                <label for="xCoord">X Coordinate</label>
+                <input type="number" id="xCoord" placeholder="0" min="0" max="2000" step="1">
+                <label for="yCoord">Y Coordinate</label>
+                <input type="number" id="yCoord" placeholder="0" min="0" max="2000" step="1">
+                <label for="delayTime">Delay (seconds)</label>
+                <input type="number" id="delayTime" placeholder="0" min="0" max="3600" step="1">
+                <label>Priority</label>
+                <select id="prioritySelect">
+                    <option value="1">1 - Highest</option>
+                    <option value="2">2 - High</option>
+                    <option value="3" selected>3 - Normal</option>
+                    <option value="4">4 - Low</option>
+                    <option value="5">5 - Lowest</option>
+                </select>
+                <button type="submit" id="addTemplateSubmit" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
             <h2>Manage Templates</h2>
             <div class="template-actions-all">
-                <button id="startAll" class="primary-button"><img src="icons/playAll.svg">Start All</button>
-                <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
+                <button id="checkAll" class="secondary-button">Check All</button>
+                <button id="uncheckAll" class="secondary-button">Uncheck All</button>
+                <button id="reverseAll" class="secondary-button">Reverse All</button>
+                <button id="removeSelected" class="secondary-button"><img src="icons/remove.svg">Remove Selected</button>
+                <button id="downloadSelected" class="secondary-button"><img src="icons/download.svg">Download Selected</button>
             </div>
             <div id="templateList"></div>
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
@@ -115,6 +96,46 @@
 
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
+
+            <div class="setting-toggle">
+                <label for="onlyDrawMissingPixels">Only draw missing pixels</label>
+                <label class="switch">
+                    <input id="onlyDrawMissingPixels" name="onlyDrawMissingPixels" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-toggle">
+                <label for="hideTemplates">Hide templates</label>
+                <label class="switch">
+                    <input id="hideTemplates" name="hideTemplates" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-toggle">
+                <label for="autoZoom">Auto zoom-in when placing</label>
+                <label class="switch">
+                    <input id="autoZoom" name="autoZoom" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-toggle">
+                <label for="autoStart">Auto-start on page load</label>
+                <label class="switch">
+                    <input id="autoStart" name="autoStart" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div class="setting-toggle">
+                <label for="soundEnabled">Enable sound notifications</label>
+                <label class="switch">
+                    <input id="soundEnabled" name="soundEnabled" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
 
             <label for="drawingModeSelect">Drawing Mode</label>
             <select id="drawingModeSelect">
@@ -165,8 +186,7 @@
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
-        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
-        </p>
+        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a></p>
     </div>
 
     <div id="messageBoxOverlay" class="hidden">
@@ -182,5 +202,4 @@
 
     <script type="text/javascript" src="scripts/index.js"></script>
 </body>
-
 </html>
