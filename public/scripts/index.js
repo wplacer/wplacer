@@ -36,7 +36,7 @@ const selectAllUsers = $("selectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const antiGriefMode = $("antiGriefMode");
-const submitTemplate = $("submitTemplate");
+const submitTemplate = $("submitTemplate") || $("addTemplateSubmit");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
 const startAll = $("startAll");
@@ -215,7 +215,7 @@ const loadTemplates = async (f) => {
 };
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
-    const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
+    const radius = Math.max(0, parseInt(previewBorder?.value, 10) || 0);
     
     const startX = txVal * TILE_SIZE + pxVal - radius;
     const startY = tyVal * TILE_SIZE + pyVal - radius;
@@ -295,7 +295,7 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
+                const id = colors[rgb] && (usePaidColors?.checked) ? colors[rgb] : closest(rgb);
                 matrix[x][y] = id;
                 ink++;
             } else {
@@ -351,7 +351,7 @@ const processEvent = () => {
     };
 };
 convertInput.addEventListener('change', processEvent);
-usePaidColors.addEventListener('change', processEvent);
+usePaidColors?.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
@@ -365,22 +365,22 @@ previewCanvasButton.addEventListener('click', async () => {
     await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
 });
 
-canBuyMaxCharges.addEventListener('change', () => {
+canBuyMaxCharges?.addEventListener('change', () => {
     if (canBuyMaxCharges.checked) {
-        canBuyCharges.checked = false;
+        if (canBuyCharges) canBuyCharges.checked = false;
     }
 });
 
-canBuyCharges.addEventListener('change', () => {
+canBuyCharges?.addEventListener('change', () => {
     if (canBuyCharges.checked) {
-        canBuyMaxCharges.checked = false;
+        if (canBuyMaxCharges) canBuyMaxCharges.checked = false;
     }
 });
 
 const resetTemplateForm = () => {
     templateForm.reset();
     templateFormTitle.textContent = "Add Template";
-    submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
+    if (submitTemplate) submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = "none";
     currentTemplate = { width: 0, height: 0, data: [] };
@@ -428,7 +428,7 @@ templateForm.addEventListener('submit', async (e) => {
         handleError(error);
     };
 });
-startAll.addEventListener('click', async () => {
+startAll?.addEventListener('click', async () => {
     for (const child of templateList.children) {
         try {
             await axios.put(`/template/${child.id}`, { running: true });
@@ -439,7 +439,7 @@ startAll.addEventListener('click', async () => {
     showMessage("Success", "Finished! Check console for details.");
     openManageTemplates.click();
 });
-stopAll.addEventListener('click', async () => {
+stopAll?.addEventListener('click', async () => {
     for (const child of templateList.children) {
         try {
             await axios.put(`/template/${child.id}`, { running: false });
@@ -589,31 +589,33 @@ checkUserStatus.addEventListener("click", async () => {
 });
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
-    userSelectList.innerHTML = "";
-    loadUsers(users => {
-        if (Object.keys(users).length === 0) {
-            userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
-            return;
-        }
-        for (const id of Object.keys(users)) {
-            const userDiv = document.createElement('div');
-            userDiv.className = 'user-select-item';
-            const checkbox = document.createElement('input');
-            checkbox.type = 'checkbox';
-            checkbox.id = `user_${id}`;
-            checkbox.name = 'user_checkbox';
-            checkbox.value = id;
-            const label = document.createElement('label');
-            label.htmlFor = `user_${id}`;
-            label.textContent = `${users[id].name} (#${id})`;
-            userDiv.appendChild(checkbox);
-            userDiv.appendChild(label);
-            userSelectList.appendChild(userDiv);
-        }
-    });
+    if (userSelectList) {
+        userSelectList.innerHTML = "";
+        loadUsers(users => {
+            if (Object.keys(users).length === 0) {
+                userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
+                return;
+            }
+            for (const id of Object.keys(users)) {
+                const userDiv = document.createElement('div');
+                userDiv.className = 'user-select-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.id = `user_${id}`;
+                checkbox.name = 'user_checkbox';
+                checkbox.value = id;
+                const label = document.createElement('label');
+                label.htmlFor = `user_${id}`;
+                label.textContent = `${users[id].name} (#${id})`;
+                userDiv.appendChild(checkbox);
+                userDiv.appendChild(label);
+                userSelectList.appendChild(userDiv);
+            }
+        });
+    }
     changeTab(addTemplate);
 });
-selectAllUsers.addEventListener('click', () => {
+selectAllUsers?.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
 
@@ -670,12 +672,13 @@ openManageTemplates.addEventListener("click", () => {
                 editButton.addEventListener('click', () => {
                     openAddTemplate.click();
                     templateFormTitle.textContent = `Edit Template: ${t.name}`;
-                    submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
+                    if (submitTemplate) submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
                     templateForm.dataset.editId = id;
 
                     templateName.value = t.name;
                     [tx.value, ty.value, px.value, py.value] = t.coords;
                     canBuyCharges.checked = t.canBuyCharges;
+
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
 
@@ -758,6 +761,10 @@ const initEventSource = () => {
     if (es) return;
     try {
         es = new EventSource("/events");
+        es.addEventListener("open", () => {
+            appendLogLine("[client] Live Logs connected to /events.");
+            console.debug("Live Logs: SSE connection opened");
+        });
         es.addEventListener("log", (e) => {
             try {
                 const entry = JSON.parse(e.data);
@@ -784,8 +791,10 @@ const initEventSource = () => {
                 }
             } catch (_) {}
         });
-        es.onerror = () => {
-            // Let browser auto-reconnect; no-op
+        es.onerror = (err) => {
+            appendLogLine("[client] Live Logs connection error. Will retry automatically...");
+            console.warn("Live Logs: SSE error", err);
+            // Let browser auto-reconnect; keep instance
         };
     } catch (_) {
         // Ignore init errors; user may not be connected to backend yet
@@ -865,7 +874,7 @@ chargeThreshold.addEventListener('change', () => {
     saveSetting({ chargeThreshold: value / 100 });
 });
 
-tx.addEventListener('blur', () => {
+tx?.addEventListener('blur', () => {
     const value = tx.value.trim();
     const urlRegex = /pixel\/(\d+)\/(\d+)\?x=(\d+)&y=(\d+)/;
     const urlMatch = value.match(urlRegex);
@@ -889,6 +898,7 @@ tx.addEventListener('blur', () => {
 });
 
 [ty, px, py].forEach(input => {
+    if (!input) return;
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
