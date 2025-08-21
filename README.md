@@ -61,7 +61,11 @@ To pass environment variables when running the container:
   - Or bake defaults via `ENV` in a custom Dockerfile.
 
 - Example docker run command:
-`docker run -e HOST=0.0.0.0 -e PORT=3000 -p 3000:3000 -v /path/to/your/data:/app/data -it --rm --name wplacer luluwaffless/wplacer`
+`docker run -d --restart always -p 3000:3000 `
+  -v "E:\.github\wplacer\data\users.json:/usr/src/app/users.json" `
+  -v "E:\.github\wplacer\data\templates.json:/usr/src/app/templates.json" `
+  -v "E:\.github\wplacer\data\settings.json:/usr/src/app/settings.json" `
+  --name wplacer luluwaffless/wplacer`
 Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
 
 ### To-dos ✅
@@ -71,6 +75,7 @@ Note: HOST and PORT can be omitted if you passed them in the .env file or the Do
 - [x] ~~Support for painting between multiple tiles~~
 - [x] ~~Easier multi-account support for one template~~
 - [x] ~~Queueing system for multi-accounts~~
+- [x] ~~Docker support~~
 
 ### Credits 🙏
 
