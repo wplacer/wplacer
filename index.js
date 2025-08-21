@@ -162,6 +162,7 @@ class TemplateManager {
         this.sleepResolve = null;
         this.sleepInterval = null;
         this.sleepTimeout = null;
+        this.lastTurnTimestamp = 0;
     }
     sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
@@ -376,6 +377,15 @@ class TemplateManager {
             }
 
             if (userToRun) {
+                const now = Date.now();
+                const timeSinceLastTurn = now - this.lastTurnTimestamp;
+
+                if (this.userIds.length > 1 && timeSinceLastTurn < currentSettings.accountCooldown) {
+                    const waitTime = currentSettings.accountCooldown - timeSinceLastTurn;
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Respecting account cooldown. Waiting ${duration(waitTime)}...`);
+                    await this.sleep(waitTime);
+                }
+
                 if (activeBrowserUsers.has(userToRun.userId)) continue;
                 activeBrowserUsers.add(userToRun.userId);
                 const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
@@ -386,14 +396,11 @@ class TemplateManager {
                     
                     await this._performPaintTurn(wplacer);
                     await this.handleUpgrades(wplacer);
+                    this.lastTurnTimestamp = Date.now();
                 } catch (error) {
                     logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                 } finally {
                     activeBrowserUsers.delete(userToRun.userId);
-                }
-                if (this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
-                    await this.sleep(currentSettings.accountCooldown);
                 }
             } else if (this.running) {
                 if (this.canBuyCharges) {
@@ -484,7 +491,12 @@ app.put('/settings', (req, res) => {
     currentSettings = { ...currentSettings, ...req.body };
     saveSettings();
 
-    if (oldSettings.chargeThreshold !== currentSettings.chargeThreshold) {
+    // Interrupt sleep for all running templates if the drawing policy changes.
+    if (
+        oldSettings.alwaysDrawOnCharge !== currentSettings.alwaysDrawOnCharge ||
+        oldSettings.chargeThreshold !== currentSettings.chargeThreshold ||
+        oldSettings.outlineMode !== currentSettings.outlineMode
+    ) {
         for (const id in templates) {
             if (templates[id].running) {
                 templates[id].interruptSleep();
