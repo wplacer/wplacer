@@ -182,7 +182,7 @@ class TemplateManager {
                 }
             }, ms);
 
-            if (withProgressBar && ms > 1000) {
+            if (withProgressBar && ms > 1000 && process.stdout && process.stdout.isTTY) {
                 const totalDuration = ms;
                 const barWidth = 40;
                 let elapsed = 0;
@@ -196,9 +196,11 @@ class TemplateManager {
                     const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
                     const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
                     const eta = duration(totalDuration - elapsed);
-                    process.stdout.clearLine(0);
-                    process.stdout.cursorTo(0);
-                    process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
+                    if (process.stdout && process.stdout.isTTY) {
+                        if (typeof process.stdout.clearLine === 'function') process.stdout.clearLine(0);
+                        if (typeof process.stdout.cursorTo === 'function') process.stdout.cursorTo(0);
+                        process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
+                    }
                 };
                 updateProgressBar();
                 this.sleepInterval = setInterval(updateProgressBar, 1000);

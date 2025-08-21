@@ -47,6 +47,27 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 > [!CAUTION]
 > This bot is not affiliated with [wplace.live](https://wplace.live/) and its use may be against the site's rules. The developers are not responsible for any punishments against your accounts. Use at your own risk.
 
+### Running in Docker / non-interactive (non-TTY) environments
+
+Interactive console features (progress bars, cursor movement) are now guarded and will only run when `process.stdout.isTTY` is `true`. In Docker or other non-TTY contexts, these calls are skipped to prevent crashes (for example, `TypeError: process.stdout.clearLine is not a function`).
+
+No interactive features were removed; they simply don't render when there is no TTY.
+
+### Docker start command
+The Dockerfile starts the app with `CMD ["node", "."]`.
+To pass environment variables when running the container:
+  - Use `docker run --env-file .env ...`
+  - Or pass specific vars: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
+  - Or bake defaults via `ENV` in a custom Dockerfile.
+
+- Example docker run command:
+`docker run -d --restart always -p 3000:3000 `
+  -v "E:\.github\wplacer\data\users.json:/usr/src/app/users.json" `
+  -v "E:\.github\wplacer\data\templates.json:/usr/src/app/templates.json" `
+  -v "E:\.github\wplacer\data\settings.json:/usr/src/app/settings.json" `
+  --name wplacer luluwaffless/wplacer`
+Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
+
 ### To-dos ✅
 - [ ] **Proxy support**
 - [ ] **Auto-farm EXP and droplets function for users**
@@ -54,6 +75,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - [x] ~~Support for painting between multiple tiles~~
 - [x] ~~Easier multi-account support for one template~~
 - [x] ~~Queueing system for multi-accounts~~
+- [x] ~~Docker support~~
 
 ### Credits 🙏
 
