@@ -325,6 +325,31 @@ canvas {
     margin: 16px 0;
 }
 
+.preview-controls {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 16px 0;
+}
+
+.preview-controls button {
+    flex: 1;
+    margin-bottom: 0;
+}
+
+.preview-controls label {
+    margin: 0;
+    font-weight: 500;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.preview-controls input {
+    width: 100px;
+    margin: 0;
+    flex-shrink: 0;
+}
+
 #templateList {
     display: flex;
     flex-direction: column;

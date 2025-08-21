@@ -50,7 +50,11 @@
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
                 <canvas id="templateCanvas"></canvas>
-                <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
+                <div class="preview-controls">
+                    <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
+                    <label for="previewBorder">Preview Border:</label>
+                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="previewBorder" value="0">
+                </div>
                 <canvas id="previewCanvas"></canvas>
             </div>
             <form id="templateForm">

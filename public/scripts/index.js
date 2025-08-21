@@ -21,6 +21,7 @@ const ink = $("ink");
 const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
+const previewBorder = $("previewBorder");
 const templateForm = $("templateForm");
 const templateFormTitle = $("templateFormTitle");
 const convertInput = $("convertInput");
@@ -185,19 +186,24 @@ const loadTemplates = async (f) => {
 };
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
-    const startX = txVal * TILE_SIZE + pxVal;
-    const startY = tyVal * TILE_SIZE + pyVal;
-    const endX = startX + width;
-    const endY = startY + height;
+    const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
+    
+    const startX = txVal * TILE_SIZE + pxVal - radius;
+    const startY = tyVal * TILE_SIZE + pyVal - radius;
+    const displayWidth = width + (radius * 2);
+    const displayHeight = height + (radius * 2);
+    const endX = startX + displayWidth;
+    const endY = startY + displayHeight;
+    
     const startTileX = Math.floor(startX / TILE_SIZE);
     const startTileY = Math.floor(startY / TILE_SIZE);
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
     const endTileY = Math.floor((endY - 1) / TILE_SIZE);
 
-    previewCanvas.width = width;
-    previewCanvas.height = height;
+    previewCanvas.width = displayWidth;
+    previewCanvas.height = displayHeight;
     const ctx = previewCanvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
 
     for (let txi = startTileX; txi <= endTileX; txi++) {
         for (let tyi = startTileY; tyi <= endTileY; tyi++) {
@@ -222,24 +228,29 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         }
     }
 
-    const baseImage = ctx.getImageData(0, 0, width, height);
+    const baseImage = ctx.getImageData(0, 0, displayWidth, displayHeight);
     const templateCtx = templateCanvas.getContext('2d');
     const templateImage = templateCtx.getImageData(0, 0, width, height);
     ctx.globalAlpha = 0.5;
-    ctx.drawImage(templateCanvas, 0, 0);
+    ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
     const b = baseImage.data;
     const t = templateImage.data;
     for (let i = 0; i < t.length; i += 4) {
         // skip transparent template pixels
         if (t[i + 3] === 0) continue;
-        if (b[i + 3] === 0) continue;
 
-        const idx = i / 4;
-        const x = idx % width;
-        const y = Math.floor(idx / width);
+        const templateIdx = i / 4;
+        const templateX = templateIdx % width;
+        const templateY = Math.floor(templateIdx / width);
+        const canvasX = templateX + radius;
+        const canvasY = templateY + radius;
+        const canvasIdx = (canvasY * displayWidth + canvasX) * 4;
+        
+        if (b[canvasIdx + 3] === 0) continue;
+
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
-        ctx.fillRect(x, y, 1, 1);
+        ctx.fillRect(canvasX, canvasY, 1, 1);
     }
 };
 
