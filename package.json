@@ -1,7 +1,6 @@
 {
   "name": "wplacer",
   "version": "3.3.0",
-  "version": "3.3.0",
   "main": "index.js",
   "type": "module",
   "scripts": {
@@ -12,7 +11,6 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "impit": "0.5.3",
-    "impit": "^0.5.3",
     "node-notifier": "^10.0.1",
     "tough-cookie": "^6.0.0"
   },
@@ -21,5 +19,4 @@
     "npm": ">=10.0.0"
   }
 }
-
 
