@@ -62,8 +62,8 @@ const usePaidColors = $("usePaidColors");
 let confirmCallback = null;
 
 const showMessage = (title, content) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
+    messageBoxTitle.innerHTML = title;
+    messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
@@ -71,8 +71,8 @@ const showMessage = (title, content) => {
 };
 
 const showConfirmation = (title, content, onConfirm) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
+    messageBoxTitle.innerHTML = title;
+    messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.remove('hidden');
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
@@ -457,7 +457,7 @@ openManageUsers.addEventListener("click", () => {
                 </div>
                 <div class="user-actions">
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
-                    <button class="json-btn" title="Get Raw User Info"><img src="icons/code.svg"></button>
+                    <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -475,10 +475,27 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
-            user.querySelector('.json-btn').addEventListener("click", async () => {
+            user.querySelector('.info-btn').addEventListener("click", async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
-                    showMessage("Raw User Info", JSON.stringify(response.data, null, 2));
+                    const info = `
+                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                    `;
+
+                    showConfirmation("User Info", info, () => {
+                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                    });
                 } catch (error) {
                     handleError(error);
                 };
