@@ -1,8 +1,7 @@
-import StealthPlugin from 'puppeteer-extra-plugin-stealth';
+import { CookieJar } from "tough-cookie";
+import { Impit } from "impit";
+import { Image, createCanvas } from "canvas"
 import { appendFileSync } from "node:fs";
-import puppeteer from 'puppeteer-extra';
-import notifier from 'node-notifier';
-import path from 'node:path';
 
 const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
 const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
@@ -43,31 +42,28 @@ export class WPlacer {
         this.settings = settings;
         this.cookies = null;
         this.browser = null;
-        this.me = null;
         this.userInfo = null;
         this.tiles = new Map();
         this.token = null;
     };
     async login(cookies) {
         this.cookies = cookies;
-        puppeteer.use(StealthPlugin());
-        this.browser = await puppeteer.launch({ headless: 'new', args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-        for (const cookie of Object.keys(this.cookies)) await this.browser.setCookie({ name: cookie, value: this.cookies[cookie], domain: 'backend.wplace.live' });
+        let jar = new CookieJar();
+        for (const cookie of Object.keys(this.cookies)) jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
+        this.browser = new Impit({ cookieJar: jar, browser: "chrome", ignoreTlsErrors: true });
         await this.loadUserInfo();
         return this.userInfo;
     };
     async close() {
-        if (this.browser) await this.browser.close();
+        return;
     }
     async loadUserInfo() {
-        if (!this.me) this.me = await this.browser.newPage();
-        await this.me.goto('https://backend.wplace.live/me');
-        await this.me.waitForSelector('body', { timeout: 15000 });
-        const bodyText = await this.me.evaluate(() => document.body.innerText);
+        let me = await this.browser.fetch("https://backend.wplace.live/me");
+        let bodyText = await me.text();
 
         try {
             const userInfo = JSON.parse(bodyText);
-            
+
             if (userInfo.error) {
                 throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
             }
@@ -89,21 +85,18 @@ export class WPlacer {
     };
     cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
     async post(url, body) {
-        const response = await this.me.evaluate((url, cookies, body) => new Promise(async (resolve) => {
-            const request = await fetch(url, {
-                method: "POST",
-                headers: {
-                    "Accept": "*/*",
-                    "Content-Type": "text/plain;charset=UTF-8",
-                    "Cookie": cookies,
-                    "Referer": "https://wplace.live/"
-                },
-                body: JSON.stringify(body)
-            });
-            const data = await request.json();
-            resolve({ status: request.status, data: data });
-        }), url, this.cookieStr(this.cookies), body);
-        return response;
+        // We already have a cookie jar
+        const request = await this.browser.fetch(url, {
+            method: "POST",
+            headers: {
+                "Accept": "*/*",
+                "Content-Type": "text/plain;charset=UTF-8",
+                "Referer": "https://wplace.live/"
+            },
+            body: JSON.stringify(body)
+        });
+        const data = await request.json();
+        return { status: request.status, data: data };
     };
     async loadTiles() {
         this.tiles.clear();
@@ -116,13 +109,11 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = this.me.evaluate((pallete, src) => new Promise((resolve) => {
+                const promise = new Promise((resolve) => {
                     const image = new Image();
                     image.crossOrigin = "Anonymous";
                     image.onload = () => {
-                        const canvas = document.createElement("canvas");
-                        canvas.width = image.width;
-                        canvas.height = image.height;
+                        const canvas = createCanvas(image.width, image.height);
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(image, 0, 0);
                         const template = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
@@ -136,17 +127,16 @@ export class WPlacer {
                                 } else template.data[x][y] = 0;
                             };
                         };
-                        canvas.remove();
                         resolve(template);
                     };
                     image.onerror = () => resolve(null);
-                    image.src = src;
-                }), pallete, `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
-                .then(tileData => {
-                    if (tileData) {
-                        this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                    }
-                });
+                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
+                })
+                    .then(tileData => {
+                        if (tileData) {
+                            this.tiles.set(`${currentTx}_${currentTy}`, tileData);
+                        }
+                    });
                 tilePromises.push(promise);
             }
         }
@@ -220,13 +210,13 @@ export class WPlacer {
 
         let outlineFirst = this.settings?.outlineMode;
         let mismatchedPixels = this._getMismatchedPixels();
-        
+
         if (mismatchedPixels.length === 0) {
             return 0;
         }
-        
+
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-        
+
         if (outlineFirst) {
             const edgePixels = mismatchedPixels.filter(p => p.isEdge);
             if (edgePixels.length > 0) {
@@ -276,7 +266,7 @@ export class WPlacer {
                 break;
             }
         }
-        
+
         const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
         const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
             const key = `${p.tx},${p.ty}`;
@@ -312,7 +302,7 @@ export class WPlacer {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ${purchaseMessage}`);
             return true;
         } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-             throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
+            throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
         } else {
             throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
         }

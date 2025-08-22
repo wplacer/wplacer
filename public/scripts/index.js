@@ -21,6 +21,7 @@ const ink = $("ink");
 const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
+const previewBorder = $("previewBorder");
 const templateForm = $("templateForm");
 const templateFormTitle = $("templateFormTitle");
 const convertInput = $("convertInput");
@@ -55,13 +56,14 @@ const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
+const usePaidColors = $("usePaidColors");
 
 // Message Box
 let confirmCallback = null;
 
 const showMessage = (title, content) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
+    messageBoxTitle.innerHTML = title;
+    messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
@@ -69,8 +71,8 @@ const showMessage = (title, content) => {
 };
 
 const showConfirmation = (title, content, onConfirm) => {
-    messageBoxTitle.textContent = title;
-    messageBoxContent.textContent = content;
+    messageBoxTitle.innerHTML = title;
+    messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.remove('hidden');
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
@@ -184,19 +186,24 @@ const loadTemplates = async (f) => {
 };
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
-    const startX = txVal * TILE_SIZE + pxVal;
-    const startY = tyVal * TILE_SIZE + pyVal;
-    const endX = startX + width;
-    const endY = startY + height;
+    const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
+    
+    const startX = txVal * TILE_SIZE + pxVal - radius;
+    const startY = tyVal * TILE_SIZE + pyVal - radius;
+    const displayWidth = width + (radius * 2);
+    const displayHeight = height + (radius * 2);
+    const endX = startX + displayWidth;
+    const endY = startY + displayHeight;
+    
     const startTileX = Math.floor(startX / TILE_SIZE);
     const startTileY = Math.floor(startY / TILE_SIZE);
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
     const endTileY = Math.floor((endY - 1) / TILE_SIZE);
 
-    previewCanvas.width = width;
-    previewCanvas.height = height;
+    previewCanvas.width = displayWidth;
+    previewCanvas.height = displayHeight;
     const ctx = previewCanvas.getContext('2d');
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, displayWidth, displayHeight);
 
     for (let txi = startTileX; txi <= endTileX; txi++) {
         for (let tyi = startTileY; tyi <= endTileY; tyi++) {
@@ -221,24 +228,29 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         }
     }
 
-    const baseImage = ctx.getImageData(0, 0, width, height);
+    const baseImage = ctx.getImageData(0, 0, displayWidth, displayHeight);
     const templateCtx = templateCanvas.getContext('2d');
     const templateImage = templateCtx.getImageData(0, 0, width, height);
     ctx.globalAlpha = 0.5;
-    ctx.drawImage(templateCanvas, 0, 0);
+    ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
     const b = baseImage.data;
     const t = templateImage.data;
     for (let i = 0; i < t.length; i += 4) {
         // skip transparent template pixels
         if (t[i + 3] === 0) continue;
-        if (b[i + 3] === 0) continue;
 
-        const idx = i / 4;
-        const x = idx % width;
-        const y = Math.floor(idx / width);
+        const templateIdx = i / 4;
+        const templateX = templateIdx % width;
+        const templateY = Math.floor(templateIdx / width);
+        const canvasX = templateX + radius;
+        const canvasY = templateY + radius;
+        const canvasIdx = (canvasY * displayWidth + canvasX) * 4;
+        
+        if (b[canvasIdx + 3] === 0) continue;
+
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
-        ctx.fillRect(x, y, 1, 1);
+        ctx.fillRect(canvasX, canvasY, 1, 1);
     }
 };
 
@@ -253,7 +265,8 @@ const nearestimgdecoder = (imageData, width, height) => {
             const a = d[i + 3];
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
-                const id = closest(`${r},${g},${b}`);
+                const rgb = `${r},${g},${b}`;
+                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
                 matrix[x][y] = id;
                 ink++;
             } else {
@@ -304,11 +317,19 @@ const displayTemplateCanvas = (template) => {
     details.style.display = "block";
 };
 
-convertInput.addEventListener('change', async () => {
-    processImageFile(convertInput.files[0], (template) => {
-        displayTemplateCanvas(template);
-    });
-});
+const processEvent = () => {
+    const file = convertInput.files[0];
+    if (file) {
+        templateName.value = file.name.replace(/\.[^/.]+$/, "");
+        processImageFile(file, (template) => {
+            displayTemplateCanvas(template);
+        });
+    };
+};
+
+convertInput.addEventListener('change', processEvent);
+usePaidColors.addEventListener('change', processEvent);
+
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
     const tyVal = parseInt(ty.value, 10);
@@ -442,7 +463,7 @@ openManageUsers.addEventListener("click", () => {
                 </div>
                 <div class="user-actions">
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
-                    <button class="json-btn" title="Get Raw User Info"><img src="icons/code.svg"></button>
+                    <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -460,10 +481,27 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
-            user.querySelector('.json-btn').addEventListener("click", async () => {
+            user.querySelector('.info-btn').addEventListener("click", async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
-                    showMessage("Raw User Info", JSON.stringify(response.data, null, 2));
+                    const info = `
+                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                    `;
+
+                    showConfirmation("User Info", info, () => {
+                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                    });
                 } catch (error) {
                     handleError(error);
                 };

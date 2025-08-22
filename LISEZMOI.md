@@ -20,6 +20,7 @@ Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://
 -   **Notifications de bureau :** Le programme enverra une notification lorsque qu’un nouveau jeton Turnstile est nécessaire, évitant de devoir surveiller constamment la console.
 
 ## Installation et utilisation 💻
+[Tutoriel Vidéo](https://www.youtube.com/watch?v=YR978U84LSY)
 ### Prérequis :
 - [Node.js et NPM](https://nodejs.org/en/download)
 - [Tampermonkey](https://www.tampermonkey.net/)
@@ -47,10 +48,9 @@ Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://
 > Ce bot n’est pas affilié à [wplace.live](https://wplace.live/) et son utilisation peut être contraire aux règles du site. Les développeurs ne sont pas responsables des sanctions appliquées à vos comptes. Utilisez-le à vos risques et périls.
 
 ### À faire ✅
-- [ ] **Ajout de la prise en charge des couleurs payantes**
 - [ ] **Prise en charge du proxy**
 - [ ] **Fonction de récolte automatique d'EXP et de gouttelettes pour les utilisateurs**
-- [ ] **Résolution automatique des tourniquets (si possible)**
+- [x] ~~Ajout de la prise en charge des couleurs payantes~~
 - [x] ~~Prise en charge de la peinture entre plusieurs tuiles~~
 - [x] ~~Prise en charge multi-comptes simplifiée pour un même modèle~~
 - [x] ~~Système de file d'attente pour les comptes multiples~~
