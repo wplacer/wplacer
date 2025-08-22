@@ -265,6 +265,23 @@ export class WPlacer {
                 mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
                 break;
             }
+            case "interleaved": {
+                const interleavedPixels = [];
+                const remainingPixels = [];
+                for (const pixel of mismatchedPixels) {
+                    const px = pixel.px;
+                    const py = pixel.py;
+
+                    if (py % 2 === 0 && px % 2 === 0) {
+                        interleavedPixels.push(pixel);
+                    } else if (py % 2 === 1 && px % 2 === 1) {
+                        interleavedPixels.push(pixel);
+                    } else {
+                        remainingPixels.push(pixel);
+                    }
+                }
+                mismatchedPixels = interleavedPixels.concat(remainingPixels);
+            }
         }
 
         const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
