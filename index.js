@@ -632,6 +632,50 @@ app.put("/template/restart/:id", async (req, res) => {
     res.sendStatus(200);
 });
 
+app.get("/template/progress/:id", async (req, res) => {
+    const { id } = req.params;
+    const templateManager = templates[id];
+    if (!templateManager) return res.sendStatus(404);
+
+    const { template, coords } = templateManager;
+    const [tx, ty, px, py] = coords;
+
+    const wplacer = new WPlacer(template, coords, false, {}, "");
+    try {
+        await wplacer.loadTiles();
+        const mismatchedPixels = wplacer._getMismatchedPixels();
+        const total = template.ink;
+        const placed = total - mismatchedPixels.length;
+
+        const placedMap = Array.from({ length: template.width }, () => Array(template.height).fill(false));
+        
+        // Create a set of mismatched coordinates for faster lookup
+        const mismatchedSet = new Set(mismatchedPixels.map(p => `${p.tx},${p.ty},${p.px},${p.py}`));
+
+        for (let y = 0; y < template.height; y++) {
+            for (let x = 0; x < template.width; x++) {
+                if (template.data[x][y] === 0) continue;
+
+                const globalPx = px + x;
+                const globalPy = py + y;
+                const targetTx = tx + Math.floor(globalPx / 1000);
+                const targetTy = ty + Math.floor(globalPy / 1000);
+                const localPx = globalPx % 1000;
+                const localPy = globalPy % 1000;
+
+                if (!mismatchedSet.has(`${targetTx},${targetTy},${localPx},${localPy}`)) {
+                    placedMap[x][y] = true;
+                }
+            }
+        }
+
+        res.json({ placed, total, placedMap, userIds: templateManager.userIds });
+    } catch (error) {
+        log('SYSTEM', 'wplacer', `Error calculating progress for template ${id}`, error);
+        res.status(500).json({ error: "Failed to calculate template progress." });
+    }
+});
+
 // client endpoints
 app.get("/canvas", async (req, res) => {
     const { tx, ty } = req.query;

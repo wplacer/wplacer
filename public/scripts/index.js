@@ -58,12 +58,15 @@ const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
 
+let templateUpdateInterval = null;
+let loadedTemplatesData = {};
+
 // Message Box
 let confirmCallback = null;
 
 const showMessage = (title, content) => {
-    messageBoxTitle.innerHTML = title;
-    messageBoxContent.innerHTML = content;
+    messageBoxTitle.textContent = title;
+    messageBoxContent.textContent = content;
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
@@ -71,8 +74,8 @@ const showMessage = (title, content) => {
 };
 
 const showConfirmation = (title, content, onConfirm) => {
-    messageBoxTitle.innerHTML = title;
-    messageBoxContent.innerHTML = content;
+    messageBoxTitle.textContent = title;
+    messageBoxContent.textContent = content;
     messageBoxCancel.classList.remove('hidden');
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
@@ -156,6 +159,19 @@ const closest = color => {
     })];
 };
 
+const formatDuration = (durationMs) => {
+    if (durationMs <= 0) return "0s";
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    const parts = [];
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+    return parts.join(' ');
+};
+
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
@@ -176,6 +192,30 @@ const drawTemplate = (template, canvas) => {
     };
     ctx.putImageData(imageData, 0, 0);
 };
+
+const drawTemplateWithProgress = (template, canvas, placedMap) => {
+    canvas.width = template.width;
+    canvas.height = template.height;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, template.width, template.height);
+    const imageData = new ImageData(template.width, template.height);
+    for (let x = 0; x < template.width; x++) {
+        for (let y = 0; y < template.height; y++) {
+            const color = template.data[x][y];
+            if (color === 0) continue;
+
+            const isPlaced = placedMap[x][y];
+            const i = (y * template.width + x) * 4;
+            const [r, g, b] = colorById(color).split(',').map(Number);
+            imageData.data[i] = r;
+            imageData.data[i + 1] = g;
+            imageData.data[i + 2] = b;
+            imageData.data[i + 3] = isPlaced ? 255 : 70; // Full opacity if placed, else dimmed
+        };
+    };
+    ctx.putImageData(imageData, 0, 0);
+};
+
 const loadTemplates = async (f) => {
     try {
         const templates = await axios.get("/templates");
@@ -426,6 +466,10 @@ stopAll.addEventListener('click', async () => {
 // tabs
 let currentTab = main;
 const changeTab = (el) => {
+    if (templateUpdateInterval) {
+        clearInterval(templateUpdateInterval);
+        templateUpdateInterval = null;
+    }
     currentTab.style.display = "none";
     el.style.display = "block";
     currentTab = el;
@@ -457,7 +501,7 @@ openManageUsers.addEventListener("click", () => {
                 </div>
                 <div class="user-actions">
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
-                    <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
+                    <button class="json-btn" title="Get Raw User Info"><img src="icons/code.svg"></button>
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener("click", () => {
@@ -475,27 +519,10 @@ openManageUsers.addEventListener("click", () => {
                     }
                 );
             });
-            user.querySelector('.info-btn').addEventListener("click", async () => {
+            user.querySelector('.json-btn').addEventListener("click", async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
-                    const info = `
-                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
-                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
-                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
-                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
-                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
-                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
-                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
-                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
-                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
-                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
-                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
-                    `;
-
-                    showConfirmation("User Info", info, () => {
-                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
-                    });
+                    showMessage("Raw User Info", JSON.stringify(response.data, null, 2));
                 } catch (error) {
                     handleError(error);
                 };
@@ -626,10 +653,56 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
+const updateTemplateProgress = async (id) => {
+    const templateData = loadedTemplatesData[id];
+    if (!templateData) return;
+
+    try {
+        const response = await axios.get(`/template/progress/${id}`);
+        const { placed, total, placedMap, userIds } = response.data;
+
+        const templateEl = $(id);
+        if (!templateEl) return;
+
+        const progressBar = templateEl.querySelector('.progress-bar');
+        const progressText = templateEl.querySelector('.progress-text');
+        const canvas = templateEl.querySelector('canvas');
+
+        if (progressBar && progressText) {
+            const percentage = total > 0 ? (placed / total) * 100 : 0;
+            progressBar.style.width = `${percentage}%`;
+
+            let etaText = "";
+            const remainingPixels = total - placed;
+            if (remainingPixels > 0 && userIds && userIds.length > 0) {
+                const pixelsPerSecond = userIds.length / 30;
+                const etaSeconds = remainingPixels / pixelsPerSecond;
+                etaText = ` (ETA: ${formatDuration(etaSeconds * 1000)})`;
+            }
+
+            progressText.textContent = `${placed} / ${total}${etaText}`;
+        }
+
+        if (canvas && placedMap) {
+            drawTemplateWithProgress(templateData.template, canvas, placedMap);
+        }
+    } catch (error) {
+        console.error(`Failed to update progress for template ${id}:`, error);
+        const templateEl = $(id);
+        if (!templateEl) return;
+        const progressText = templateEl.querySelector('.progress-text');
+        if (progressText) {
+            progressText.textContent = 'Error';
+        }
+    }
+};
+
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
+    loadedTemplatesData = {};
     loadUsers(users => {
         loadTemplates(templates => {
+            loadedTemplatesData = templates;
             for (const id of Object.keys(templates)) {
                 const t = templates[id];
                 const userListFormatted = t.userIds.map(userId => {
@@ -642,10 +715,20 @@ openManageTemplates.addEventListener("click", () => {
                 template.className = "template";
                 const infoSpan = document.createElement('span');
                 infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b class="status-text">Status:</b> ${t.status}`;
+                
+                const progressContainer = document.createElement('div');
+                progressContainer.className = 'progress-container';
+                progressContainer.innerHTML = `
+                    <div class="progress-bar"></div>
+                    <span class="progress-text">Loading...</span>
+                `;
+
                 template.appendChild(infoSpan);
+                template.appendChild(progressContainer);
+
 
                 const canvas = document.createElement("canvas");
-                drawTemplate(t.template, canvas);
+                drawTemplate(t.template, canvas); // Initial draw
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
@@ -696,7 +779,19 @@ openManageTemplates.addEventListener("click", () => {
                 template.append(canvas);
                 template.append(buttons);
                 templateList.append(template);
+
+                // Initial progress update
+                updateTemplateProgress(id);
             };
+
+            if (templateUpdateInterval) clearInterval(templateUpdateInterval);
+            templateUpdateInterval = setInterval(() => {
+                for (const id of Object.keys(loadedTemplatesData)) {
+                    if ($(id)) { // Only update if the element is still on the page
+                         updateTemplateProgress(id);
+                    }
+                }
+            }, 5000); // Refresh every 5 seconds
         });
     });
     changeTab(manageTemplates);
@@ -806,3 +901,4 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
+
