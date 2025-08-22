@@ -157,6 +157,7 @@ export class WPlacer {
         }
         
         if (response.status == 451 && response.data && response.data.suspension) {
+        if (response.status === 451 && response.data && response.data.suspension) {
             throw new Error(`ACCOUNT_SUSPENDED:${response.data.durationMs}`);
         }
         
