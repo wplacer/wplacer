@@ -57,10 +57,6 @@ No interactive features were removed; they simply don't render when there is no 
 
 The Dockerfile starts the app with `CMD ["node", "."]` and includes all necessary dependencies.
 
-### Docker Deployment
-
-The Dockerfile starts the app with `CMD ["node", "."]` and includes all necessary dependencies.
-
 #### Environment Variables
 - **HOST**: Server bind address (default: `0.0.0.0`)
 - **PORT**: Server port (default: `3000`)

@@ -31,10 +31,10 @@ export const log = async (id, name, data, error) => {
     const identifier = `(${name}#${id})`;
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
-        appendFileSync(LOGS_FILE, `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+        appendFileSync(ERRORS_FILE, `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
-        appendFileSync(ERRORS_FILE, `[${timestamp}] ${identifier} ${data}\n`);
+        appendFileSync(LOGS_FILE, `[${timestamp}] ${identifier} ${data}\n`);
     };
 };
 export class WPlacer {
