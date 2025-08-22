@@ -483,7 +483,7 @@ openManageUsers.addEventListener("click", () => {
                     <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
                     <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
                     <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equiped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
                     <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
                     <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
                     <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
