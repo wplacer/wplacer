@@ -71,7 +71,38 @@ if %errorlevel% neq 0 (
 )
 echo.
 
-echo Checking for changes...
+echo Checking for local changes...
+git status --porcelain 2>nul | findstr /r "." >nul
+if %errorlevel% equ 0 (
+    echo.
+    echo WARNING: You have local changes in your repository!
+    echo.
+    git status --short 2>nul
+    echo.
+    set /p "discard=Do you want to discard all local changes? (y/N - default is No): "
+    if /i "!discard!" equ "Y" (
+        echo.
+        echo Discarding local changes...
+        git checkout . 2>&1
+        if %errorlevel% equ 0 (
+            echo Local changes discarded successfully!
+        ) else (
+            echo Error discarding local changes.
+            echo You may need to resolve this manually.
+            echo.
+            goto :end
+        )
+    ) else (
+        echo.
+        echo Keeping local changes. Update cancelled.
+        echo Please commit, stash, or manually resolve your changes before updating.
+        echo.
+        goto :end
+    )
+    echo.
+)
+
+echo Checking for remote changes...
 git fetch origin 2>&1
 if %errorlevel% neq 0 (
     echo Warning: Could not fetch from remote repository.
