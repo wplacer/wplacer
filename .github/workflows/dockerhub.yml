@@ -30,7 +30,7 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: ${{ secrets.DOCKER_HUB_USERNAME }}/wplacer-test
+        images: ${{ secrets.DOCKER_HUB_USERNAME }}/wplacer
         tags: |
           type=ref,event=branch
           type=ref,event=pr
