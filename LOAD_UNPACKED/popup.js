@@ -1,13 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
     const statusEl = document.getElementById('status');
-    chrome.storage.local.get(['wplacerPort'], (result) => {
-        document.getElementById('port').value = result.wplacerPort || 80;
+    const hostInput = document.getElementById('host');
+    const portInput = document.getElementById('port');
+
+    chrome.storage.local.get(['wplacerHost', 'wplacerPort'], (result) => {
+        hostInput.value = result.wplacerHost || '127.0.0.1';
+        portInput.value = result.wplacerPort || 80;
     });
 
     document.getElementById('saveSettingsBtn').addEventListener('click', () => {
-        const port = document.getElementById('port').value;
-        chrome.storage.local.set({ wplacerPort: parseInt(port, 10) }, () => {
-            statusEl.textContent = `Settings saved. Port is now ${port}.`;
+        const host = hostInput.value;
+        const port = portInput.value;
+        chrome.storage.local.set({ 
+            wplacerHost: host,
+            wplacerPort: parseInt(port, 10) 
+        }, () => {
+            statusEl.textContent = `Settings saved. Server at ${host}:${port}.`;
         });
     });
 

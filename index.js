@@ -27,7 +27,7 @@ const saveTemplates = () => {
 };
 
 const app = express();
-app.use(cors({ origin: 'https://wplace.live' }));
+app.use(cors({ origin: '*' }));
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
@@ -35,7 +35,7 @@ let currentSettings = {
     turnstileNotifications: false,
     accountCooldown: 20000,
     purchaseCooldown: 5000,
-    keepAliveCooldown: 5000, // New setting for delay between keep-alive checks
+    keepAliveCooldown: 5000,
     dropletReserve: 0,
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
@@ -49,8 +49,8 @@ const saveSettings = () => writeFileSync("settings.json", JSON.stringify(current
 
 
 const sseClients = new Set();
-const activeBrowserUsers = new Set(); // --- BROWSER LOCK ---
-let activePaintingTasks = 0; // Counter for active painting managers
+const activeBrowserUsers = new Set();
+let activePaintingTasks = 0;
 
 function sseBroadcast(event, data) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -67,23 +67,25 @@ function requestTokenFromClients(reason = "unknown") {
 }
 
 const TokenManager = {
-    token: null,
+    tokenQueue: [],
     tokenPromise: null,
     resolvePromise: null,
     requestTimeout: null,
     isWaitingForClient: false,
-    TOKEN_REQUEST_TIMEOUT: 15000,
+    TOKEN_REQUEST_TIMEOUT: 30000,
 
     _requestNewToken() {
-        log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: Requesting new token from clients...');
+        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Requesting new token(s). Queue size: ${this.tokenQueue.length}`);
         const success = requestTokenFromClients("server-request");
 
         if (success) {
             this.isWaitingForClient = false;
             clearTimeout(this.requestTimeout);
             this.requestTimeout = setTimeout(() => {
-                log('SYSTEM', 'wplacer', '⚠️ Token request timed out. Retrying...');
-                this._requestNewToken();
+                if (this.tokenQueue.length === 0) {
+                    log('SYSTEM', 'wplacer', '⚠️ Token request timed out. Retrying...');
+                    this._requestNewToken();
+                }
             }, this.TOKEN_REQUEST_TIMEOUT);
         } else {
             this.isWaitingForClient = true;
@@ -92,34 +94,40 @@ const TokenManager = {
         }
     },
 
-    getToken() {
-        if (this.token) {
-            return Promise.resolve(this.token);
+    async getToken() {
+        if (this.tokenQueue.length > 0) {
+            if (this.tokenQueue.length <= 1 && !this.tokenPromise) {
+                this._requestNewToken();
+            }
+            return this.tokenQueue.shift();
         }
+
         if (!this.tokenPromise) {
             this.tokenPromise = new Promise((resolve) => {
                 this.resolvePromise = resolve;
             });
             this._requestNewToken();
         }
-        return this.tokenPromise;
+        
+        await this.tokenPromise; 
+        return this.tokenQueue.shift();
     },
 
     setToken(t) {
-        log('SYSTEM', 'wplacer', '✅ TOKEN_MANAGER: Token received.');
-        this.token = t;
+        log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size is now ${this.tokenQueue.length + 1}.`);
+        this.tokenQueue.push(t);
+        
         if (this.resolvePromise) {
-            this.resolvePromise(t);
+            this.resolvePromise();
+            this._resetPromise();
         }
-        this._reset();
     },
 
     invalidateToken() {
-        log('SYSTEM', 'wplacer', '🔄 TOKEN_MANAGER: Invalidating current token.');
-        this.token = null;
+        // No action needed, token is already removed from queue by getToken
     },
     
-    _reset() {
+    _resetPromise() {
         clearTimeout(this.requestTimeout);
         this.requestTimeout = null;
         this.tokenPromise = null;
@@ -128,7 +136,7 @@ const TokenManager = {
     },
 
     clientConnected() {
-        if (this.isWaitingForClient && this.tokenPromise) {
+        if (this.isWaitingForClient) {
             log('SYSTEM', 'wplacer', '✅ TOKEN_MANAGER: Client connected! Resuming token request.');
             this.isWaitingForClient = false;
             this._requestNewToken();
@@ -164,6 +172,7 @@ class TemplateManager {
         this.sleepResolve = null;
         this.sleepInterval = null;
         this.sleepTimeout = null;
+        this.suspendedUsers = new Map(); // Map<userId, suspensionEndTime>
     }
     sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
@@ -173,7 +182,7 @@ class TemplateManager {
                 if (this.sleepInterval) {
                     clearInterval(this.sleepInterval);
                     this.sleepInterval = null;
-                    if (withProgressBar) process.stdout.write('\n');
+                    if (withProgressBar && process.stdout && process.stdout.isTTY) process.stdout.write('\n');
                 }
                 if (this.sleepResolve) {
                     this.sleepResolve = null;
@@ -196,11 +205,9 @@ class TemplateManager {
                     const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
                     const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
                     const eta = duration(totalDuration - elapsed);
-                    if (process.stdout && process.stdout.isTTY) {
-                        if (typeof process.stdout.clearLine === 'function') process.stdout.clearLine(0);
-                        if (typeof process.stdout.cursorTo === 'function') process.stdout.cursorTo(0);
-                        process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
-                    }
+                    if (process.stdout.clearLine) process.stdout.clearLine(0);
+                    if (process.stdout.cursorTo) process.stdout.cursorTo(0);
+                    process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
                 };
                 updateProgressBar();
                 this.sleepInterval = setInterval(updateProgressBar, 1000);
@@ -215,7 +222,7 @@ class TemplateManager {
             if (this.sleepInterval) {
                 clearInterval(this.sleepInterval);
                 this.sleepInterval = null;
-                process.stdout.write('\n');
+                if (process.stdout && process.stdout.isTTY) process.stdout.write('\n');
             }
             this.sleepResolve();
             this.sleepResolve = null;
@@ -224,22 +231,24 @@ class TemplateManager {
     }
 
     async handleUpgrades(wplacer) {
-        if (this.canBuyMaxCharges) {
-            await wplacer.loadUserInfo();
-            const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
-            const amountToBuy = Math.floor(affordableDroplets / 500);
+        if (!this.canBuyMaxCharges) return false;
+        
+        await wplacer.loadUserInfo();
+        const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
+        const amountToBuy = Math.floor(affordableDroplets / 500);
 
-            if (amountToBuy > 0) {
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
-                try {
-                    await wplacer.buyProduct(70, amountToBuy);
-                    await this.sleep(currentSettings.purchaseCooldown);
-                    await wplacer.loadUserInfo();
-                } catch (error) {
-                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades", this.name);
-                }
+        if (amountToBuy > 0) {
+            log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+            try {
+                await wplacer.buyProduct(70, amountToBuy);
+                await this.sleep(currentSettings.purchaseCooldown);
+                await wplacer.loadUserInfo();
+                return true;
+            } catch (error) {
+                logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades", this.name);
             }
         }
+        return false;
     }
 
     async _performPaintTurn(wplacer) {
@@ -249,14 +258,13 @@ class TemplateManager {
                 const token = await TokenManager.getToken();
                 wplacer.token = token;
                 await wplacer.paint(currentSettings.drawingMethod);
-                paintingComplete = true; // Succeeded
+                paintingComplete = true;
             } catch (error) {
                 if (error.message === 'REFRESH_TOKEN') {
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Requesting a new one...`);
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token was invalid. Trying next in queue...`);
                     TokenManager.invalidateToken();
-                    await this.sleep(2000); // Brief pause before retrying
                 } else {
-                    throw error; // Re-throw other errors
+                    throw error;
                 }
             }
         }
@@ -270,96 +278,20 @@ class TemplateManager {
 
         try {
             while (this.running) {
-                if (this.isFirstRun) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] 🚀 Performing initial painting cycle...`);
-                    
-                    const userChargeStates = await Promise.all(this.userIds.map(async (userId) => {
-                        if (activeBrowserUsers.has(userId)) return { userId, charges: -1 };
-                        activeBrowserUsers.add(userId);
-                        const wplacer = new WPlacer(null, null, null, currentSettings, this.name);
-                        try {
-                            await wplacer.login(users[userId].cookies);
-                            return { userId, charges: wplacer.userInfo.charges.count };
-                        } catch (error) {
-                            logUserError(error, userId, users[userId].name, "fetch charge state for initial sort", this.name);
-                            return { userId, charges: -1 };
-                        } finally {
-                            await wplacer.close();
-                            activeBrowserUsers.delete(userId);
-                        }
-                    }));
-
-                    userChargeStates.sort((a, b) => b.charges - a.charges);
-                    const sortedUserIds = userChargeStates.map(u => u.userId);
-
-                    for (const userId of sortedUserIds) {
-                        if (!this.running) break;
-                        if (activeBrowserUsers.has(userId)) continue;
-                        activeBrowserUsers.add(userId);
-                        const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
-                        try {
-                            const { id, name } = await wplacer.login(users[userId].cookies);
-                            this.status = `Initial run for ${name}#${id}`;
-                            log(id, name, `[${this.name}] 🏁 Starting initial turn...`);
-                            
-                            await this._performPaintTurn(wplacer);
-                            await this.handleUpgrades(wplacer);
-                            
-                            if (await wplacer.pixelsLeft() === 0) {
-                                this.running = false;
-                                break;
-                            }
-                        } catch (error) {
-                            logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
-                        } finally {
-                            if (wplacer.browser) await wplacer.close();
-                            activeBrowserUsers.delete(userId);
-                        }
-                         if (this.running && this.userIds.length > 1) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Initial cycle: Waiting ${currentSettings.accountCooldown / 1000} seconds before next user.`);
-                            await this.sleep(currentSettings.accountCooldown);
-                        }
-                    }
-                    this.isFirstRun = false;
-                    log('SYSTEM', 'wplacer', `[${this.name}] ✅ Initial placement cycle complete.`);
-                    if (!this.running) continue;
-                }
-
-                if (activeBrowserUsers.has(this.masterId)) {
-                    await this.sleep(5000);
-                    continue;
-                }
-                activeBrowserUsers.add(this.masterId);
-                const checkWplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
-                let pixelsRemaining;
-                try {
-                    await checkWplacer.login(users[this.masterId].cookies);
-                    pixelsRemaining = await checkWplacer.pixelsLeft();
-                } catch (error) {
-                    logUserError(error, this.masterId, this.masterName, "check pixels left", this.name);
-                    await this.sleep(60000);
-                    continue;
-                } finally {
-                    await checkWplacer.close();
-                    activeBrowserUsers.delete(this.masterId);
-                }
-
-                if (pixelsRemaining === 0) {
-                    if (this.antiGriefMode) {
-                        this.status = "Monitoring for changes.";
-                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
-                        await this.sleep(currentSettings.antiGriefStandby);
-                        continue;
-                    } else {
-                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template finished!`);
-                        this.status = "Finished.";
-                        this.running = false;
-                        break;
-                    }
-                }
-
-                let userStates = [];
+                let userToRun = null;
+                
+                const userStates = [];
                 for (const userId of this.userIds) {
+                    const suspensionEnd = this.suspendedUsers.get(userId);
+                    if (suspensionEnd) {
+                        if (Date.now() < suspensionEnd) {
+                            continue;
+                        } else {
+                            log(userId, users[userId].name, `[${this.name}] Suspension has ended. Re-enabling account.`);
+                            this.suspendedUsers.delete(userId);
+                        }
+                    }
+
                      if (activeBrowserUsers.has(userId)) continue;
                      activeBrowserUsers.add(userId);
                      const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
@@ -379,7 +311,6 @@ class TemplateManager {
                     return u.charges.count >= target;
                 });
 
-                let userToRun = null;
                 if (readyUsers.length > 0) {
                     readyUsers.sort((a, b) => b.charges.count - a.charges.count);
                     userToRun = readyUsers[0];
@@ -394,10 +325,22 @@ class TemplateManager {
                         this.status = `Running user ${name}#${id}`;
                         log(id, name, `[${this.name}] 🔋 User has enough charges. Starting turn...`);
                         
+                        if (wplacer.userInfo.charges.count === wplacer.userInfo.charges.max) {
+                            log(id, name, `[${this.name}] At max charges. Checking for upgrades before painting.`);
+                            await this.handleUpgrades(wplacer);
+                        }
+
                         await this._performPaintTurn(wplacer);
-                        await this.handleUpgrades(wplacer);
+
                     } catch (error) {
-                        logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
+                        if (error.message.startsWith('ACCOUNT_SUSPENDED:')) {
+                            const durationMs = parseInt(error.message.split(':')[1], 10);
+                            const suspensionEndTime = Date.now() + durationMs;
+                            this.suspendedUsers.set(userToRun.userId, suspensionEndTime);
+                            log(userToRun.userId, users[userToRun.userId].name, `[${this.name}] 🚫 Account is suspended. Will retry after ${new Date(suspensionEndTime).toLocaleString()}.`);
+                        } else {
+                            logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
+                        }
                     } finally {
                         await wplacer.close();
                         activeBrowserUsers.delete(userToRun.userId);
@@ -413,8 +356,9 @@ class TemplateManager {
                             const chargeBuyer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                             try {
                                 await chargeBuyer.login(users[this.masterId].cookies);
+                                const pixelsRemaining = await chargeBuyer.pixelsLeft();
                                 const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                                if(affordableDroplets >= 500) {
+                                if(affordableDroplets >= 500 && pixelsRemaining > 0) {
                                     const maxAffordable = Math.floor(affordableDroplets / 500);
                                     const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
                                     if (amountToBuy > 0) {
@@ -464,7 +408,7 @@ app.get("/events", (req, res) => {
     sseClients.add(res);
     TokenManager.clientConnected();
 
-    if (TokenManager.tokenPromise && !TokenManager.token) {
+    if (TokenManager.tokenPromise && TokenManager.tokenQueue.length === 0) {
         sseBroadcast("request-token", { reason: "new-client-join" });
     }
 
@@ -510,7 +454,7 @@ app.put('/settings', (req, res) => {
 });
 app.get("/user/status/:id", async (req, res) => {
     const { id } = req.params;
-    if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409); // Conflict
+    if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409);
     activeBrowserUsers.add(id);
     const wplacer = new WPlacer();
     try {
@@ -608,17 +552,11 @@ app.put("/template/edit/:id", async (req, res) => {
 app.put("/template/:id", async (req, res) => {
     if (!req.params.id || !templates[req.params.id]) return res.sendStatus(400);
     const manager = templates[req.params.id];
-    for (const i of Object.keys(req.body)) {
-        if (i === "running") {
-            if (req.body.running && !manager.running) {
-                try {
-                    manager.start();
-                } catch (error) {
-                    log(req.params.id, manager.masterName, "Error starting template", error);
-                };
-            } else manager.running = false;
-        } else manager[i] = req.body[i];
-    };
+    if (req.body.running && !manager.running) {
+        manager.start().catch(error => log(req.params.id, manager.masterName, "Error starting template", error));
+    } else if (req.body.running === false && manager.running) {
+        manager.running = false;
+    }
     res.sendStatus(200);
 });
 app.put("/template/restart/:id", async (req, res) => {
@@ -637,11 +575,7 @@ app.get("/canvas", async (req, res) => {
     const { tx, ty } = req.query;
     const txInt = Number.isInteger(Number(tx)) ? Number(tx) : NaN;
     const tyInt = Number.isInteger(Number(ty)) ? Number(ty) : NaN;
-    if (
-        tx === undefined || ty === undefined ||
-        isNaN(txInt) || isNaN(tyInt) ||
-        txInt < 0 || tyInt < 0
-    ) {
+    if (isNaN(txInt) || isNaN(tyInt) || txInt < 0 || tyInt < 0) {
         return res.sendStatus(400);
     }
     try {
@@ -664,7 +598,6 @@ app.post("/t", async (req, res) => {
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-// --- New Keep-Alive System ---
 const keepAlive = async () => {
     if (activePaintingTasks > 0) {
         log('SYSTEM', 'wplacer', '⚙️ Deferring keep-alive check: painting is active.');
@@ -687,11 +620,10 @@ const keepAlive = async () => {
         } catch (error) {
             logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
-            if (wplacer.browser) await wplacer.close();
+            await wplacer.close();
             activeBrowserUsers.delete(userId);
         }
 
-        // Wait before processing the next user, but not after the last one.
         if (index < userIds.length - 1) {
             await sleep(currentSettings.keepAliveCooldown);
         }
@@ -699,8 +631,6 @@ const keepAlive = async () => {
     log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
 };
 
-// starting
-const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (n - v2.split(".")[i]) * (i ? 10 ** (2 - i) : 100), 0);
 (async () => {
     console.clear();
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
@@ -719,16 +649,20 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
     }
 
-    const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
-    const githubVersion = (await githubPackage.json()).version;
-    const diff = diffVer(version, githubVersion);
-    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    try {
+        const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+        const githubVersion = (await githubPackage.json()).version;
+        if (version !== githubVersion) {
+            console.warn(`⚠️ Outdated version! Please update using "git pull". (Local: ${version}, GitHub: ${githubVersion})`);
+        }
+    } catch (e) {
+        console.warn("Could not check for updates.");
+    }
     
     const port = Number(process.env.PORT) || 80;
     const host = process.env.HOST || "127.0.0.1";
     app.listen(port, host, () => {
         console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
-        TokenManager.getToken().catch(() => {}); // Initial token request
         setInterval(keepAlive, 20 * 60 * 1000);
     });
 })();

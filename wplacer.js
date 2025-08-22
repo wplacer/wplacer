@@ -83,9 +83,7 @@ export class WPlacer {
             throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText.substring(0, 150)}..."`);
         }
     };
-    cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
     async post(url, body) {
-        // We already have a cookie jar
         const request = await this.browser.fetch(url, {
             method: "POST",
             headers: {
@@ -109,10 +107,11 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = new Promise((resolve) => {
-                    const image = new Image();
-                    image.crossOrigin = "Anonymous";
-                    image.onload = () => {
+                const promise = this.browser.fetch(`https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
+                    .then(res => res.arrayBuffer())
+                    .then(buffer => {
+                        const image = new Image();
+                        image.src = Buffer.from(buffer);
                         const canvas = createCanvas(image.width, image.height);
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(image, 0, 0);
@@ -127,15 +126,9 @@ export class WPlacer {
                                 } else template.data[x][y] = 0;
                             };
                         };
-                        resolve(template);
-                    };
-                    image.onerror = () => resolve(null);
-                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-                })
-                    .then(tileData => {
-                        if (tileData) {
-                            this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                        }
+                        this.tiles.set(`${currentTx}_${currentTy}`, template);
+                    }).catch(err => {
+                        log(this.userInfo.id, this.userInfo.name, `Failed to load tile ${currentTx}, ${currentTy}`, err);
                     });
                 tilePromises.push(promise);
             }
@@ -157,6 +150,8 @@ export class WPlacer {
             return { painted: body.colors.length };
         } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
             throw new Error('REFRESH_TOKEN');
+        } else if (response.status === 451 && response.data.suspension) {
+            throw new Error(`ACCOUNT_SUSPENDED:${response.data.durationMs}`);
         } else if (response.status === 500) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
