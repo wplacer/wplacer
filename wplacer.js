@@ -187,8 +187,8 @@ export class WPlacer {
                 if (!tile || !tile.data[localPx]) continue;
 
                 const tileColor = tile.data[localPx][localPy];
-
-                if (templateColor !== tileColor && this.hasColor(templateColor)) {
+                if (templateColor === -1 && tileColor !== 0) mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: 0, isEdge: false });
+                else if (templateColor > 0 && templateColor !== tileColor && this.hasColor(templateColor)) {
                     const neighbors = [
                         this.template.data[x - 1]?.[y],
                         this.template.data[x + 1]?.[y],
@@ -263,6 +263,13 @@ export class WPlacer {
                     }
                 }
                 mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                break;
+            }
+            case 'random': {
+                for (let i = mismatchedPixels.length - 1; i > 0; i--) {
+                    let r = Math.floor(Math.random() * (i + 1));
+                    [mismatchedPixels[i], mismatchedPixels[r]] = [mismatchedPixels[r], mismatchedPixels[i]];
+                };
                 break;
             }
         }
