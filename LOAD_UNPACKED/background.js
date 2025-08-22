@@ -1,9 +1,8 @@
 const getServerUrl = async (path) => {
     return new Promise((resolve) => {
-        chrome.storage.local.get(['wplacerHost', 'wplacerPort'], (result) => {
-            const host = result.wplacerHost || '127.0.0.1';
+        chrome.storage.local.get(['wplacerPort'], (result) => {
             const port = result.wplacerPort || 80;
-            resolve(`http://${host}:${port}${path}`);
+            resolve(`http://127.0.0.1:${port}${path}`);
         });
     });
 };
@@ -56,7 +55,7 @@ async function sendCookie(callback) {
     tryGetCookies();
 }
 
-// --- Listen for messages ---
+// --- Listen for manual clicks from the popup ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
@@ -70,10 +69,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 body: JSON.stringify({ t: request.token })
             });
         });
-    }
-    if (request.action === "get-config") {
-        getServerUrl("").then(url => sendResponse(url));
-        return true; // Indicates an asynchronous response
     }
 });
 

@@ -9,7 +9,7 @@
 }
 
 body {
-    width: 280px;
+    width: 250px;
     margin: 0;
     font-family: var(--font-family);
     background-color: var(--background-secondary);
@@ -68,36 +68,28 @@ button:hover {
 .settings {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
     margin-bottom: 10px;
 }
 
 .settings label {
     font-size: 14px;
     color: var(--text-secondary);
-    white-space: nowrap;
 }
 
 .settings input {
+    flex-grow: 1;
+    width: 50px;
     padding: 6px;
     background-color: #121212;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
     border-radius: 6px;
     font-family: var(--font-family);
-    font-size: 14px;
-}
-
-.settings input#host {
-    flex-grow: 1;
-}
-
-.settings input#port {
-    width: 55px;
 }
 
 .settings button {
     font-size: 12px;
-    padding: 7px 10px;
+    padding: 7px 12px;
     width: auto;
 }
