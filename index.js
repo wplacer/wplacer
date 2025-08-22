@@ -317,6 +317,7 @@ class TemplateManager {
                 }
 
                 if (userToRun) {
+                    let turnSuccess = false;
                     if (activeBrowserUsers.has(userToRun.userId)) continue;
                     activeBrowserUsers.add(userToRun.userId);
                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
@@ -331,6 +332,7 @@ class TemplateManager {
                         }
 
                         await this._performPaintTurn(wplacer);
+                        turnSuccess = true;
 
                     } catch (error) {
                         if (error.message.startsWith('ACCOUNT_SUSPENDED:')) {
@@ -345,7 +347,8 @@ class TemplateManager {
                         await wplacer.close();
                         activeBrowserUsers.delete(userToRun.userId);
                     }
-                    if (this.running && this.userIds.length > 1) {
+                    
+                    if (turnSuccess && this.running && this.userIds.length > 1) {
                         log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
                         await this.sleep(currentSettings.accountCooldown);
                     }

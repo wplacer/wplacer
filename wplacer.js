@@ -145,22 +145,33 @@ export class WPlacer {
         if (body.colors.length === 0) return { painted: 0 };
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
-        if (response.data.painted && response.data.painted == body.colors.length) {
+        // Handle successful paint
+        if (response.data && response.data.painted && response.data.painted == body.colors.length) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
             return { painted: body.colors.length };
-        } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
+        }
+        
+        // Handle specific error conditions
+        if (response.status == 403 && response.data && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
             throw new Error('REFRESH_TOKEN');
-        } else if (response.status === 451 && response.data.suspension) {
+        }
+        
+        if (response.status == 451 && response.data && response.data.suspension) {
             throw new Error(`ACCOUNT_SUSPENDED:${response.data.durationMs}`);
-        } else if (response.status === 500) {
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
+        }
+        
+        if (response.status == 500) {
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
             return { painted: 0 };
-        } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
-        } else {
-            throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
         }
+        
+        if (response.status == 429 || (response.data && response.data.error && response.data.error.includes("Error 1015"))) {
+            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+        }
+        
+        // Fallback for any other unexpected error
+        throw new Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
     _getMismatchedPixels() {
