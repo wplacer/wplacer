@@ -165,7 +165,15 @@ const drawTemplate = (template, canvas) => {
     for (let x = 0; x < template.width; x++) {
         for (let y = 0; y < template.height; y++) {
             const color = template.data[x][y];
-            if (color === 0) continue;
+            if (color === 0) continue; // Skip blank spaces
+            if (color === -1) { // Special transparent ink - use the exact blue color
+                const i = (y * template.width + x) * 4;
+                imageData.data[i] = 158;
+                imageData.data[i + 1] = 189;
+                imageData.data[i + 2] = 255;
+                imageData.data[i + 3] = 255;
+                continue;
+            }
             const i = (y * template.width + x) * 4;
             const [r, g, b] = colorById(color).split(',').map(Number);
             imageData.data[i] = r;
@@ -187,14 +195,14 @@ const loadTemplates = async (f) => {
 const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const TILE_SIZE = 1000;
     const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
-    
+
     const startX = txVal * TILE_SIZE + pxVal - radius;
     const startY = tyVal * TILE_SIZE + pyVal - radius;
     const displayWidth = width + (radius * 2);
     const displayHeight = height + (radius * 2);
     const endX = startX + displayWidth;
     const endY = startY + displayHeight;
-    
+
     const startTileX = Math.floor(startX / TILE_SIZE);
     const startTileY = Math.floor(startY / TILE_SIZE);
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
@@ -246,7 +254,7 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         const canvasX = templateX + radius;
         const canvasY = templateY + radius;
         const canvasIdx = (canvasY * displayWidth + canvasX) * 4;
-        
+
         if (b[canvasIdx + 3] === 0) continue;
 
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
@@ -258,7 +266,6 @@ const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
     let ink = 0;
-
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const i = (y * width + x) * 4;
@@ -266,14 +273,15 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
-                matrix[x][y] = id;
-                ink++;
-            } else {
-                matrix[x][y] = 0;
-            }
-        }
-    }
+                if (rgb == "158,189,255") matrix[x][y] = -1;
+                else {
+                    const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
+                    matrix[x][y] = id;
+                    ink++;
+                };
+            } else matrix[x][y] = 0;
+        };
+    };
     return { matrix, ink };
 };
 

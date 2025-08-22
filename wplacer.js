@@ -174,6 +174,7 @@ export class WPlacer {
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 const templateColor = this.template.data[x][y];
+                // Skip actual empty spaces
                 if (templateColor === 0) continue;
 
                 const globalPx = startPx + x;
@@ -188,7 +189,8 @@ export class WPlacer {
 
                 const tileColor = tile.data[localPx][localPy];
 
-                if (templateColor !== tileColor && this.hasColor(templateColor)) {
+                if (templateColor === -1 && tileColor !== 0) mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: 0, isEdge: false });
+                else if (templateColor > 0 && templateColor !== tileColor && this.hasColor(templateColor)) {
                     const neighbors = [
                         this.template.data[x - 1]?.[y],
                         this.template.data[x + 1]?.[y],
@@ -263,6 +265,13 @@ export class WPlacer {
                     }
                 }
                 mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                break;
+            }
+            case 'random': {
+                for (let i = mismatchedPixels.length - 1; i > 0; i--) {
+                    let r = Math.floor(Math.random() * (i + 1));
+                    [mismatchedPixels[i], mismatchedPixels[r]] = [mismatchedPixels[r], mismatchedPixels[i]];
+                };
                 break;
             }
         }
