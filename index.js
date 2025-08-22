@@ -256,7 +256,6 @@ class TemplateManager {
         while (!paintingComplete && this.running) {
             try {
                 const token = await TokenManager.getToken();
-                if (!token) continue;
                 wplacer.token = token;
                 await wplacer.paint(currentSettings.drawingMethod);
                 paintingComplete = true;
@@ -286,7 +285,7 @@ class TemplateManager {
                     const suspensionEnd = this.suspendedUsers.get(userId);
                     if (suspensionEnd) {
                         if (Date.now() < suspensionEnd) {
-                            continue; // Still suspended, skip entirely.
+                            continue;
                         } else {
                             log(userId, users[userId].name, `[${this.name}] Suspension has ended. Re-enabling account.`);
                             this.suspendedUsers.delete(userId);
