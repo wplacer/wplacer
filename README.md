@@ -53,20 +53,43 @@ Interactive console features (progress bars, cursor movement) are now guarded an
 
 No interactive features were removed; they simply don't render when there is no TTY.
 
-### Docker start command
-The Dockerfile starts the app with `CMD ["node", "."]`.
-To pass environment variables when running the container:
-  - Use `docker run --env-file .env ...`
-  - Or pass specific vars: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
-  - Or bake defaults via `ENV` in a custom Dockerfile.
+### Docker Deployment
 
-- Example docker run command:
-`docker run -d --restart always -p 3000:3000 `
-  -v "E:\.github\wplacer\data\users.json:/usr/src/app/users.json" `
-  -v "E:\.github\wplacer\data\templates.json:/usr/src/app/templates.json" `
-  -v "E:\.github\wplacer\data\settings.json:/usr/src/app/settings.json" `
-  --name wplacer luluwaffless/wplacer`
-Note: HOST and PORT can be omitted if you passed them in the .env file or the Dockerfile.
+The Dockerfile starts the app with `CMD ["node", "."]` and includes all necessary dependencies.
+
+### Docker Deployment
+
+The Dockerfile starts the app with `CMD ["node", "."]` and includes all necessary dependencies.
+
+#### Environment Variables
+- **HOST**: Server bind address (default: `0.0.0.0`)
+- **PORT**: Server port (default: `3000`)
+
+You can pass environment variables in several ways:
+- Use an env file: `docker run --env-file .env ...`
+- Pass specific variables: `docker run -e HOST=0.0.0.0 -e PORT=3000 ...`
+- Set defaults in a custom Dockerfile using `ENV`
+
+#### Data Persistence Options
+
+**Option 1: Default Local Directory**
+Use the default `./data` directory (no environment variable needed):
+
+```bash
+docker run -d --restart always -p 3000:3000 \
+  -v "/path/to/your/project/data:/usr/src/app/data" \
+  --name wplacer imnix/wplacer
+```
+
+**Option 2: Directory Mapping**
+Map a local directory to store all persistent data using the `DATA_DIR` environment variable:
+
+```bash
+docker run -d --restart always -p 3000:3000 \
+  -e DATA_DIR=/app/data \
+  -v "/path/to/your/data:/app/data" \
+  --name wplacer imnix/wplacer
+```
 
 ### To-dos ✅
 - [ ] **Proxy support**

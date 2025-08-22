@@ -2,10 +2,16 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { WPlacer, log, duration } from "./wplacer.js";
 import express from "express";
 import cors from "cors";
+import path from "node:path";
+
+const DATA_DIR = process.env.DATA_DIR || './';
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const TEMPLATES_FILE = path.join(DATA_DIR, 'templates.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 
 // User data handling
-const users = existsSync("users.json") ? JSON.parse(readFileSync("users.json", "utf8")) : {};
-const saveUsers = () => writeFileSync("users.json", JSON.stringify(users, null, 4));
+const users = existsSync(USERS_FILE) ? JSON.parse(readFileSync(USERS_FILE, "utf8")) : {};
+const saveUsers = () => writeFileSync(USERS_FILE, JSON.stringify(users, null, 4));
 
 // Template data handling
 const templates = {};
@@ -23,7 +29,7 @@ const saveTemplates = () => {
             userIds: t.userIds
         };
     }
-    writeFileSync("templates.json", JSON.stringify(templatesToSave, null, 4));
+    writeFileSync(TEMPLATES_FILE, JSON.stringify(templatesToSave, null, 4));
 };
 
 const app = express();
@@ -42,10 +48,10 @@ let currentSettings = {
     chargeThreshold: 0.5,
     outlineMode: false,
 };
-if (existsSync("settings.json")) {
-    currentSettings = { ...currentSettings, ...JSON.parse(readFileSync("settings.json", "utf8")) };
+if (existsSync(SETTINGS_FILE)) {
+    currentSettings = { ...currentSettings, ...JSON.parse(readFileSync(SETTINGS_FILE, "utf8")) };
 }
-const saveSettings = () => writeFileSync("settings.json", JSON.stringify(currentSettings, null, 4));
+const saveSettings = () => writeFileSync(SETTINGS_FILE, JSON.stringify(currentSettings, null, 4));
 
 
 const sseClients = new Set();
@@ -706,8 +712,8 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`🌐 wplacer by luluwaffless and jinx (${version})`);
 
-    if (existsSync("templates.json")) {
-        const loadedTemplates = JSON.parse(readFileSync("templates.json", "utf8"));
+    if (existsSync(TEMPLATES_FILE)) {
+        const loadedTemplates = JSON.parse(readFileSync(TEMPLATES_FILE, "utf8"));
         for (const id in loadedTemplates) {
             const t = loadedTemplates[id];
             if (t.userIds.every(uid => users[uid])) {

@@ -18,8 +18,11 @@ COPY . .
 
 RUN npm install
 
+VOLUME ["/usr/src/app/data"]
+
 EXPOSE 3000
 
+ENV DATA_DIR="./data"
 ENV HOST="0.0.0.0"
 ENV PORT=3000
 
