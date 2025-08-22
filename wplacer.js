@@ -166,7 +166,7 @@ export class WPlacer {
             return { painted: 0 };
         }
         
-        if (response.status == 429 || (response.data && response.data.error && response.data.error.includes("Error 1015"))) {
+        if (response.status === 429 || (response.data && response.data.error && response.data.error.includes("Error 1015"))) {
             throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
         }
         
