@@ -1,232 +1,272 @@
-# <div align="center"><img src="public/icons/favicon.png" width="24" height="24" style="vertical-align: middle;"> wplacer</div>
+# <div align="center"><img src="public/icons/favicon.png" width="32" height="32" style="vertical-align: middle;"> wplacer</div>
 
 <div align="center">
   <img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer" alt="Version">
   <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer" alt="License"></a>
-  <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea" alt="Discord Support"></a>
-  <a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green" alt="Portuguese"></a>
-  <a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue" alt="French"></a>
+  <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-5865F2?style=flat&logo=Discord&logoColor=white" alt="Discord Support"></a>
+  <a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-00d26a" alt="Portuguese"></a>
+  <a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-0051d5" alt="French"></a>
 </div>
 
 <br>
 
-**Wplacer** is a massively updated auto-drawing bot for [wplace.live](https://wplace.live/) that enables efficient, multi-account template drawing with intelligent user management and advanced features.
+A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace.live/) featuring intelligent user management, advanced drawing algorithms, and comprehensive template controls.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
 
-### 🎯 **Core Functionality**
-- **Intuitive Web Interface**: Clean, user-friendly UI for managing accounts and templates
-- **Smart Multi-Account System**: Simultaneously deploy multiple users on templates with intelligent charge prioritization for maximum efficiency
-- **Flexible Drawing Strategies**: Multiple drawing modes including:
-  - Top to Bottom / Bottom to Top
-  - Edges First (outline priority)
-  - Random Color distribution
-  - Custom pattern optimization
+### 🎯 **Smart Drawing Engine**
+- **Advanced Multi-Account System**: Intelligently manages multiple accounts with charge-based prioritization
+- **8 Drawing Modes**: Linear (4-directional), Color-based, Random, and Edge-first strategies
+- **Outline Mode**: Prioritizes edge pixels for cleaner template placement
+- **Real-time Progress Tracking**: Live updates on template completion status
 
-### 🚀 **Advanced Features**
-- **Auto-Upgrade System**: Automatically purchases charge upgrades and max charges when accounts have sufficient droplets
-- **Real-Time Account Monitoring**: Built-in status checker validates cookie authenticity across all accounts
-- **Dynamic Template Management**: 
-  - Live template controls (restart, pause, resume)
-  - Hot-swap template images without stopping
-  - Real-time progress tracking and status updates
-- **Automated Captcha Handling**: Seamless Turnstile (Cloudflare) token management reduces manual intervention
-- **Desktop Notifications**: Stay informed with system notifications when manual attention is needed
+### 🚀 **Automation & Management**
+- **Auto-Purchase System**: Automatically buys max charge upgrades and pixel charges when needed
+- **Anti-Grief Protection**: Monitors completed templates for vandalism and repairs damage
+- **Turnstile Integration**: Seamless CAPTCHA handling with desktop notifications
+- **Account Health Monitoring**: Built-in cookie validation and status checking
+
+### 🎨 **Template System**
+- **Advanced Image Processing**: Supports PNG with transparency, paid colors, and color optimization
+- **Live Canvas Preview**: Real-time preview of template placement on actual canvas
+- **Hot-Swap Templates**: Update images without stopping active drawing sessions
+- **Coordinate Auto-Detection**: Smart parsing of wplace.live URLs and coordinate strings
+
+### ⚙️ **Configuration & Control**
+- **Web-Based Interface**: Clean, responsive UI for all management tasks
+- **Granular Settings**: Customizable cooldowns, thresholds, and behavior controls
+- **Template Actions**: Start, stop, pause, restart, and edit templates on-the-fly
+- **Bulk Operations**: Start or stop all templates simultaneously
 
 ---
 
-## 🛠️ Installation and Setup
+## 🛠️ Installation
 
-### 📋 Prerequisites
+### Prerequisites
+- **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
+- **[Tampermonkey](https://www.tampermonkey.net/)** - Browser extension for userscripts
+- **Modern Browser** - Chrome, Firefox, or Edge with extension support
 
-Before installing wplacer, ensure you have the following:
+### Quick Setup
 
-- **[Node.js (v16+) and NPM](https://nodejs.org/en/download)** - JavaScript runtime and package manager
-- **[Tampermonkey Browser Extension](https://www.tampermonkey.net/)** - For userscript management
-- **[Git](https://git-scm.com/downloads)** *(recommended)* - For easy repository cloning and updates
+1. **Clone the Repository**
+   ```bash
+   git clone https://github.com/luluwaffless/wplacer.git
+   cd wplacer
+   ```
 
-### 📥 Step-by-Step Installation
+2. **Install Dependencies**
+   ```bash
+   npm install
+   ```
 
-#### 1. **Download wplacer**
+3. **Install Browser Extension**
+   - Open your browser's extension management page
+   - Enable **Developer Mode**
+   - Click **"Load Unpacked"** and select the `LOAD_UNPACKED` folder
+   - Repeat for each browser profile you want to use
 
-**Option A: Using Git (Recommended)**
-```bash
-git clone https://github.com/luluwaffless/wplacer.git
-cd wplacer
-```
+4. **Configure Environment (Optional)**
+   ```bash
+   # Create .env file for custom settings
+   echo "HOST=127.0.0.1" > .env
+   echo "PORT=80" >> .env
+   ```
 
-**Option B: Direct Download**
-- Download ZIP from [GitHub releases](https://github.com/luluwaffless/wplacer/releases)
-- Extract to your preferred directory
-
-#### 2. **Install Browser Extension**
-```bash
-# For each browser window you plan to use:
-```
-1. Open your browser's extension management page
-2. Enable **Developer Mode**
-3. Click **"Load Unpacked"**
-4. Select the `LOAD_UNPACKED` folder from the wplacer directory
-5. Repeat for each browser you want to use
-
-#### 3. **Install Dependencies**
-```bash
-npm install
-```
-
-#### 4. **Configure Environment (Optional)**
-Create a `.env` file to customize server settings:
-```env
-# Default configuration
-HOST=127.0.0.1
-PORT=30
-```
+5. **Start wplacer**
+   ```bash
+   npm start
+   ```
 
 ---
 
 ## 🚀 Usage Guide
 
-### **Starting wplacer**
-```bash
-npm start
+### Initial Setup
+1. Open the displayed URL (usually `http://127.0.0.1/`) in your browser
+2. Log into [wplace.live](https://wplace.live/) in each browser tab with the extension
+3. Accounts will automatically appear in the **Manage Users** section
+
+### Creating Templates
+1. Navigate to **Add Template**
+2. **Upload Image**: Click "Convert Image" and select a PNG file
+3. **Set Coordinates**: 
+   - Enter tile coordinates (TX, TY) and pixel coordinates (PX, PY)
+   - **Pro Tip**: Paste a wplace.live pixel URL directly into the TX field for auto-parsing
+4. **Configure Options**:
+   - **Use Paid Colors**: Enable for exact color matching with premium palette
+   - **Auto-Purchase**: Enable charge/upgrade buying
+   - **Anti-Grief Mode**: Keep template monitored after completion
+5. **Assign Users**: Select which accounts should work on this template
+6. Click **Add Template**
+
+### Managing Templates
+- **Start/Stop**: Individual template controls
+- **Bulk Actions**: Start or stop all templates at once  
+- **Edit Templates**: Modify settings, coordinates, or swap images
+- **Real-time Status**: Monitor progress and user activity
+
+### Advanced Coordinate Input
+wplacer supports multiple coordinate input methods:
 ```
-The console will display your local server URL (typically `http://127.0.0.1:3000/`)
+# Direct URL paste
+https://wplace.live/pixel/0/0?x=500&y=250
 
-### **Account Setup**
-1. **Open the wplacer interface** in your browser using the provided URL
-2. **Log into wplace.live** in each browser window with the extension installed
-3. **Verify account detection**: Accounts should appear automatically in the user manager
-   - If an account doesn't appear, click the browser extension icon to manually register it
-4. **Refresh the manager** to confirm all accounts are properly connected
+# Space-separated values  
+0 0 500 250
 
-### **Creating Templates**
-Navigate to the **"Add Template"** page:
-
-#### **Template Configuration**
-- **Template Name**: Choose a descriptive name for your drawing project
-- **Image Upload**: Upload your template image (PNG, JPG, GIF supported)
-- **Coordinate Setup**: 
-  - `Tile X/Y`: The tile coordinates where your image will be placed
-  - `Pixel X/Y`: Precise pixel coordinates within the tile (top-left corner of your image)
-  
-#### **Finding Coordinates**
-**Method 1: Manual Discovery**
-1. Go to [wplace.live](https://wplace.live/)
-2. Click on your desired starting pixel
-3. Open browser DevTools (F12) → Network tab
-4. Look for the `pixel` request and note the coordinates
-
-**Method 2: Blue Marble Userscript**
-- Install the [Blue Marble userscript](https://github.com/SwingTheVine/Wplace-BlueMarble) via Tampermonkey
-- Coordinates will be displayed directly on the canvas
-
-#### **User Assignment**
-- Select which accounts should work on this template
-- Multiple users can collaborate on a single template for faster completion
-
-### **Template Management**
-Go to **"Manage Templates"** to:
-- **Start/Stop** template execution
-- **Monitor progress** in real-time
-- **Pause/Resume** as needed
-- **Replace images** without restarting
-- **View detailed statistics** and completion rates
+# Individual fields
+TX: 0, TY: 0, PX: 500, PY: 250
+```
 
 ---
 
 ## 🐳 Docker Deployment
 
-wplacer includes full Docker support for containerized deployment:
-
-### **Docker Configuration**
-```dockerfile
-# Default start command
-CMD ["node", "."]
-```
-
-### **Running with Docker**
+### Basic Docker Setup
 ```bash
-# Basic run
-docker run -d --restart always -p 3000:3000 luluwaffless/wplacer
+# Build and run
+docker build -t wplacer .
+docker run -d --restart always -p 80:80 wplacer
 
-# With environment variables
+# With persistent data
 docker run -d --restart always \
-  -p 3000:3000 \
-  -e HOST=0.0.0.0 \
-  -e PORT=3000 \
-  luluwaffless/wplacer
-
-# With persistent data volumes
-docker run -d --restart always \
-  -p 3000:3000 \
-  -v "$(pwd)/data/users.json:/usr/src/app/users.json" \
-  -v "$(pwd)/data/templates.json:/usr/src/app/templates.json" \
-  -v "$(pwd)/data/settings.json:/usr/src/app/settings.json" \
+  -p 80:80 \
+  -v "$(pwd)/data:/usr/src/app/data" \
   --name wplacer \
   luluwaffless/wplacer
 ```
 
-### **Non-TTY Environment Support**
-wplacer automatically detects non-interactive environments (Docker, CI/CD) and disables TTY-dependent features to prevent crashes while maintaining full functionality.
+### Docker Compose
+```yaml
+version: '3.8'
+services:
+  wplacer:
+    image: luluwaffless/wplacer
+    ports:
+      - "80:80"
+    volumes:
+      - ./data:/usr/src/app/data
+    environment:
+      - HOST=0.0.0.0
+      - PORT=80
+    restart: unless-stopped
+```
 
 ---
 
-## ⚠️ Important Notes
+## ⚙️ Configuration Options
 
-> [!CAUTION]
-> **Use at Your Own Risk**: wplacer is not affiliated with [wplace.live](https://wplace.live/). Using automation tools may violate the site's terms of service. The developers assume no responsibility for account penalties or restrictions.
+### Drawing Settings
+- **Drawing Mode**: 8 different pixel placement strategies
+- **Outline Mode**: Prioritize template edges for cleaner results
+- **Charge Threshold**: Minimum charge percentage before user activation
 
-### **System Requirements**
-- **Automatic Refreshing**: wplacer periodically refreshes browser windows to maintain valid Turnstile tokens
-- **Resource Usage**: Multiple accounts require proportional system resources
-- **Network Stability**: Stable internet connection recommended for optimal performance
+### Automation Settings
+- **Account Cooldown**: Delay between user switches (prevents rate limiting)
+- **Purchase Cooldown**: Delay after buying items
+- **Droplet Reserve**: Minimum droplets to keep before purchases
+- **Anti-Grief Standby**: How long to wait between completed template checks
 
----
-
-## 🗺️ Roadmap
-
-### **Planned Features**
-- [ ] **Proxy Support**: Route different accounts through various proxy servers
-- [ ] **Auto-Farming System**: Automated EXP and droplet farming for user accounts
-- [x] ~~Paid Color Support~~ ✅ **Completed**
-- [x] ~~Multi-Tile Painting~~ ✅ **Completed**
-- [x] ~~Enhanced Multi-Account Support~~ ✅ **Completed**
-- [x] ~~Intelligent Queueing System~~ ✅ **Completed**
-- [x] ~~Docker Integration~~ ✅ **Completed**
+### Notification Settings
+- **Desktop Notifications**: Toggleable lert when manual intervention needed
+- **Turnstile Handling**: Automatic CAPTCHA token management
 
 ---
 
-## 🤝 Contributors
+## 📊 Drawing Strategies Explained
 
-### **Core Development Team**
-- [luluwaffless](https://github.com/luluwaffless) - *Lead Developer*
-- [Jinx](https://github.com/JinxTheCatto) - *Core Contributor*
+| Mode | Description | Best For |
+|------|-------------|----------|
+| **Top to Bottom** | Linear scanning from top | Standard templates |
+| **Bottom to Top** | Reverse linear scanning | Bottom-heavy designs |
+| **Left to Right** | Horizontal scanning | Wide templates |
+| **Right to Left** | Reverse horizontal | RTL optimized |
+| **Random Color** | Shuffled color order | Balanced color distribution |
+| **Color by Color** | Complete each color sequentially | Organized approach |
+| **Random Pixels** | Completely randomized | Stealth drawing |
+| **Edges First** | Outline before fill | Clean template boundaries |
 
-### **Community Contributors**
+---
+
+## 🔧 Advanced Features
+
+### Template Management
+- **Hot-swapping**: Update template images without stopping
+- **Multi-user coordination**: Intelligent user queue management  
+- **Progress persistence**: Resume interrupted templates
+- **Conflict resolution**: Handle overlapping templates gracefully
+
+### Account Management
+- **Cookie validation**: Automatic session health checks
+- **Charge optimization**: Smart user selection based on available charges
+- **Rate limit handling**: Automatic backoff and retry logic
+- **Parallel processing**: Concurrent account status checking
+
+### Canvas Integration
+- **Live preview**: See template placement on actual canvas
+- **Mismatch detection**: Identify pixels needing correction
+- **Color palette support**: Full basic + premium color support
+- **Transparency handling**: Smart transparent pixel processing
+
+---
+
+## 🚨 Important Considerations
+
+> **⚠️ Disclaimer**: Wplacer is an independent tool not affiliated with wplace.live. Use at your own discretion and risk.
+
+### Best Practices
+- **Check if it runs correctly**: Test with 1-2 accounts before scaling up
+- **Monitor Usage**: Watch for rate limits and adjust cooldowns accordingly
+- **Keep Updated**: Regular updates include improvements and fixes
+
+---
+
+## 💡 Enhancement Ideas & Roadmap
+
+### Short-term Improvements
+- [ ] **Proxy Support**: Route accounts through different IP addresses
+- [ ] **Advanced Statistics**: Detailed analytics dashboard with charts
+- [ ] **Template Scheduler**: Time-based template activation
+---
+
+## 📜 License & Credits
+
+### License
+Licensed under [GNU Affero General Public License v3.0](LICENSE)
+
+### Credits
+- **[luluwaffless](https://github.com/luluwaffless)**
+- **[Jinx](https://github.com/JinxTheCatto)**
+
+### Community Contributors
 <div align="center">
-  <img src="https://contrib.rocks/image?repo=luluwaffless/wplacer" alt="Contributors">
+  <a href="https://github.com/luluwaffless/wplacer/graphs/contributors">
+    <img src="https://contrib.rocks/image?repo=luluwaffless/wplacer" alt="Contributors" />
+  </a>
 </div>
 
 ---
 
-## 📜 License
+## 🆘 Support & Community
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+### Get Help
+- **[Discord Server](https://discord.gg/qbtcWrHJvR)** - Real-time support and community
+- **[GitHub Issues](https://github.com/luluwaffless/wplacer/issues)** - Bug reports and feature requests  
 
----
-
-## 🆘 Support
-
-- **Discord Community**: [Join our support server](https://discord.gg/qbtcWrHJvR)
-- **Issues & Bugs**: [GitHub Issues](https://github.com/luluwaffless/wplacer/issues)
-- **Documentation**: Check this README and in-app help tooltips
+### Useful Resources
+- **[wplace.live](https://wplace.live/)** - The target canvas platform
+- **[Blue Marble Script](https://github.com/SwingTheVine/Wplace-BlueMarble)** - Coordinate helper
+- **[Image Converter](https://pepoafonso.github.io/color_converter_wplace/e)** - Available colors reference
 
 ---
 
 <div align="center">
-  <strong>Happy Drawing! 🎨</strong>
+  <strong>🎨 Happy Drawing! 🎨</strong>
+  <br><br>
+  <em>Built with ❤️ by the wplacer community</em>
   <br>
-  <em>Made with ❤️ by the wplacer community</em>
+  <em>Making pixel art accessible to everyone</em>
 </div>
