@@ -643,6 +643,104 @@ const keepAlive = async () => {
     log('SYSTEM', 'wplacer', '✅ Keep-alive check complete.');
 };
 
+// Move the route handler OUTSIDE and BEFORE the IIFE
+app.get("/template/progress/:id", async (req, res) => {
+    const { id } = req.params;
+    if (!templates[id]) {
+        return res.status(404).json({
+            error: "Template not found",
+            totalPixels: 0,
+            completedPixels: 0,
+            percentage: 0,
+            running: false
+        });
+    }
+
+    const template = templates[id];
+
+    if (!template.running) {
+        return res.json({
+            totalPixels: 0,
+            completedPixels: 0,
+            percentage: 0,
+            running: false,
+            status: template.status || "Stopped"
+        });
+    }
+
+    try {
+        if (activeBrowserUsers.has(template.masterId)) {
+            return res.json({
+                totalPixels: 0,
+                completedPixels: 0,
+                percentage: 0,
+                running: true,
+                status: "Checking progress..."
+            });
+        }
+
+        activeBrowserUsers.add(template.masterId);
+        const wplacer = new WPlacer(template.template, template.coords, template.canBuyCharges, currentSettings, template.name);
+
+        try {
+            await wplacer.login(users[template.masterId].cookies);
+
+            let totalPixels = 0;
+            for (let x = 0; x < template.template.width; x++) {
+                for (let y = 0; y < template.template.height; y++) {
+                    if (template.template.data[x][y] !== 0) {
+                        totalPixels++;
+                    }
+                }
+            }
+
+            const pixelsLeft = await wplacer.pixelsLeft();
+            const completedPixels = Math.max(0, totalPixels - pixelsLeft);
+            const percentage = totalPixels > 0 ? Math.min(100, Math.round((completedPixels / totalPixels) * 100)) : 0;
+
+            let enhancedStatus = template.status || "Running";
+            if (pixelsLeft === 0) {
+                enhancedStatus = template.antiGriefMode ? "Complete - Monitoring for changes" : "Complete";
+            } else if (completedPixels > 0) {
+                enhancedStatus = "Drawing in progress";
+            }
+
+            res.json({
+                totalPixels,
+                completedPixels,
+                pixelsLeft,
+                percentage,
+                running: true,
+                status: enhancedStatus
+            });
+
+        } catch (error) {
+            res.json({
+                totalPixels: 0,
+                completedPixels: 0,
+                percentage: 0,
+                running: true,
+                status: "Error checking progress",
+                error: error.message
+            });
+        } finally {
+            if (wplacer.browser) await wplacer.close();
+            activeBrowserUsers.delete(template.masterId);
+        }
+
+    } catch (error) {
+        activeBrowserUsers.delete(template.masterId);
+        res.status(500).json({
+            error: error.message,
+            totalPixels: 0,
+            completedPixels: 0,
+            percentage: 0,
+            running: template.running
+        });
+    }
+});
+
+// THEN have your startup IIFE
 (async () => {
     console.clear();
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
@@ -661,10 +759,10 @@ const keepAlive = async () => {
         console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
     }
 
-    try { // <-- This try block was missing
+    try {
         const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
         const githubVersion = (await githubPackage.json()).version;
-    } catch (error) { // <-- This catch block was missing
+    } catch (error) {
         console.log("Could not check for updates");
     }
 
@@ -674,100 +772,4 @@ const keepAlive = async () => {
         console.log(`🚀 Server running on http://${host}:${port}`);
         setInterval(keepAlive, 20 * 60 * 1000);
     });
-
-    // Add this endpoint after your other template endpoints
-    app.get("/template/progress/:id", async (req, res) => {
-        const { id } = req.params;
-        if (!templates[id]) {
-            return res.status(404).json({
-                error: "Template not found",
-                totalPixels: 0,
-                completedPixels: 0,
-                percentage: 0,
-                running: false
-            });
-        }
-
-        const template = templates[id];
-
-        if (!template.running) {
-            return res.json({
-                totalPixels: 0,
-                completedPixels: 0,
-                percentage: 0,
-                running: false,
-                status: template.status || "Stopped"
-            });
-        }
-
-        try {
-            if (activeBrowserUsers.has(template.masterId)) {
-                return res.json({
-                    totalPixels: 0,
-                    completedPixels: 0,
-                    percentage: 0,
-                    running: true,
-                    status: "Checking progress..."
-                });
-            }
-
-            activeBrowserUsers.add(template.masterId);
-            const wplacer = new WPlacer(template.template, template.coords, template.canBuyCharges, currentSettings, template.name);
-
-            try {
-                await wplacer.login(users[template.masterId].cookies);
-
-                let totalPixels = 0;
-                for (let x = 0; x < template.template.width; x++) {
-                    for (let y = 0; y < template.template.height; y++) {
-                        if (template.template.data[x][y] !== 0) {
-                            totalPixels++;
-                        }
-                    }
-                }
-
-                const pixelsLeft = await wplacer.pixelsLeft();
-                const completedPixels = Math.max(0, totalPixels - pixelsLeft);
-                const percentage = totalPixels > 0 ? Math.min(100, Math.round((completedPixels / totalPixels) * 100)) : 0;
-
-                let enhancedStatus = template.status || "Running";
-                if (pixelsLeft === 0) {
-                    enhancedStatus = template.antiGriefMode ? "Complete - Monitoring for changes" : "Complete";
-                } else if (completedPixels > 0) {
-                    enhancedStatus = "Drawing in progress";
-                }
-
-                res.json({
-                    totalPixels,
-                    completedPixels,
-                    pixelsLeft,
-                    percentage,
-                    running: true,
-                    status: enhancedStatus
-                });
-
-            } catch (error) {
-                res.json({
-                    totalPixels: 0,
-                    completedPixels: 0,
-                    percentage: 0,
-                    running: true,
-                    status: "Error checking progress",
-                    error: error.message
-                });
-            } finally {
-                if (wplacer.browser) await wplacer.close();
-                activeBrowserUsers.delete(template.masterId);
-            }
-
-        } catch (error) {
-            activeBrowserUsers.delete(template.masterId);
-            res.status(500).json({
-                error: error.message,
-                totalPixels: 0,
-                completedPixels: 0,
-                percentage: 0,
-                running: template.running
-            });
-        }
-    });
+})();
