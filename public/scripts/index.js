@@ -634,6 +634,7 @@ selectAllUsers.addEventListener('click', () => {
 
 const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     const button = document.createElement('button');
+    button.id = `toggle-button-${id}`;
     const isRunning = template.running;
 
     button.className = isRunning ? 'destructive-button' : 'primary-button';
@@ -681,6 +682,13 @@ const updateTemplateProgress = async (id) => {
             }
 
             progressText.textContent = `${placed} / ${total}${etaText}`;
+        }
+
+        if (placed === total && total > 0) {
+            const toggleButton = $(`toggle-button-${id}`);
+            const editButton = $(`edit-button-${id}`);
+            if (toggleButton) toggleButton.style.display = 'none';
+            if (editButton) editButton.style.display = 'none';
         }
 
         if (canvas && placedMap) {
@@ -736,6 +744,7 @@ openManageTemplates.addEventListener("click", () => {
                 buttons.appendChild(toggleButton);
 
                 const editButton = document.createElement('button');
+                editButton.id = `edit-button-${id}`;
                 editButton.className = 'secondary-button';
                 editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
                 editButton.addEventListener('click', () => {
