@@ -65,6 +65,76 @@ let confirmCallback = null;
 // Progress bar cache
 let templateProgressCache = {};
 
+// Valid colors in the pallette
+const allowedColors = [
+    [0,0,0],       // Black
+    [60,60,60],    // Dark Gray
+    [120,120,120], // Gray
+    [210,210,210], // Light Gray
+    [255,255,255], // White
+    [96,0,24],     // Deep Red
+    [237,28,36],   // Red
+    [255,127,39],  // Orange
+    [246,170,9],   // Gold
+    [249,221,59],  // Yellow (fixed from your original)
+    [255,250,188], // Light Yellow
+    [14,185,104],  // Dark Green
+    [19,230,123],  // Green (fixed from your original)
+    [135,255,94],  // Light Green
+    [12,129,110],  // Dark Teal (fixed from your original)
+    [16,174,166],  // Teal (fixed from your original)
+    [19,225,190],  // Light Teal
+    [96,247,242],  // Cyan
+    [40,80,158],   // Dark Blue
+    [64,147,228],  // Blue
+    [107,80,246],  // Indigo
+    [153,177,251], // Light Indigo (fixed from your original)
+    [120,12,153],  // Dark Purple (fixed from your original)
+    [170,56,185],  // Purple (fixed from your original)
+    [224,159,249], // Light Purple
+    [203,0,122],   // Dark Pink
+    [236,31,128],  // Pink
+    [243,141,169], // Light Pink (fixed from your original)
+    [104,70,52],   // Dark Brown
+    [149,104,42],  // Brown
+    [248,178,119], // Beige
+
+    // Premium colors
+    [170,170,170], // Additional gray
+    [165,14,30],   // Dark red variant
+    [250,128,114], // Salmon
+    [228,92,26],   // Orange variant
+    [214,181,148], // Tan
+    [156,132,49],  // Olive
+    [197,173,49],  // Gold variant
+    [232,212,95],  // Light gold
+    [74,107,58],   // Dark green variant
+    [90,148,74],   // Green variant
+    [132,197,115], // Light green variant
+    [15,121,159],  // Dark blue variant
+    [187,250,242], // Light cyan
+    [125,199,255], // Light blue
+    [77,49,184],   // Purple variant
+    [74,66,132],   // Dark purple variant
+    [122,113,196], // Purple variant
+    [181,174,241], // Light purple variant
+    [219,164,99],  // Brown variant
+    [209,128,81],  // Brown variant
+    [255,197,165], // Peach
+    [155,82,73],   // Brown variant
+    [209,128,120], // Pink-brown
+    [250,182,164], // Light peach
+    [123,99,82],   // Brown variant
+    [156,132,107], // Brown variant
+    [51,57,65],    // Dark gray variant
+    [109,117,141], // Gray variant
+    [179,185,209], // Light gray variant
+    [109,100,63],  // Brown variant
+    [148,140,107], // Brown variant
+    [205,197,158]  // Light brown
+];
+
+
 const showMessage = (title, content) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
@@ -324,46 +394,130 @@ const processImageFile = (file, callback) => {
     reader.readAsDataURL(file);
 };
 
+const isValidColor = (r, g, b) => {
+    return allowedColors.some(color => {
+        const [cr, cg, cb] = color; // This is now correct
+        return r === cr && g === cg && b === cb;
+    });
+};
+
+
 const processEvent = (event) => {
-    const input = event.target; // the input that triggered the event
+    const input = event.target;
     const file = input.files[0];
     if (!file) return;
 
-    // Set default template name
     templateName.value = file.name.replace(/\.[^/.]+$/, "");
 
     if (input.id === "convertInput") {
         // --- Convert Image behavior ---
         processImageFile(file, (template) => {
             currentTemplate = template;
-            drawTemplate(template, templateCanvas); // your conversion & color mapping
+            drawTemplate(template, templateCanvas);
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
             details.style.display = "block";
         });
     } else if (input.id === "addImage") {
-        // --- Add Image behavior (raw) ---
+        // --- Add Image behavior with validation ---
         const img = new Image();
         img.onload = () => {
+            // Draw image on a temporary canvas to access pixel data
+            const tempCanvas = document.createElement("canvas");
+            tempCanvas.width = img.width;
+            tempCanvas.height = img.height;
+            const tempCtx = tempCanvas.getContext("2d");
+            tempCtx.drawImage(img, 0, 0);
+            const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+            const data = imageData.data;
+
+            // Check every pixel
+            let invalidPixelCount = 0;
+            let firstInvalidColor = null;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const a = data[i + 3];
+
+                // Skip transparent pixels
+                if (a === 0) continue;
+
+                if (!isValidColor(r, g, b)) {
+                    invalidPixelCount++;
+                    if (!firstInvalidColor) {
+                        firstInvalidColor = `RGB(${r}, ${g}, ${b})`;
+                    }
+                    
+                    // Stop checking after finding too many invalid pixels for performance
+                    if (invalidPixelCount > 100) break;
+                }
+            }
+
+            if (invalidPixelCount > 0) {
+                showMessage(
+                    "Invalid Colors Detected", 
+                    `Image contains ${invalidPixelCount > 100 ? '100+' : invalidPixelCount} invalid color(s).<br><br>` +
+                    `First invalid color found: <strong>${firstInvalidColor}</strong><br><br>` +
+                    `Only colors from the allowed palette are permitted. Please use the "Convert Image" option instead, ` +
+                    `which will automatically convert colors to the nearest valid palette colors.`
+                );
+                // Clear the file input
+                input.value = '';
+                return;
+            }
+
+            // If validation passes, proceed with the image
             templateCanvas.width = img.width;
             templateCanvas.height = img.height;
-
             const ctx = templateCanvas.getContext("2d");
             ctx.clearRect(0, 0, img.width, img.height);
             ctx.drawImage(img, 0, 0);
 
             size.innerHTML = `${img.width}x${img.height}px`;
-            ink.innerHTML = "?"; // optional: raw image doesn't have ink calculated
+            
+            // Calculate ink (non-transparent pixels)
+            let inkCount = 0;
+            for (let i = 3; i < data.length; i += 4) { // Check alpha channel
+                if (data[i] > 0) inkCount++;
+            }
+            ink.innerHTML = inkCount;
             details.style.display = "block";
 
-            // If you want, you can store the raw image as a template object:
-            currentTemplate = {
-                width: img.width,
-                height: img.height,
-                data: null, // or extract pixel data if needed
-                rawImage: img
+            // Store template (convert image data to matrix format)
+            const matrix = Array.from({ length: img.width }, () => Array(img.height).fill(0));
+            for (let y = 0; y < img.height; y++) {
+                for (let x = 0; x < img.width; x++) {
+                    const i = (y * img.width + x) * 4;
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const a = data[i + 3];
+                    
+                    if (a > 0) {
+                        const rgb = `${r},${g},${b}`;
+                        const colorId = colors[rgb];
+                        matrix[x][y] = colorId || 1; // Default to black if somehow not found
+                    }
+                }
+            }
+            
+            currentTemplate = { 
+                width: img.width, 
+                height: img.height, 
+                data: matrix,
+                ink: inkCount
             };
+            
+            showMessage("Success", "Image validated and loaded successfully! All colors are valid.");
         };
+        
+        img.onerror = () => {
+            showMessage("Error", "Failed to load the image. Please try a different file.");
+            input.value = '';
+        };
+        
         img.src = URL.createObjectURL(file);
     }
 };
