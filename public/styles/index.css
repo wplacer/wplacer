@@ -488,3 +488,59 @@ input:checked + .slider:before {
 .hidden {
     display: none !important;
 }
+
+/* Progress Bar Styles */
+.progress-container {
+    margin: 16px 0;
+    background-color: var(--background-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.progress-bar {
+    position: relative;
+    background-color: var(--background-tertiary);
+    border-radius: 6px;
+    height: 24px;
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-hover));
+    border-radius: 6px;
+    transition: width 0.3s ease;
+    position: relative;
+}
+
+.progress-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: var(--text-primary);
+    font-weight: 500;
+    font-size: 0.9rem;
+    z-index: 1;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.progress-status {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    text-align: center;
+    line-height: 1.4;
+}
+
+.existing-image-note {
+    background-color: var(--background-tertiary);
+    border: 1px solid var(--warning-color);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 16px 0;
+    color: var(--warning-color);
+    font-size: 0.9rem;
+    text-align: center;
+}

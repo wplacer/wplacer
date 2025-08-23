@@ -365,6 +365,10 @@ const resetTemplateForm = () => {
     delete templateForm.dataset.editId;
     details.style.display = "none";
     currentTemplate = { width: 0, height: 0, data: [] };
+    
+    // Remove existing image note if present
+    const existingNote = document.getElementById('existingImageNote');
+    if (existingNote) existingNote.remove();
 };
 
 templateForm.addEventListener('submit', async (e) => {
@@ -516,6 +520,193 @@ openManageUsers.addEventListener("click", () => {
     changeTab(manageUsers);
 });
 
+// Enhanced showExistingTemplateImage function with preview capability:
+const showExistingTemplateImage = (template, coords) => {
+    if (template && template.width > 0) {
+        currentTemplate = template;
+        drawTemplate(template, templateCanvas);
+        size.innerHTML = `${template.width}x${template.height}px`;
+        ink.innerHTML = template.ink || calculateTemplateInk(template);
+        details.style.display = "block";
+        
+        // Remove existing note if present
+        const existingNote = document.getElementById('existingImageNote');
+        if (existingNote) existingNote.remove();
+        
+        const existingImageNote = document.createElement('div');
+        existingImageNote.id = 'existingImageNote';
+        existingImageNote.className = 'existing-image-note';
+        existingImageNote.style.cssText = `
+            margin: 10px 0;
+            padding: 10px;
+            background-color: var(--accent-secondary, #3f3f3fff);
+            border: 1px solid var(--accent-primary, #e2b24bff);
+            border-radius: 6px;
+            color: var(--text-primary, #1e293b);
+            font-size: 14px;
+        `;
+        existingImageNote.innerHTML = '📋 <strong>Current Template Image</strong> - Upload a new image to replace it';
+        
+        details.parentNode.insertBefore(existingImageNote, details.nextSibling);
+
+        // Auto-trigger preview if coordinates are provided
+        if (coords && coords.length === 4) {
+            setTimeout(async () => {
+                try {
+                    await fetchCanvas(coords[0], coords[1], coords[2], coords[3], template.width, template.height);
+                } catch (error) {
+                    console.warn('Could not auto-load preview:', error);
+                }
+            }, 100);
+        }
+    }
+};
+
+// Function to calculate template ink if not provided
+const calculateTemplateInk = (template) => {
+    let ink = 0;
+    for (let x = 0; x < template.width; x++) {
+        for (let y = 0; y < template.height; y++) {
+            if (template.data[x][y] !== 0) ink++;
+        }
+    }
+    return ink;
+};
+
+// Improved createProgressBar with better visibility and debugging
+const createProgressBar = (percentage, status) => {
+    console.log(`Creating progress bar with ${percentage}% and status: ${status}`);
+    
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress-container';
+    progressContainer.style.cssText = `
+        margin: 10px 0;
+        padding: 8px;
+        border-top: 1px solid #444;
+        background-color: rgba(255, 255, 255, 0.05);
+        border-radius: 4px;
+    `;
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar';
+    progressBar.style.cssText = `
+        position: relative;
+        width: 100%;
+        height: 24px;
+        background-color: #2a2a2a;
+        border: 1px solid #555;
+        border-radius: 12px;
+        overflow: hidden;
+        margin-bottom: 8px;
+    `;
+    
+    const progressFill = document.createElement('div');
+    progressFill.className = 'progress-fill';
+    const safePercentage = Math.min(Math.max(percentage || 0, 0), 100);
+    progressFill.style.cssText = `
+        height: 100%;
+        background: linear-gradient(90deg, #3b82f6, #2563eb);
+        border-radius: 12px;
+        transition: width 0.5s ease;
+        width: ${safePercentage}%;
+    `;
+    
+    const progressText = document.createElement('div');
+    progressText.className = 'progress-text';
+    progressText.style.cssText = `
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 12px;
+        font-weight: bold;
+        color: white;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.8);
+        z-index: 2;
+    `;
+    progressText.textContent = `${Math.round(safePercentage)}%`;
+    
+    progressBar.appendChild(progressFill);
+    progressBar.appendChild(progressText);
+    progressContainer.appendChild(progressBar);
+    
+    const progressStatus = document.createElement('div');
+    progressStatus.className = 'progress-status';
+    progressStatus.style.cssText = `
+        font-size: 12px;
+        color: #ccc;
+        text-align: center;
+        font-weight: normal;
+    `;
+    progressStatus.textContent = status || 'Loading...';
+    
+    progressContainer.appendChild(progressStatus);
+    
+    console.log('Progress bar created successfully');
+    return progressContainer;
+};
+
+// Debug version of updateTemplateProgress with console logging
+const updateTemplateProgress = async (templateId, progressContainer) => {
+    console.log(`Updating progress for template ${templateId}`);
+    
+    try {
+        const response = await axios.get(`/template/progress/${templateId}`);
+        console.log(`Progress response for ${templateId}:`, response.data);
+        
+        const { percentage, status, totalPixels, completedPixels, pixelsLeft, running } = response.data;
+        
+        const progressFill = progressContainer.querySelector('.progress-fill');
+        const progressText = progressContainer.querySelector('.progress-text');
+        const progressStatus = progressContainer.querySelector('.progress-status');
+        
+        console.log('Progress elements found:', {
+            progressFill: !!progressFill,
+            progressText: !!progressText,
+            progressStatus: !!progressStatus
+        });
+        
+        if (progressFill && progressText && progressStatus) {
+            const safePercentage = Math.min(Math.max(percentage || 0, 0), 100);
+            console.log(`Setting progress to ${safePercentage}%`);
+            
+            progressFill.style.width = `${safePercentage}%`;
+            progressText.textContent = `${Math.round(safePercentage)}%`;
+            
+            let statusText;
+            if (totalPixels > 0) {
+                statusText = `${completedPixels}/${totalPixels} pixels (${pixelsLeft} remaining) - ${status}`;
+            } else {
+                statusText = status || 'Loading...';
+            }
+            progressStatus.textContent = statusText;
+            console.log('Status text set to:', statusText);
+
+            // Update progress bar color based on status
+            let backgroundColor;
+            if (safePercentage >= 100) {
+                backgroundColor = 'linear-gradient(90deg, #10b981, #22c55e)';
+            } else if (running) {
+                backgroundColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+            } else {
+                backgroundColor = 'linear-gradient(90deg, #6b7280, #9ca3af)';
+            }
+            progressFill.style.background = backgroundColor;
+            console.log('Background set to:', backgroundColor);
+        } else {
+            console.error('Could not find progress bar elements');
+        }
+    } catch (error) {
+        console.error(`Error updating progress for template ${templateId}:`, error);
+        
+        const progressStatus = progressContainer.querySelector('.progress-status');
+        if (progressStatus) {
+            progressStatus.textContent = 'Error loading progress';
+            progressStatus.style.color = '#ef4444';
+        }
+    }
+};
+
 async function processInParallel(tasks, concurrency) {
     const queue = [...tasks];
     const workers = [];
@@ -636,12 +827,56 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
+const createEditButton = (t, id) => {
+    const editButton = document.createElement('button');
+    editButton.className = 'secondary-button';
+    editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
+    editButton.addEventListener('click', () => {
+        openAddTemplate.click();
+        templateFormTitle.textContent = `Edit Template: ${t.name}`;
+        submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
+        templateForm.dataset.editId = id;
+
+        // Set form values
+        templateName.value = t.name;
+        [tx.value, ty.value, px.value, py.value] = t.coords;
+        canBuyCharges.checked = t.canBuyCharges;
+        canBuyMaxCharges.checked = t.canBuyMaxCharges;
+        antiGriefMode.checked = t.antiGriefMode;
+
+        // Select users
+        document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
+            cb.checked = t.userIds.includes(cb.value);
+        });
+
+        // Show existing template image with auto-preview
+        showExistingTemplateImage(t.template, t.coords);
+    });
+    return editButton;
+};
+
+// Fixed template management with better error handling
 openManageTemplates.addEventListener("click", () => {
+    console.log('Loading templates...');
     templateList.innerHTML = "";
+    
+    // Clean up any existing intervals
+    const existingIntervals = document.querySelectorAll('[data-interval-id]');
+    existingIntervals.forEach(element => {
+        const intervalId = element.dataset.intervalId;
+        if (intervalId) {
+            clearInterval(parseInt(intervalId));
+        }
+    });
+    
     loadUsers(users => {
         loadTemplates(templates => {
+            console.log('Templates loaded:', Object.keys(templates).length);
+            
             for (const id of Object.keys(templates)) {
                 const t = templates[id];
+                console.log(`Processing template ${id}, running: ${t.running}`);
+                
                 const userListFormatted = t.userIds.map(userId => {
                     const user = users[userId];
                     return user ? `${user.name}#${userId}` : `Unknown#${userId}`;
@@ -650,39 +885,53 @@ openManageTemplates.addEventListener("click", () => {
                 const template = document.createElement('div');
                 template.id = id;
                 template.className = "template";
+                
                 const infoSpan = document.createElement('span');
-                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b class="status-text">Status:</b> ${t.status}`;
+                infoSpan.innerHTML = `
+                    <b>Template Name:</b> ${t.name}<br>
+                    <b>Assigned Accounts:</b> ${userListFormatted}<br>
+                    <b>Coordinates:</b> ${t.coords.join(", ")}<br>
+                    <b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br>
+                    <b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br>
+                    <b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br>
+                    <b class="status-text">Status:</b> ${t.status}
+                `;
                 template.appendChild(infoSpan);
+
+                // Add progress bar if template is running
+                if (t.running) {
+                    console.log(`Adding progress bar for running template ${id}`);
+                    
+                    const progressContainer = createProgressBar(0, 'Loading progress...');
+                    template.appendChild(progressContainer);
+                    
+                    // Initial progress update with delay to ensure DOM is ready
+                    setTimeout(() => {
+                        updateTemplateProgress(id, progressContainer);
+                    }, 100);
+                    
+                    // Set up periodic updates
+                    const progressInterval = setInterval(() => {
+                        updateTemplateProgress(id, progressContainer);
+                    }, 30000); // Update every 30 seconds
+                    
+                    progressContainer.dataset.intervalId = progressInterval.toString();
+                    console.log(`Set interval ${progressInterval} for template ${id}`);
+                } else {
+                    console.log(`Template ${id} is not running, no progress bar added`);
+                }
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
+                
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
                 const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
                 buttons.appendChild(toggleButton);
-
-                const editButton = document.createElement('button');
-                editButton.className = 'secondary-button';
-                editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
-                editButton.addEventListener('click', () => {
-                    openAddTemplate.click();
-                    templateFormTitle.textContent = `Edit Template: ${t.name}`;
-                    submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
-                    templateForm.dataset.editId = id;
-
-                    templateName.value = t.name;
-                    [tx.value, ty.value, px.value, py.value] = t.coords;
-                    canBuyCharges.checked = t.canBuyCharges;
-                    canBuyMaxCharges.checked = t.canBuyMaxCharges;
-                    antiGriefMode.checked = t.antiGriefMode;
-
-                    document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
-                        if (t.userIds.includes(cb.value)) {
-                            cb.checked = true;
-                        }
-                    });
-                });
+                
+                const editButton = createEditButton(t, id);
+                buttons.appendChild(editButton);
 
                 const delButton = document.createElement('button');
                 delButton.className = 'destructive-button';
@@ -693,24 +942,35 @@ openManageTemplates.addEventListener("click", () => {
                         `Are you sure you want to delete template "${t.name}"?`,
                         async () => {
                             try {
+                                // Clear interval if it exists
+                                const progressContainer = template.querySelector('[data-interval-id]');
+                                if (progressContainer) {
+                                    const intervalId = progressContainer.dataset.intervalId;
+                                    if (intervalId) {
+                                        clearInterval(parseInt(intervalId));
+                                    }
+                                }
+                                
                                 await axios.delete(`/template/${id}`);
                                 openManageTemplates.click();
                             } catch (error) {
                                 handleError(error);
-                            };
+                            }
                         }
                     );
                 });
-                buttons.append(editButton);
-                buttons.append(delButton);
-                template.append(canvas);
-                template.append(buttons);
+                buttons.appendChild(delButton);
+                
+                template.append(canvas, buttons);
                 templateList.append(template);
-            };
+            }
+            
+            console.log('All templates processed');
         });
     });
     changeTab(manageTemplates);
 });
+
 openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
