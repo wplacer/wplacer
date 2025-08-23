@@ -45,12 +45,10 @@ body {
 }
 
 #sections {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    display: flex;
+    flex-direction: column;
     gap: 16px;
-    align-items: start;
-    align-content: stretch;
-    grid-auto-rows: 1fr;
+    align-items: stretch;
     flex: 1;
 }
 
@@ -127,6 +125,13 @@ h2.section-title {
     border-top: 1px solid var(--border-color);
     border-bottom: none;
     padding-bottom: 0;
+}
+
+h3 {
+    font-size: 1.25rem;
+    margin: 16px 0 8px;
+    font-weight: 600;
+    color: var(--text-primary);
 }
 
 p.credits {

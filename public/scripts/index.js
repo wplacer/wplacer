@@ -5,6 +5,11 @@ const openManageUsers = $("openManageUsers");
 const openAddTemplate = $("openAddTemplate");
 const openManageTemplates = $("openManageTemplates");
 const openSettings = $("openSettings");
+// Top-level dropdown <details> elements
+const manageUsersDetails = $("manageUsersDetails");
+const addTemplateDetails = $("addTemplateDetails");
+const manageTemplatesDetails = $("manageTemplatesDetails");
+const settingsDetails = $("settingsDetails");
 const userForm = $("userForm");
 const scookie = $("scookie");
 const jcookie = $("jcookie");
@@ -499,6 +504,7 @@ const changeTab = (el) => {
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 openManageUsers.addEventListener("click", () => {
+    if (manageUsersDetails) manageUsersDetails.open = true;
     userList.innerHTML = "";
     userForm.reset();
     totalCharges.textContent = "?";
@@ -643,6 +649,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
 openAddTemplate.addEventListener("click", () => {
+    if (addTemplateDetails) addTemplateDetails.open = true;
     resetTemplateForm();
     userSelectList.innerHTML = "";
     loadUsers(users => {
@@ -694,6 +701,7 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
 };
 
 openManageTemplates.addEventListener("click", () => {
+    if (manageTemplatesDetails) manageTemplatesDetails.open = true;
     templateList.innerHTML = "";
     loadUsers(users => {
         loadTemplates(templates => {
@@ -769,6 +777,7 @@ openManageTemplates.addEventListener("click", () => {
     changeTab(manageTemplates);
 });
 openSettings.addEventListener("click", async () => {
+    if (settingsDetails) settingsDetails.open = true;
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
@@ -883,6 +892,9 @@ window.addEventListener('load', () => {
         openManageTemplates.click();
         openAddTemplate.click();
         openSettings.click();
+        // After initializing content, ensure all dropdowns are collapsed by default
+        [manageUsersDetails, addTemplateDetails, manageTemplatesDetails, settingsDetails]
+            .forEach(d => { if (d) d.open = false; });
         loadPersistedLogs().finally(() => initSseLogs());
     } finally {
         suppressScroll = false;
