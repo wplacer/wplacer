@@ -460,7 +460,7 @@ const processEvent = (event) => {
                     "Invalid Colors Detected", 
                     `Image contains ${invalidPixelCount > 100 ? '100+' : invalidPixelCount} invalid color(s).<br><br>` +
                     `First invalid color found: <strong>${firstInvalidColor}</strong><br><br>` +
-                    `Only colors from the allowed palette are permitted. Please use the "Convert Image" option instead, ` +
+                    `Only colors from the allowed palette are permitted. Please use the "Convert Image or Convert with Tool" option instead, ` +
                     `which will automatically convert colors to the nearest valid palette colors.`
                 );
                 // Clear the file input
