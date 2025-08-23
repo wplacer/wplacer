@@ -61,6 +61,9 @@ const usePaidColors = $("usePaidColors");
 // Message Box
 let confirmCallback = null;
 
+// Progress bar cache
+let templateProgressCache = {};
+
 const showMessage = (title, content) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
@@ -573,11 +576,30 @@ const calculateTemplateInk = (template) => {
     return ink;
 };
 
-// Improved createProgressBar with better visibility and debugging
-const createProgressBar = (percentage, status) => {
-    console.log(`Creating progress bar with ${percentage}% and status: ${status}`);
+// Modified createProgressBar to use cached data if available
+const createProgressBar = (templateId, fallbackPercentage = 0, fallbackStatus = 'Loading...') => {
+    console.log(`Creating progress bar for template ${templateId}`);
     
-    const progressContainer = document.createElement('div');
+    // Check if we have cached progress data
+    const cachedProgress = templateProgressCache[templateId];
+    let percentage = fallbackPercentage;
+    let status = fallbackStatus;
+    
+    if (cachedProgress) {
+        console.log(`Using cached progress for template ${templateId}:`, cachedProgress);
+        percentage = cachedProgress.percentage || 0;
+        
+        // Add age indicator to status if cache is old
+        const ageMinutes = Math.floor((Date.now() - cachedProgress.lastUpdated) / (1000 * 60));
+        if (ageMinutes > 0) {
+            status = `${cachedProgress.status} (${ageMinutes}m ago)`;
+        } else {
+            status = cachedProgress.status || 'Loading...';
+        }
+    }
+    
+// Progress bar that uses cached data
+const progressContainer = document.createElement('div');
     progressContainer.className = 'progress-container';
     progressContainer.style.cssText = `
         margin: 10px 0;
@@ -638,15 +660,14 @@ const createProgressBar = (percentage, status) => {
         text-align: center;
         font-weight: normal;
     `;
-    progressStatus.textContent = status || 'Loading...';
+    progressStatus.textContent = status;
     
     progressContainer.appendChild(progressStatus);
     
-    console.log('Progress bar created successfully');
+    console.log('Progress bar created successfully with cached data');
     return progressContainer;
 };
 
-// Debug version of updateTemplateProgress with console logging
 const updateTemplateProgress = async (templateId, progressContainer) => {
     console.log(`Updating progress for template ${templateId}`);
     
@@ -656,46 +677,19 @@ const updateTemplateProgress = async (templateId, progressContainer) => {
         
         const { percentage, status, totalPixels, completedPixels, pixelsLeft, running } = response.data;
         
-        const progressFill = progressContainer.querySelector('.progress-fill');
-        const progressText = progressContainer.querySelector('.progress-text');
-        const progressStatus = progressContainer.querySelector('.progress-status');
+        // Cache the progress data
+        templateProgressCache[templateId] = {
+            percentage,
+            status,
+            totalPixels,
+            completedPixels,
+            pixelsLeft,
+            running,
+            lastUpdated: Date.now()
+        };
         
-        console.log('Progress elements found:', {
-            progressFill: !!progressFill,
-            progressText: !!progressText,
-            progressStatus: !!progressStatus
-        });
+        updateProgressBarDisplay(templateId, progressContainer, response.data);
         
-        if (progressFill && progressText && progressStatus) {
-            const safePercentage = Math.min(Math.max(percentage || 0, 0), 100);
-            console.log(`Setting progress to ${safePercentage}%`);
-            
-            progressFill.style.width = `${safePercentage}%`;
-            progressText.textContent = `${Math.round(safePercentage)}%`;
-            
-            let statusText;
-            if (totalPixels > 0) {
-                statusText = `${completedPixels}/${totalPixels} pixels (${pixelsLeft} remaining) - ${status}`;
-            } else {
-                statusText = status || 'Loading...';
-            }
-            progressStatus.textContent = statusText;
-            console.log('Status text set to:', statusText);
-
-            // Update progress bar color based on status
-            let backgroundColor;
-            if (safePercentage >= 100) {
-                backgroundColor = 'linear-gradient(90deg, #10b981, #22c55e)';
-            } else if (running) {
-                backgroundColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
-            } else {
-                backgroundColor = 'linear-gradient(90deg, #6b7280, #9ca3af)';
-            }
-            progressFill.style.background = backgroundColor;
-            console.log('Background set to:', backgroundColor);
-        } else {
-            console.error('Could not find progress bar elements');
-        }
     } catch (error) {
         console.error(`Error updating progress for template ${templateId}:`, error);
         
@@ -704,6 +698,52 @@ const updateTemplateProgress = async (templateId, progressContainer) => {
             progressStatus.textContent = 'Error loading progress';
             progressStatus.style.color = '#ef4444';
         }
+    }
+};
+
+// Function to update progress bar
+const updateProgressBarDisplay = (templateId, progressContainer, progressData) => {
+    const { percentage, status, totalPixels, completedPixels, pixelsLeft, running } = progressData;
+    
+    const progressFill = progressContainer.querySelector('.progress-fill');
+    const progressText = progressContainer.querySelector('.progress-text');
+    const progressStatus = progressContainer.querySelector('.progress-status');
+    
+    console.log('Progress elements found:', {
+        progressFill: !!progressFill,
+        progressText: !!progressText,
+        progressStatus: !!progressStatus
+    });
+    
+    if (progressFill && progressText && progressStatus) {
+        const safePercentage = Math.min(Math.max(percentage || 0, 0), 100);
+        console.log(`Setting progress to ${safePercentage}%`);
+        
+        progressFill.style.width = `${safePercentage}%`;
+        progressText.textContent = `${Math.round(safePercentage)}%`;
+        
+        let statusText;
+        if (totalPixels > 0) {
+            statusText = `${completedPixels}/${totalPixels} pixels (${pixelsLeft} remaining) - ${status}`;
+        } else {
+            statusText = status || 'Loading...';
+        }
+        progressStatus.textContent = statusText;
+        console.log('Status text set to:', statusText);
+
+        // Update progress bar color based on status
+        let backgroundColor;
+        if (safePercentage >= 100) {
+            backgroundColor = 'linear-gradient(90deg, #10b981, #22c55e)';
+        } else if (running) {
+            backgroundColor = 'linear-gradient(90deg, #3b82f6, #2563eb)';
+        } else {
+            backgroundColor = 'linear-gradient(90deg, #6b7280, #9ca3af)';
+        }
+        progressFill.style.background = backgroundColor;
+        console.log('Background set to:', backgroundColor);
+    } else {
+        console.error('Could not find progress bar elements');
     }
 };
 
@@ -817,9 +857,59 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
         try {
             await axios.put(`/template/${id}`, { running: !isRunning });
             template.running = !isRunning;
+            
+            // Get the template container (parent of the info span)
+            const templateContainer = statusSpan.closest('.template');
+            
+            if (!isRunning) {
+                // Template is being started - add progress bar
+                console.log(`Adding progress bar for started template ${id}`);
+                
+                // Check if progress bar already exists
+                let progressContainer = templateContainer.querySelector('.progress-container');
+                if (!progressContainer) {
+                    progressContainer = createProgressBar(id); // Pass template ID for cached data
+                    
+                    // Insert progress bar after the info span but before the canvas
+                    const canvas = templateContainer.querySelector('canvas');
+                    templateContainer.insertBefore(progressContainer, canvas);
+                    
+                    // Initial progress update with delay to ensure DOM is ready
+                    setTimeout(() => {
+                        updateTemplateProgress(id, progressContainer);
+                    }, 100);
+                    
+                    // Set up periodic updates
+                    const progressInterval = setInterval(() => {
+                        updateTemplateProgress(id, progressContainer);
+                    }, parseInt(accountCooldown.value) * 100);
+                    
+                    progressContainer.dataset.intervalId = progressInterval.toString();
+                    console.log(`Set interval ${progressInterval} for template ${id}`);
+                }
+            } else {
+                // Template is being stopped - remove progress bar
+                console.log(`Removing progress bar for stopped template ${id}`);
+                
+                const progressContainer = templateContainer.querySelector('.progress-container');
+                if (progressContainer) {
+                    // Clear the interval
+                    const intervalId = progressContainer.dataset.intervalId;
+                    if (intervalId) {
+                        clearInterval(parseInt(intervalId));
+                        console.log(`Cleared interval ${intervalId} for template ${id}`);
+                    }
+                    
+                    // Remove the progress bar (but keep cached data)
+                    progressContainer.remove();
+                }
+            }
+            
+            // Create new button with updated state
             const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
             button.replaceWith(newButton);
             statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+            
         } catch (error) {
             handleError(error);
         }
@@ -902,7 +992,7 @@ openManageTemplates.addEventListener("click", () => {
                 if (t.running) {
                     console.log(`Adding progress bar for running template ${id}`);
                     
-                    const progressContainer = createProgressBar(0, 'Loading progress...');
+                    const progressContainer = createProgressBar(id); // Pass template ID for cached data
                     template.appendChild(progressContainer);
                     
                     // Initial progress update with delay to ensure DOM is ready
@@ -913,7 +1003,7 @@ openManageTemplates.addEventListener("click", () => {
                     // Set up periodic updates
                     const progressInterval = setInterval(() => {
                         updateTemplateProgress(id, progressContainer);
-                    }, accountCooldown.value); // Update every user cycle
+                    }, parseInt(accountCooldown.value) * 1000);
                     
                     progressContainer.dataset.intervalId = progressInterval.toString();
                     console.log(`Set interval ${progressInterval} for template ${id}`);

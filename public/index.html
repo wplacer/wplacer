@@ -46,7 +46,15 @@
 
         <div id="addTemplate" style="display: none;">
             <h2 id="templateFormTitle">Add Template</h2>
-            <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg">Convert Image</button>
+            <div style="display: flex; gap: 10px;">
+                <button class="primary-button" onclick="document.getElementById('convertInput').click()">
+                    <img src="icons/convert.svg">Convert Image
+                </button>
+                <button class="primary-button" onclick="document.getElementById('convertInput').click()">
+                    <img src="icons/convert.svg">Add Image
+                </button>
+            </div>
+
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
                 <canvas id="templateCanvas"></canvas>
@@ -77,7 +85,8 @@
                 </div>
                 <label for="userSelectList">Users</label>
                 <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
+                <button type="button" id="selectAllUsers" class="secondary-button"><img
+                        src="icons/manageUsers.svg">Select All</button>
 
                 <div class="setting-toggle">
                     <label for="canBuyMaxCharges">Buy max charge upgrades</label>
@@ -101,9 +110,11 @@
                     </label>
                 </div>
 
-                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
+                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add
+                    Template</button>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img
+                    src="icons/return.svg">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
@@ -159,7 +170,9 @@
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
-        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
+        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img
+                    src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img
+                    src="icons/github.svg"></a>
         </p>
     </div>
 
