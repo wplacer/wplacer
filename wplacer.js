@@ -116,10 +116,11 @@ export class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = new Promise((resolve) => {
-                    const image = new Image();
-                    image.crossOrigin = "Anonymous";
-                    image.onload = () => {
+                const promise = this.browser.fetch(`https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`)
+                    .then(res => res.arrayBuffer())
+                    .then(buffer => {
+                        const image = new Image();
+                        image.src = Buffer.from(buffer);
                         const canvas = createCanvas(image.width, image.height);
                         const ctx = canvas.getContext("2d");
                         ctx.drawImage(image, 0, 0);
@@ -134,15 +135,9 @@ export class WPlacer {
                                 } else template.data[x][y] = 0;
                             };
                         };
-                        resolve(template);
-                    };
-                    image.onerror = () => resolve(null);
-                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-                })
-                    .then(tileData => {
-                        if (tileData) {
-                            this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                        }
+                        this.tiles.set(`${currentTx}_${currentTy}`, template);
+                    }).catch(err => {
+                        log(this.userInfo.id, this.userInfo.name, `Failed to load tile ${currentTx}, ${currentTy}`, err);
                     });
                 tilePromises.push(promise);
             }
@@ -159,23 +154,25 @@ export class WPlacer {
         if (body.colors.length === 0) return { painted: 0 };
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
 
-        if (response.data.painted && response.data.painted == body.colors.length) {
+        // Handle successful paint
+        if (response.data && response.data.painted && response.data.painted == body.colors.length) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
             return { painted: body.colors.length };
-        } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
+        }
+        
+        // Handle specific error conditions
+        if (response.status == 403 && response.data && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
             throw new Error('REFRESH_TOKEN');
-        } else if (response.status === 451 && response.data.suspension) {
-            const durationMs = response.data.durationMs || 0;
-            throw new SuspensionError(`Account is suspended.`, durationMs);
-        } else if (response.status === 500) {
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
             return { painted: 0 };
-        } else if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
-        } else {
-            throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
         }
+        
+        if (response.status === 429 || (response.data && response.data.error && response.data.error.includes("Error 1015"))) {
+            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+        }
+        
+        // Fallback for any other unexpected error
+        throw new Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
     _getMismatchedPixels() {

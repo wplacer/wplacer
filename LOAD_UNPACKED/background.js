@@ -72,7 +72,6 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
     }
     if (request.action === "get-config") {
-        getServerUrl().then(url => sendResponse(url));
         return true; // Indicates an asynchronous response
     }
 });

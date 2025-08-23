@@ -1,7 +1,6 @@
 {
   "manifest_version": 3,
   "name": "wplacer",
-  "version": "3.2",
   "description": "Automatically sends session and Turnstile tokens from wplace.live to wplacer.",
   "permissions": [
     "cookies",

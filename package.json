@@ -1,6 +1,5 @@
 {
   "name": "wplacer",
-  "version": "3.5.1",
   "main": "index.js",
   "type": "module",
   "scripts": {

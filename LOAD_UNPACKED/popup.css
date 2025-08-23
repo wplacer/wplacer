@@ -69,7 +69,7 @@ button:hover {
 .settings {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
     margin-bottom: 10px;
 }
 
@@ -86,12 +86,14 @@ button:hover {
     color: var(--text-primary);
     border-radius: 6px;
     font-family: var(--font-family);
+    font-size: 14px;
 }
 
-#host {
+.settings input#host {
     flex-grow: 1;
 }
 
-#port {
-    width: 60px;
+.settings input#port {
+    width: 55px;
+}
 }
