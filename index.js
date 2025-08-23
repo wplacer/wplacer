@@ -146,6 +146,114 @@ function logUserError(error, id, name, context) {
     }
 }
 
+// Function to calculate template ink if not provided
+const calculateTemplateInk = (template) => {
+    let ink = 0;
+    for (let x = 0; x < template.width; x++) {
+        for (let y = 0; y < template.height; y++) {
+            if (template.data[x][y] !== 0) ink++;
+        }
+    }
+    return ink;
+};
+
+// Function to create progress bar element
+const createProgressBar = (percentage, status) => {
+    const progressContainer = document.createElement('div');
+    progressContainer.className = 'progress-container';
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar';
+    
+    const progressFill = document.createElement('div');
+    progressFill.className = 'progress-fill';
+    progressFill.style.width = `${Math.min(Math.max(percentage, 0), 100)}%`;
+    
+    const progressText = document.createElement('div');
+    progressText.className = 'progress-text';
+    progressText.textContent = `${percentage}%`;
+    
+    progressBar.appendChild(progressFill);
+    progressBar.appendChild(progressText);
+    progressContainer.appendChild(progressBar);
+    
+    const progressStatus = document.createElement('div');
+    progressStatus.className = 'progress-status';
+    progressStatus.textContent = status || 'Checking...';
+    
+    progressContainer.appendChild(progressStatus);
+    return progressContainer;
+};
+
+// Function to update progress for a template
+const updateTemplateProgress = async (templateId, progressContainer) => {
+    try {
+        const response = await axios.get(`/template/progress/${templateId}`);
+        const { percentage, status, totalPixels, completedPixels, pixelsLeft } = response.data;
+        
+        const progressFill = progressContainer.querySelector('.progress-fill');
+        const progressText = progressContainer.querySelector('.progress-text');
+        const progressStatus = progressContainer.querySelector('.progress-status');
+        
+        if (progressFill && progressText && progressStatus) {
+            progressFill.style.width = `${Math.min(Math.max(percentage, 0), 100)}%`;
+            progressText.textContent = `${percentage}%`;
+            
+            if (totalPixels > 0) {
+                progressStatus.textContent = `${completedPixels}/${totalPixels} pixels (${pixelsLeft} remaining) - ${status}`;
+            } else {
+                progressStatus.textContent = status || 'Checking...';
+            }
+        }
+    } catch (error) {
+        const progressStatus = progressContainer.querySelector('.progress-status');
+        if (progressStatus) {
+            progressStatus.textContent = 'Error loading progress';
+        }
+    }
+};
+
+// Updated resetTemplateForm function
+const resetTemplateFormUpdated = () => {
+    templateForm.reset();
+    templateFormTitle.textContent = "Add Template";
+    submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
+    delete templateForm.dataset.editId;
+    details.style.display = "none";
+    currentTemplate = { width: 0, height: 0, data: [] };
+    
+    // Remove existing image note if present
+    const existingNote = document.getElementById('existingImageNote');
+    if (existingNote) existingNote.remove();
+};
+
+// Replace the existing resetTemplateForm function call
+const resetTemplateForm = resetTemplateFormUpdated;
+
+// Function to show existing template image when editing
+const showExistingTemplateImage = (template) => {
+    if (template && template.width > 0) {
+        currentTemplate = template;
+        drawTemplate(template, templateCanvas);
+        size.innerHTML = `${template.width}x${template.height}px`;
+        ink.innerHTML = template.ink || calculateTemplateInk(template);
+        details.style.display = "block";
+        
+        // Add a note that this is the existing image
+        const existingImageNote = document.createElement('div');
+        existingImageNote.id = 'existingImageNote';
+        existingImageNote.className = 'existing-image-note';
+        existingImageNote.innerHTML = '📋 <strong>Current Template Image</strong> - Upload a new image to replace it';
+        
+        // Remove any existing note
+        const oldNote = document.getElementById('existingImageNote');
+        if (oldNote) oldNote.remove();
+        
+        // Insert after the details div
+        details.parentNode.insertBefore(existingImageNote, details.nextSibling);
+    }
+};
+
 class TemplateManager {
     constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
         this.name = name;
@@ -453,6 +561,77 @@ class TemplateManager {
         }
     }
 }
+
+// Add this new endpoint after the existing template endpoints (around line 450)
+app.get("/template/progress/:id", async (req, res) => {
+    const { id } = req.params;
+    if (!templates[id]) return res.sendStatus(404);
+    
+    const template = templates[id];
+    if (!template.running) {
+        return res.json({ 
+            totalPixels: 0, 
+            completedPixels: 0, 
+            percentage: 0,
+            running: false 
+        });
+    }
+
+    try {
+        // Use master account to check progress
+        if (activeBrowserUsers.has(template.masterId)) {
+            return res.json({ 
+                totalPixels: 0, 
+                completedPixels: 0, 
+                percentage: 0,
+                running: true,
+                status: "Checking..." 
+            });
+        }
+
+        activeBrowserUsers.add(template.masterId);
+        const wplacer = new WPlacer(template.template, template.coords, template.canBuyCharges, currentSettings, template.name);
+        
+        try {
+            await wplacer.login(users[template.masterId].cookies);
+            
+            // Calculate total pixels in template
+            let totalPixels = 0;
+            for (let x = 0; x < template.template.width; x++) {
+                for (let y = 0; y < template.template.height; y++) {
+                    if (template.template.data[x][y] !== 0) totalPixels++;
+                }
+            }
+            
+            const pixelsLeft = await wplacer.pixelsLeft();
+            const completedPixels = totalPixels - pixelsLeft;
+            const percentage = totalPixels > 0 ? Math.round((completedPixels / totalPixels) * 100) : 0;
+            
+            res.json({
+                totalPixels,
+                completedPixels,
+                pixelsLeft,
+                percentage,
+                running: true,
+                status: template.status
+            });
+        } catch (error) {
+            res.json({ 
+                totalPixels: 0, 
+                completedPixels: 0, 
+                percentage: 0,
+                running: true,
+                status: "Error checking progress",
+                error: error.message 
+            });
+        } finally {
+            await wplacer.close();
+            activeBrowserUsers.delete(template.masterId);
+        }
+    } catch (error) {
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.get("/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");

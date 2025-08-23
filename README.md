@@ -47,15 +47,20 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 ### Prerequisites
 - **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
 - **[Tampermonkey](https://www.tampermonkey.net/)** - Browser extension for userscripts
-- **Modern Browser** - Any browser that allows for unloaded extension (Firefox not reccomended)
+- **Modern Browser** - Any browser that allows for unloaded extension (Firefox not recommended)
 
 ### Quick Setup
 
 1. **Clone the Repository**
-   ```bash
-   git clone https://github.com/luluwaffless/wplacer.git
-   cd wplacer
-   ```
+   **Option A: Using Git (Recommended)**
+    ```bash
+    git clone https://github.com/luluwaffless/wplacer.git
+    cd wplacer
+    ```
+
+  **Option B: Direct Download**
+  - [Download the ZIP](https://github.com/luluwaffless/wplacer/archive/refs/heads/main.zip) of our code
+  - Extract to your preferred directory
 
 2. **Install Dependencies**
    ```bash
@@ -86,15 +91,16 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 
 ### Initial Setup
 1. Open the displayed URL (usually `http://127.0.0.1/`) in your browser
-2. Log into [wplace.live](https://wplace.live/) in each browser tab with the extension
+2. Log into [wplace.live](https://wplace.live/) in your browser with the extension
 3. Accounts will automatically appear in the **Manage Users** section
+4. If users don't appear use the manually add/update users button in the extension
 
 ### Creating Templates
 1. Navigate to **Add Template**
 2. **Upload Image**: Click "Convert Image" and select a PNG file
 3. **Set Coordinates**: 
    - Enter tile coordinates (TX, TY) and pixel coordinates (PX, PY)
-   - **Pro Tip**: Paste a wplace.live pixel URL directly into the TX field for auto-parsing
+   - Printing starts from the top left corner of the image
 4. **Configure Options**:
    - **Use Paid Colors**: Enable for exact color matching with premium palette
    - **Auto-Purchase**: Enable charge/upgrade buying
