@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "wplacer",
-  "version": "3.0",
+  "version": "3.2",
   "description": "Automatically sends session and Turnstile tokens from wplace.live to wplacer.",
   "permissions": [
     "cookies",
@@ -13,7 +13,7 @@
   "host_permissions": [
     "https://wplace.live/",
     "https://backend.wplace.live/",
-    "http://127.0.0.1:*/"
+    "http://*/*"
   ],
   "action": {
     "default_popup": "popup.html",
