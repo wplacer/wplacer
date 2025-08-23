@@ -10,44 +10,49 @@
 
 <br>
 
-A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace.live/) featuring intelligent user management, advanced drawing algorithms, and comprehensive template controls.
+An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.live/) featuring intelligent user management, sophisticated drawing algorithms, comprehensive template controls, and real-time progress tracking.
 
 ---
 
 ## ✨ Key Features
 
-### 🎯 **Smart Drawing Engine**
-- **Advanced Multi-Account System**: Intelligently manages multiple accounts with charge-based prioritization
-- **8 Drawing Modes**: Linear (4-directional), Color-based, Random, and Edge-first strategies
-- **Outline Mode**: Prioritizes edge pixels for cleaner template placement
-- **Real-time Progress Tracking**: Live updates on template completion status
+### 🎯 **Next-Generation Drawing Engine**
+- **Advanced Multi-Account System**: Intelligently manages multiple accounts with charge-based prioritization and automatic user rotation
+- **8+ Drawing Modes**: Linear (4-directional), Color-based, Random, and Edge-first strategies for optimal template completion
+- **Outline Mode**: Prioritizes edge pixels for cleaner template boundaries and professional results
+- **Smart Charge Management**: Automatic charge threshold detection with customizable activation levels
+- **Real-time Progress Tracking**: Live progress bars with pixel completion statistics and ETA calculations
 
-### 🚀 **Automation & Management**
-- **Auto-Purchase System**: Automatically buys max charge upgrades and pixel charges when needed
-- **Anti-Grief Protection**: Monitors completed templates for vandalism and repairs damage
-- **Turnstile Integration**: Seamless CAPTCHA handling with desktop notifications
-- **Account Health Monitoring**: Built-in cookie validation and status checking
+### 🚀 **Enhanced Automation & Management**
+- **Intelligent Auto-Purchase System**: Automatically buys max charge upgrades and pixel charges based on template requirements
+- **Advanced Anti-Grief Protection**: Continuous monitoring of completed templates with automatic damage repair
+- **Smart User Suspension Handling**: Automatic detection and management of temporarily suspended accounts
+- **Turnstile Integration**: Seamless CAPTCHA handling with desktop notifications and token management
+- **Account Health Monitoring**: Built-in cookie validation, status checking, and automatic session refresh
 
-### 🎨 **Template System**
-- **Advanced Image Processing**: Supports PNG with transparency, paid colors, and color optimization
-- **Live Canvas Preview**: Real-time preview of template placement on actual canvas
-- **Hot-Swap Templates**: Update images without stopping active drawing sessions
-- **Coordinate Auto-Detection**: Smart parsing of wplace.live URLs and coordinate strings
+### 🎨 **Advanced Template System**
+- **Enhanced Image Processing**: Supports PNG with transparency, premium colors, and intelligent color optimization
+- **Dual Image Modes**: Convert images to nearest colors OR use pre-validated images with exact color matching
+- **Live Canvas Preview**: Real-time preview of template placement on actual canvas with mismatch detection
+- **Hot-Swap Templates**: Update images and settings without stopping active drawing sessions
+- **Smart Coordinate Parsing**: Auto-detection of wplace.live URLs, coordinate strings, and bulk coordinate entry
+- **Premium Color Support**: Full access to extended color palette with paid color integration
 
-### ⚙️ **Configuration & Control**
-- **Web-Based Interface**: Clean, responsive UI for all management tasks
-- **Granular Settings**: Customizable cooldowns, thresholds, and behavior controls
-- **Template Actions**: Start, stop, pause, restart, and edit templates on-the-fly
-- **Bulk Operations**: Start or stop all templates simultaneously
+### ⚙️ **Comprehensive Control Interface**
+- **Modern Web-Based Interface**: Clean, responsive UI with dark theme and intuitive navigation
+- **Granular Settings Management**: Customizable cooldowns, thresholds, and behavior controls with real-time updates
+- **Advanced Template Actions**: Start, stop, pause, restart, edit, and bulk-manage templates on-the-fly
+- **Progress Monitoring**: Real-time completion tracking with detailed statistics and visual progress bars
+- **User Status Dashboard**: Live account monitoring with charge levels, suspension status, and health indicators
 
 ---
 
 ## 🛠️ Installation
 
 ### Prerequisites
-- **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
+- **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime environment
 - **[Tampermonkey](https://www.tampermonkey.net/)** - Browser extension for userscripts
-- **Modern Browser** - Any browser that allows for unloaded extension (Firefox not recommended)
+- **Modern Browser** - Chrome, Edge, or Safari recommended (Firefox has known compatibility issues)
 
 ### Quick Setup
 
@@ -59,8 +64,7 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
     ```
 
   **Option B: Direct Download**
-  - [Download the ZIP](https://github.com/luluwaffless/wplacer/archive/refs/heads/main.zip) of our code
-  - Extract to your preferred directory
+  - [Download the ZIP](https://github.com/luluwaffless/wplacer/archive/refs/heads/main.zip) and extract to your preferred directory
 
 2. **Install Dependencies**
    ```bash
@@ -75,9 +79,9 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 
 4. **Configure Environment (Optional)**
    ```bash
-   # Default .env file
-   echo "HOST=127.0.0.1"
-   echo "PORT=80"
+   # Create .env file for custom configuration
+   echo "HOST=127.0.0.1" >> .env
+   echo "PORT=80" >> .env
    ```
 
 5. **Start wplacer**
@@ -90,29 +94,49 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 ## 🚀 Usage Guide
 
 ### Initial Setup
-1. Open the displayed URL (usually `http://127.0.0.1/`) in your browser
-2. Log into [wplace.live](https://wplace.live/) in your browser with the extension
+1. Open the displayed URL (typically `http://127.0.0.1/`) in your browser
+2. Log into [wplace.live](https://wplace.live/) in your browser with the extension installed
 3. Accounts will automatically appear in the **Manage Users** section
-4. If users don't appear use the manually add/update users button in the extension
+4. If users don't appear, use the manual add/update users button in the extension popup
 
 ### Creating Templates
+
+#### Method 1: Image Conversion (Recommended for Most Users)
 1. Navigate to **Add Template**
-2. **Upload Image**: Click "Convert Image" and select a PNG file
+2. **Convert Image**: Click "Convert Image" and select a PNG file
+   - Colors will be automatically converted to the nearest valid palette colors
+   - Transparent pixels will be ignored
+   - Supports both basic and premium color palettes
 3. **Set Coordinates**: 
    - Enter tile coordinates (TX, TY) and pixel coordinates (PX, PY)
-   - Printing starts from the top left corner of the image
+   - Or paste a wplace.live URL for automatic coordinate extraction
+   - Or enter space-separated coordinates: `TX TY PX PY`
 4. **Configure Options**:
    - **Use Paid Colors**: Enable for exact color matching with premium palette
-   - **Auto-Purchase**: Enable charge/upgrade buying
+   - **Auto-Purchase Max Charges**: Enable automatic charge upgrade buying
+   - **Auto-Purchase Charges**: Enable pixel charge purchasing
    - **Anti-Grief Mode**: Keep template monitored after completion
 5. **Assign Users**: Select which accounts should work on this template
 6. Click **Add Template**
 
+#### Method 2: Pre-Validated Images (Advanced Users)
+1. Use the **Add Image** option instead of Convert Image
+2. Upload an image that already uses exact wplace.live colors
+3. System will validate all pixels and reject images with invalid colors
+4. Perfect for templates created with external tools
+
 ### Managing Templates
-- **Start/Stop**: Individual template controls
-- **Bulk Actions**: Start or stop all templates at once  
-- **Edit Templates**: Modify settings, coordinates, or swap images
-- **Real-time Status**: Monitor progress and user activity
+- **Individual Controls**: Start, stop, edit, or delete templates independently
+- **Bulk Actions**: Start or stop all templates simultaneously
+- **Real-time Monitoring**: View live progress bars with completion percentages
+- **Template Editing**: Modify settings, coordinates, or swap images without recreating
+- **Progress Tracking**: Detailed statistics showing pixels painted, remaining, and completion ETA
+
+### User Management
+- **Account Status Checking**: Real-time validation of cookies and account health
+- **Bulk Status Updates**: Check all accounts simultaneously with progress tracking
+- **Suspension Monitoring**: Automatic detection and handling of suspended accounts
+- **Charge Tracking**: Live display of current/max charges and user levels
 
 ---
 
@@ -124,7 +148,7 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 docker build -t wplacer .
 docker run -d --restart always -p 80:80 wplacer
 
-# With persistent data
+# With persistent data storage
 docker run -d --restart always \
   -p 80:80 \
   -v "$(pwd)/data:/usr/src/app/data" \
@@ -132,7 +156,7 @@ docker run -d --restart always \
   luluwaffless/wplacer
 ```
 
-### Docker Compose
+### Docker Compose (Recommended)
 ```yaml
 version: '3.8'
 services:
@@ -142,6 +166,9 @@ services:
       - "80:80"
     volumes:
       - ./data:/usr/src/app/data
+      - ./users.json:/usr/src/app/users.json
+      - ./templates.json:/usr/src/app/templates.json
+      - ./settings.json:/usr/src/app/settings.json
     environment:
       - HOST=0.0.0.0
       - PORT=80
@@ -150,79 +177,112 @@ services:
 
 ---
 
-## ⚙️ Configuration Options
+## ⚙️ Advanced Configuration Options
 
-### Drawing Settings
-- **Drawing Mode**: 8 different pixel placement strategies
-- **Outline Mode**: Prioritize template edges for cleaner results
-- **Charge Threshold**: Minimum charge percentage before user activation
+### Drawing & Performance Settings
+- **Drawing Mode**: Choose from 8 different pixel placement strategies
+- **Outline Mode**: Prioritize template edges for cleaner, more professional results
+- **Charge Threshold**: Minimum charge percentage (0-100%) before user activation
+- **Account Cooldown**: Delay between user switches (prevents rate limiting)
+- **Keep Alive Cooldown**: Interval for periodic cookie validation
 
 ### Automation Settings
-- **Account Cooldown**: Delay between user switches (prevents rate limiting)
-- **Purchase Cooldown**: Delay after buying items
-- **Droplet Reserve**: Minimum droplets to keep before purchases
-- **Anti-Grief Standby**: How long to wait between completed template checks
+- **Purchase Cooldown**: Delay after buying items to prevent transaction conflicts
+- **Droplet Reserve**: Minimum droplets to keep before making purchases
+- **Anti-Grief Standby**: Time between completed template monitoring checks
 
 ### Notification Settings
-- **Desktop Notifications**: Toggleable lert when manual intervention needed
-- **Turnstile Handling**: Automatic CAPTCHA token management
+- **Desktop Notifications**: Toggle alerts when manual intervention is needed
+- **Turnstile Handling**: Automatic CAPTCHA token management and processing
 
 ---
 
 ## 📊 Drawing Strategies Explained
 
-| Mode | Description | Best For |
-|------|-------------|----------|
-| **Top to Bottom** | Linear scanning from top | Standard templates |
-| **Bottom to Top** | Reverse linear scanning | Bottom-heavy designs |
-| **Left to Right** | Horizontal scanning | Wide templates |
-| **Right to Left** | Reverse horizontal | RTL optimized |
-| **Random Color** | Shuffled color order | Balanced color distribution |
-| **Color by Color** | Complete each color sequentially | Organized approach |
-| **Random Pixels** | Completely randomized | Stealth drawing |
-| **Edges First** | Outline before fill | Clean template boundaries |
+| Mode | Description | Best For | Performance |
+|------|-------------|----------|-------------|
+| **Top to Bottom** | Linear scanning from top | Standard templates | Fast |
+| **Bottom to Top** | Reverse linear scanning | Bottom-heavy designs | Fast |
+| **Left to Right** | Horizontal scanning | Wide templates | Fast |
+| **Right to Left** | Reverse horizontal | RTL optimized designs | Fast |
+| **Random Color** | Shuffled color order | Balanced color distribution | Medium |
+| **Color by Color** | Complete each color sequentially | Organized, methodical approach | Medium |
+| **Random Pixels** | Completely randomized | Stealth drawing, anti-detection | Slow |
+| **Edges First** | Outline before fill | Professional template boundaries | Medium |
+
+**Outline Mode Enhancement**: When enabled with any strategy, prioritizes edge pixels first for cleaner template placement and better visual results.
 
 ---
 
-## 🔧 Advanced Features
+## 🔧 Advanced Features & Capabilities
 
-### Template Management
-- **Hot-swapping**: Update template images without stopping
-- **Multi-user coordination**: Intelligent user queue management  
-- **Progress persistence**: Resume interrupted templates
-- **Conflict resolution**: Handle overlapping templates gracefully
+### Enhanced Template Management
+- **Hot-swapping**: Update template images and settings without interrupting active sessions
+- **Multi-user coordination**: Intelligent user queue management with charge-based prioritization
+- **Progress persistence**: Automatic resume of interrupted templates with saved state
+- **Conflict resolution**: Graceful handling of overlapping templates and user conflicts
+- **Template validation**: Pre-upload validation ensures only compatible images are accepted
 
-### Account Management
-- **Cookie validation**: Automatic session health checks
-- **Charge optimization**: Smart user selection based on available charges
-- **Rate limit handling**: Automatic backoff and retry logic
-- **Parallel processing**: Concurrent account status checking
+### Intelligent Account Management
+- **Cookie validation**: Continuous session health checks with automatic renewal
+- **Charge optimization**: Smart user selection based on available charges and cooldowns
+- **Rate limit handling**: Automatic backoff and retry logic with exponential delays
+- **Suspension management**: Automatic detection and temporary exclusion of suspended accounts
+- **Parallel processing**: Concurrent account status checking with configurable limits
 
-### Canvas Integration
-- **Live preview**: See template placement on actual canvas
-- **Mismatch detection**: Identify pixels needing correction
-- **Color palette support**: Full basic + premium color support
-- **Transparency handling**: Smart transparent pixel processing
-
----
-
-## 🚨 Important Considerations
-
-> **⚠️ Disclaimer**: Wplacer is an independent tool not affiliated with wplace.live. Use at your own discretion and risk.
-
-### Best Practices
-- **Check if it runs correctly**: Test with 1-2 accounts before scaling up
-- **Monitor Usage**: Watch for rate limits and adjust cooldowns accordingly
-- **Keep Updated**: Regular updates include improvements and fixes
+### Advanced Canvas Integration
+- **Live canvas preview**: Real-time visualization of template placement on actual canvas
+- **Mismatch detection**: Intelligent identification of pixels needing correction or repair
+- **Full color palette support**: Complete basic + premium color support with automatic optimization
+- **Transparency handling**: Smart processing of transparent pixels with placement optimization
+- **Multi-tile rendering**: Seamless handling of large templates spanning multiple canvas tiles
 
 ---
 
-## 💡 Enhancement Ideas & Roadmap
+## 🚨 Important Considerations & Best Practices
 
-### Short-term Improvements
-- [ ] **Proxy Support**: Route accounts through different IP addresses
-- [ ] **Advanced Statistics**: Detailed analytics dashboard with charts
-- [ ] **Template Scheduler**: Time-based template activation
+> **⚠️ Disclaimer**: wplacer is an independent tool not affiliated with wplace.live. Use responsibly and at your own discretion and risk.
+
+### Recommended Best Practices
+- **Start Small**: Test with 1-2 accounts before scaling up to ensure proper configuration
+- **Monitor Usage**: Watch for rate limits and adjust cooldowns accordingly based on server response
+- **Regular Updates**: Keep wplacer updated for latest improvements, bug fixes, and compatibility
+- **Resource Management**: Monitor system resources when running multiple large templates
+- **Account Safety**: Use separate accounts for botting to protect your main wplace.live account
+
+### Performance Optimization
+- **Concurrent Limits**: Adjust account cooldowns based on your server's rate limiting
+- **Template Size**: Break large templates into smaller sections for better progress tracking
+- **Color Usage**: Enable paid colors only when necessary to reduce purchase costs
+- **Preview Usage**: Limit canvas previews for large templates to reduce bandwidth
+
+### Security Considerations
+- **Cookie Management**: Regularly refresh account cookies to maintain session validity
+- **Rate Limiting**: Respect server limits to avoid IP-based restrictions
+- **Suspension Handling**: Allow automatic suspension management rather than manual override
+
+---
+
+## 💡 Future Development Roadmap
+
+### Planned Improvements
+- [ ] **Proxy Support**: Route different accounts through separate IP addresses for better rate limit management
+- [ ] **Collaborative Features**: Multi-user template sharing and coordination tools
+
+---
+
+## 🔧 Troubleshooting & Common Issues
+
+### Connection Issues
+- **Server Unreachable**: Ensure bot is running and accessible on the specified port
+- **Extension Not Working**: Verify Tampermonkey is enabled and extension is loaded
+- **Cookie Errors**: Re-login to wplace.live to refresh authentication tokens
+
+### Template Issues
+- **Invalid Colors**: Use "Convert Image" instead of "Add Image" for automatic color correction
+- **Coordinate Problems**: Double-check tile and pixel coordinates
+- **Preview Not Loading**: Verify coordinates are within valid canvas bounds
+
 ---
 
 ## 📜 License & Credits
@@ -230,7 +290,7 @@ services:
 ### License
 Licensed under [GNU Affero General Public License v3.0](LICENSE)
 
-### Credits
+### Primary Contributors
 - **[luluwaffless](https://github.com/luluwaffless)**
 - **[Jinx](https://github.com/JinxTheCatto)**
 
@@ -241,18 +301,22 @@ Licensed under [GNU Affero General Public License v3.0](LICENSE)
   </a>
 </div>
 
+### Special Thanks
+- **wplace.live Community** - For feedback, testing, and feature suggestions
+- **Documentation Contributors** - For improving guides and troubleshooting resources
+
 ---
 
 ## 🆘 Support & Community
 
-### Get Help
-- **[Discord Server](https://discord.gg/qbtcWrHJvR)** - Real-time support and community
-- **[GitHub Issues](https://github.com/luluwaffless/wplacer/issues)** - Bug reports and feature requests  
+### Get Help & Support
+- **[Discord Server](https://discord.gg/qbtcWrHJvR)** - Real-time support, community discussions, and announcements
+- **[GitHub Issues](https://github.com/luluwaffless/wplacer/issues)** - Bug reports, feature requests, and technical issues
 
-### Useful Resources
-- **[wplace.live](https://wplace.live/)** - The target canvas platform
-- **[Blue Marble Script](https://github.com/SwingTheVine/Wplace-BlueMarble)** - Coordinate helper
-- **[Image Converter](https://pepoafonso.github.io/color_converter_wplace/e)** - Available colors reference
+### Useful Resources & Tools
+- **[wplace.live](https://wplace.live/)** - The official target canvas platform
+- **[Blue Marble Script](https://github.com/SwingTheVine/Wplace-BlueMarble)** - Coordinate helper and placement tools
+- **[Color Converter Tool](https://pepoafonso.github.io/color_converter_wplace/e)** - Reference for available colors and palette optimization
 
 ---
 
@@ -261,5 +325,7 @@ Licensed under [GNU Affero General Public License v3.0](LICENSE)
   <br><br>
   <em>Built with ❤️ by the wplacer community</em>
   <br>
-  <em>Making pixel art accessible to everyone</em>
+  <em>Making pixel art accessible to everyone, everywhere</em>
+  <br><br>
+  <sub>Version 2.0+ - Now with enhanced automation, real-time progress tracking, and premium features</sub>
 </div>
