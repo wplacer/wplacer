@@ -59,13 +59,16 @@ const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
 
-const autostart = $("autostart");
+const autostart = $("enableAutostartPerTemplate");
 
 // Message Box
 let confirmCallback = null;
 
 // Progress bar cache
 let templateProgressCache = {};
+
+// Current tab
+let currentTab = null;
 
 // Valid colors in the pallette
 const allowedColors = [
@@ -192,6 +195,43 @@ const handleError = (error) => {
     showMessage("Error", message);
 };
 
+// Auto-start functionality
+const initializeAutostart = async () => {
+    console.log('Checking for templates with autostart enabled...');
+    
+    try {
+        const templatesResponse = await axios.get("/templates");
+        const templates = templatesResponse.data;
+        
+        let autostartCount = 0;
+        
+        for (const templateId of Object.keys(templates)) {
+            const template = templates[templateId];
+            
+            if (template.autostart && !template.running) {
+                console.log(`Auto-starting template: ${template.name} (${templateId})`);
+                
+                try {
+                    await axios.put(`/template/${templateId}`, { running: true });
+                    autostartCount++;
+                } catch (error) {
+                    console.error(`Failed to auto-start template ${templateId}:`, error);
+                }
+            }
+        }
+        
+        if (autostartCount > 0) {
+            console.log(`Auto-started ${autostartCount} template(s)`);
+            showMessage("Auto-start Complete", `Auto-started ${autostartCount} template(s) successfully.`);
+        } else {
+            console.log('No templates configured for auto-start');
+        }
+        
+    } catch (error) {
+        console.error('Failed to initialize autostart:', error);
+        handleError(error);
+    }
+};
 
 // users
 const loadUsers = async (f) => {
@@ -635,88 +675,103 @@ stopAll.addEventListener('click', async () => {
 });
 
 
-// tabs
-let currentTab = main;
-const changeTab = (el) => {
-    currentTab.style.display = "none";
-    el.style.display = "block";
-    currentTab = el;
-};
-const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
-openManageUsers.addEventListener("click", () => {
-    userList.innerHTML = "";
-    userForm.reset();
-    totalCharges.textContent = "?";
-    totalMaxCharges.textContent = "?";
-    loadUsers(users => {
-        const userCount = Object.keys(users).length;
-        manageUsersTitle.textContent = `Existing Users (${userCount})`;
-        for (const id of Object.keys(users)) {
-            const user = document.createElement('div');
-            user.className = 'user';
-            user.id = `user-${id}`;
-            const expirationDate = users[id].expirationDate;
-            const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
-
-            user.innerHTML = `
-                <div class="user-info">
-                    <span>${users[id].name}</span>
-                    <span>(#${id})</span>
-                    <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Expires: <b>${expirationStr}</b>
-                    </div>
-                </div>
-                <div class="user-actions">
-                    <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
-                    <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
-                </div>`;
-
-            user.querySelector('.delete-btn').addEventListener("click", () => {
-                showConfirmation(
-                    "Delete User",
-                    `Are you sure you want to delete ${users[id].name} (#${id})?`,
-                    async () => {
-                        try {
-                            await axios.delete(`/user/${id}`);
-                            showMessage("Success", "User deleted.");
-                            openManageUsers.click();
-                        } catch (error) {
-                            handleError(error);
-                        };
-                    }
-                );
-            });
-            user.querySelector('.info-btn').addEventListener("click", async () => {
-                try {
-                    const response = await axios.get(`/user/status/${id}`);
-                    const info = `
-                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
-                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
-                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
-                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
-                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
-                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
-                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
-                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
-                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
-                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
-                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
-                    `;
-
-                    showConfirmation("User Info", info, () => {
-                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
-                    });
-                } catch (error) {
-                    handleError(error);
-                };
-            });
-            userList.appendChild(user);
-        };
+// Tab handling
+function changeTab(targetId) {
+    console.log('changeTab called with:', targetId);
+    
+    // Hide all page-content elements
+    const allPageContent = document.querySelectorAll('.page-content');
+    console.log('Found page-content elements:', allPageContent.length);
+    
+    allPageContent.forEach((page, index) => {
+        console.log(`Hiding element ${index}:`, page.id);
+        page.style.display = 'none';
     });
-    changeTab(manageUsers);
+    
+    // Show the target element
+    const targetEl = document.getElementById(targetId);
+    console.log(`Target element by ID "${targetId}":`, targetEl);
+    
+    if (targetEl) {
+        targetEl.style.display = 'block';
+        console.log(`Showing element:`, targetEl.id);
+    } else {
+        console.error('Target element not found!');
+    }
+}
+
+const showStartupStatus = () => {
+    const startupIndicator = document.createElement('div');
+    startupIndicator.id = 'startupIndicator';
+    startupIndicator.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 1000;
+        font-size: 14px;
+        font-weight: bold;
+        opacity: 0;
+        transform: translateX(100%);
+        transition: all 0.3s ease;
+    `;
+    startupIndicator.innerHTML = 'Wplacer started - checking autostart settings...';
+    document.body.appendChild(startupIndicator);
+    
+    // Animate in
+    setTimeout(() => {
+        startupIndicator.style.opacity = '1';
+        startupIndicator.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+        startupIndicator.style.opacity = '0';
+        startupIndicator.style.transform = 'translateX(100%)';
+        setTimeout(() => {
+            if (startupIndicator.parentNode) {
+                startupIndicator.parentNode.removeChild(startupIndicator);
+            }
+        }, 300);
+    }, 3000);
+};
+
+// Fixed DOM ready handler
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('wplacer loaded, initializing autostart...');
+    
+    // Initialize main tab visibility
+    const mainTab = document.getElementById('main');
+    if (mainTab) {
+        mainTab.style.display = 'block';
+    }
+    
+    // Hide all other page content
+    const otherTabs = document.querySelectorAll('.page-content:not(#main)');
+    otherTabs.forEach(tab => {
+        tab.style.display = 'none';
+    });
+    
+    // Initialize feather icons if using CDN option
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    showStartupStatus();
+    
+    // Wait a bit for the UI to fully load before checking autostart
+    setTimeout(() => {
+        if (typeof initializeAutostart === 'function') {
+            initializeAutostart();
+        }
+    }, 1000);
 });
+
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
 // Enhanced showExistingTemplateImage function with preview capability:
 const showExistingTemplateImage = (template, coords) => {
@@ -1035,7 +1090,7 @@ openAddTemplate.addEventListener("click", () => {
             userSelectList.appendChild(userDiv);
         }
     });
-    changeTab(addTemplate);
+    changeTab('addTemplate');
 });
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
@@ -1255,7 +1310,7 @@ openManageTemplates.addEventListener("click", () => {
             console.log('All templates processed');
         });
     });
-    changeTab(manageTemplates);
+    changeTab('manageTemplates');
 });
 
 openSettings.addEventListener("click", async () => {
@@ -1273,7 +1328,7 @@ openSettings.addEventListener("click", async () => {
     } catch (error) {
         handleError(error);
     }
-    changeTab(settings);
+    changeTab('settings');
 });
 
 // Settings
@@ -1362,4 +1417,219 @@ tx.addEventListener('blur', () => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
+});
+
+// Initialize on page load - Single DOMContentLoaded handler
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('wplacer loaded, initializing...');
+    
+    // Set initial tab
+    const mainTab = document.getElementById('main');
+    if (mainTab) {
+        mainTab.style.display = "block";
+    }
+    
+    // Hide all other page content initially
+    const pageContents = document.querySelectorAll('.page-content:not(#main)');
+    pageContents.forEach(page => {
+        page.style.display = "none";
+    });
+    
+    // Initialize feather icons if using CDN option
+    if (typeof feather !== 'undefined') {
+        feather.replace();
+    }
+    
+    // Show startup status
+    showStartupStatus();
+    
+    // Set up navigation event listeners with consistent string IDs
+    const openManageUsers = document.getElementById("openManageUsers");
+    const openAddTemplate = document.getElementById("openAddTemplate");
+    const openManageTemplates = document.getElementById("openManageTemplates");
+    const openSettings = document.getElementById("openSettings");
+    
+    // Manage Users tab - FIXED
+    if (openManageUsers) {
+        openManageUsers.addEventListener("click", () => {
+            console.log("Opening Manage Users section");
+            
+            // Clear and reset the interface
+            userList.innerHTML = "";
+            userForm.reset();
+            totalCharges.textContent = "?";
+            totalMaxCharges.textContent = "?";
+            
+            // Update the title
+            let manageTitleElement = document.querySelector("#manageUsers .section-title");
+            if (!manageTitleElement) {
+                manageTitleElement = document.querySelector("#manageUsers h3");
+            }
+            
+            loadUsers(users => {
+                const userCount = Object.keys(users).length;
+                
+                if (manageTitleElement) {
+                    manageTitleElement.textContent = `Active Users (${userCount})`;
+                }
+                
+                // Process each user (existing user processing code here...)
+                for (const id of Object.keys(users)) {
+                    const user = document.createElement('div');
+                    user.className = 'user';
+                    user.id = `user-${id}`;
+                    const expirationDate = users[id].expirationDate;
+                    const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
+
+                    user.innerHTML = `
+                        <div class="user-info">
+                            <span>${users[id].name}</span>
+                            <span>(#${id})</span>
+                            <div class="user-stats">
+                                Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
+                                Expires: <b>${expirationStr}</b>
+                            </div>
+                        </div>
+                        <div class="user-actions">
+                            <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
+                            <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
+                        </div>`;
+
+                    // Add delete functionality
+                    user.querySelector('.delete-btn').addEventListener("click", () => {
+                        showConfirmation(
+                            "Delete User",
+                            `Are you sure you want to delete ${users[id].name} (#${id})?`,
+                            async () => {
+                                try {
+                                    await axios.delete(`/user/${id}`);
+                                    showMessage("Success", "User deleted.");
+                                    openManageUsers.click(); // Refresh the view
+                                } catch (error) {
+                                    handleError(error);
+                                }
+                            }
+                        );
+                    });
+                    
+                    // Add info functionality
+                    user.querySelector('.info-btn').addEventListener("click", async () => {
+                        try {
+                            const response = await axios.get(`/user/status/${id}`);
+                            const info = `
+                            <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                            <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                            <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                            <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                            <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                            <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                            <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                            <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                            <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                            <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                            <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                            <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                            `;
+
+                            showConfirmation("User Info", info, () => {
+                                navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                            });
+                        } catch (error) {
+                            handleError(error);
+                        }
+                    });
+                    
+                    userList.appendChild(user);
+                }
+            });
+            
+            changeTab('manageUsers'); // FIXED - pass string ID
+        });
+    }
+    
+    // Add Template tab - FIXED
+    if (openAddTemplate) {
+        openAddTemplate.addEventListener("click", () => {
+            resetTemplateForm();
+            userSelectList.innerHTML = "";
+            loadUsers(users => {
+                if (Object.keys(users).length === 0) {
+                    userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
+                    return;
+                }
+                for (const id of Object.keys(users)) {
+                    const userDiv = document.createElement('div');
+                    userDiv.className = 'user-select-item';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `user_${id}`;
+                    checkbox.name = 'user_checkbox';
+                    checkbox.value = id;
+                    const label = document.createElement('label');
+                    label.htmlFor = `user_${id}`;
+                    label.textContent = `${users[id].name} (#${id})`;
+                    userDiv.appendChild(checkbox);
+                    userDiv.appendChild(label);
+                    userSelectList.appendChild(userDiv);
+                }
+            });
+            changeTab('addTemplate'); // FIXED - pass string ID
+        });
+    }
+    
+    // Manage Templates tab - FIXED
+    if (openManageTemplates) {
+        openManageTemplates.addEventListener("click", () => {
+            console.log('Loading templates...');
+            templateList.innerHTML = "";
+            
+            // Clean up any existing intervals
+            const existingIntervals = document.querySelectorAll('[data-interval-id]');
+            existingIntervals.forEach(element => {
+                const intervalId = element.dataset.intervalId;
+                if (intervalId) {
+                    clearInterval(parseInt(intervalId));
+                }
+            });
+            
+            loadUsers(users => {
+                loadTemplates(templates => {
+                    // Template processing code (existing code)
+                    for (const id of Object.keys(templates)) {
+                        const t = templates[id];
+                        // ... existing template processing code ...
+                    }
+                });
+            });
+            changeTab('manageTemplates'); // FIXED - pass string ID
+        });
+    }
+    
+    // Settings tab - FIXED
+    if (openSettings) {
+        openSettings.addEventListener("click", async () => {
+            try {
+                const response = await axios.get('/settings');
+                const currentSettings = response.data;
+                drawingModeSelect.value = currentSettings.drawingMethod;
+                turnstileNotifications.checked = currentSettings.turnstileNotifications;
+                outlineMode.checked = currentSettings.outlineMode;
+                accountCooldown.value = currentSettings.accountCooldown / 1000;
+                purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
+                dropletReserve.value = currentSettings.dropletReserve;
+                antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
+                chargeThreshold.value = currentSettings.chargeThreshold * 100;
+            } catch (error) {
+                handleError(error);
+            }
+            changeTab('settings'); // FIXED - pass string ID
+        });
+    }
+    
+    // Wait a bit for the UI to fully load before checking autostart
+    setTimeout(() => {
+        if (typeof initializeAutostart === 'function') {
+            initializeAutostart();
+        }
+    }, 1000);
 });

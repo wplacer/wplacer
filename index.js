@@ -20,7 +20,7 @@ const saveTemplates = () => {
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
-            autostart: t.autostart, // ADD THIS LINE
+            autostart: t.autostart, 
             userIds: t.userIds
         };
     }

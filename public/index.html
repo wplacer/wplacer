@@ -7,197 +7,474 @@
     <link rel="icon" type="image/x-icon" href="icons/favicon.png">
     <link rel="stylesheet" href="styles/index.css">
     <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://unpkg.com/feather-icons"></script>
     <title>wplacer</title>
 </head>
 
 <body>
     <div class="container">
-        <h1><img src="icons/favicon.png">wplacer</h1>
+        <!-- Header with improved navigation -->
+        <header class="app-header">
+            <h1><img src="icons/favicon.png" alt="wplacer logo">wplacer</h1>
+            <nav class="breadcrumb" id="breadcrumb">
+                <span class="breadcrumb-item active">Dashboard</span>
+            </nav>
+        </header>
 
-        <div id="main">
-            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
-            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
-                Templates</button>
-            <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
-        </div>
+        <!-- Main Dashboard -->
+        <div id="main" class="page-content">
+            <div class="dashboard-grid">
+                <div class="nav-card" data-section="users">
+                    <div class="nav-card-icon">
+                        <img src="icons/manageUsers.svg" alt="">
+                    </div>
+                    <div class="nav-card-content">
+                        <h3>Manage Users</h3>
+                        <p>Add and configure user accounts for template execution</p>
+                    </div>
+                    <button id="openManageUsers" class="nav-card-button primary-button">
+                        Open <i data-feather="arrow-right"></i>
+                    </button>
+                </div>
 
-        <div id="manageUsers" style="display: none;">
-            <h2>Add/Manage Users</h2>
-            <form id="userForm">
-                <label for="jcookie">JWT Cookie (j)</label>
-                <input type="password" id="jcookie" required>
-                <label for="scookie">Session Cookie (s) [optional]</label>
-                <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
-                    User</button>
-            </form>
+                <div class="nav-card" data-section="add-template">
+                    <div class="nav-card-icon">
+                        <img src="icons/addTemplate.svg" alt="">
+                    </div>
+                    <div class="nav-card-content">
+                        <h3>Add Template</h3>
+                        <p>Create new templates from images with customizable settings</p>
+                    </div>
+                    <button id="openAddTemplate" class="nav-card-button primary-button">
+                        Open <i data-feather="arrow-right"></i>
+                    </button>
+                </div>
 
-            <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
-            <div id="chargeSummary">
-                <b>Total Available Charges:</b> <span id="totalCharges">?</span> |
-                <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
+                <div class="nav-card" data-section="templates">
+                    <div class="nav-card-icon">
+                        <img src="icons/manageTemplates.svg" alt="">
+                    </div>
+                    <div class="nav-card-content">
+                        <h3>Manage Templates</h3>
+                        <p>View, control, and monitor your active templates</p>
+                    </div>
+                    <button id="openManageTemplates" class="nav-card-button primary-button">
+                        Open <i data-feather="arrow-right"></i>
+                    </button>
+                </div>
+
+                <div class="nav-card" data-section="settings">
+                    <div class="nav-card-icon">
+                        <img src="icons/settings.svg" alt="">
+                    </div>
+                    <div class="nav-card-content">
+                        <h3>Settings</h3>
+                        <p>Configure application behavior and drawing preferences</p>
+                    </div>
+                    <button id="openSettings" class="nav-card-button primary-button">
+                        Open <i data-feather="arrow-right"></i>
+                    </button>
+                </div>
             </div>
-            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
-            <div id="userList"></div>
-
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
-        <div id="addTemplate" style="display: none;">
-            <h2 id="templateFormTitle">Add Template</h2>
-            <div style="display: flex; gap: 10px;">
-                <!-- Buttons visible to the user -->
-                <button class="primary-button" onclick="document.getElementById('convertInput').click()">
-                    <img src="icons/convert.svg">Convert Image
-                </button>
+        <!-- User Management Section -->
+        <div id="manageUsers" class="page-content">
+            <div class="page-header">
+                <h2>User Management</h2>
+                <p class="page-description">Add and manage user accounts for template execution</p>
+            </div>
 
-                <button class="primary-button" onclick="document.getElementById('addImage').click()">
-                    <img src="icons/convert.svg">Add Image
-                </button>
+            <div class="content-grid">
+                <div class="form-card">
+                    <h3>Add New User</h3>
+                    <form id="userForm" class="form-layout">
+                        <div class="input-group">
+                            <label for="jcookie">JWT Cookie (j)</label>
+                            <input type="password" id="jcookie" placeholder="Enter JWT cookie" required>
+                            <span class="input-hint">Required for user authentication</span>
+                        </div>
+                        <div class="input-group">
+                            <label for="scookie">Session Cookie (s)</label>
+                            <input type="password" id="scookie" placeholder="Enter session cookie (optional)">
+                            <span class="input-hint">Optional session identifier</span>
+                        </div>
+                        <button type="submit" id="submitUser" class="primary-button">
+                            <img src="icons/addUser.svg">Add User
+                        </button>
+                    </form>
+                </div>
 
-                <!-- Hidden file inputs that are triggered by the buttons -->
+                <div class="status-card">
+                    <div class="status-header">
+                        <h3>Account Overview</h3>
+                        <button id="checkUserStatus" class="secondary-button">
+                            <img src="icons/check.svg">Refresh Status
+                        </button>
+                    </div>
+                    <div class="charge-summary" id="chargeSummary">
+                        <div class="charge-stat">
+                            <span class="charge-label">Available Charges</span>
+                            <span class="charge-value" id="totalCharges">?</span>
+                        </div>
+                        <div class="charge-stat">
+                            <span class="charge-label">Max Charges</span>
+                            <span class="charge-value" id="totalMaxCharges">?</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="users-section">
+                <h3 class="section-title">Active Users</h3>
+                <div id="userList" class="user-grid"></div>
+            </div>
+
+            <div class="page-actions">
+                <button onclick="changeTab('main');" class="secondary-button">
+                    <img src="icons/return.svg">Back to Dashboard
+                </button>
+            </div>
+        </div>
+
+        <!-- Template Creation Section -->
+        <div id="addTemplate" class="page-content">
+            <div class="page-header">
+                <h2 id="templateFormTitle">Create Template</h2>
+                <p class="page-description">Upload and configure a new template for drawing</p>
+            </div>
+
+            <div class="template-upload-section">
+                <div class="upload-actions">
+                    <button class="primary-button upload-btn" onclick="document.getElementById('convertInput').click()">
+                        <img src="icons/convert.svg">Convert Image
+                    </button>
+                    <button class="primary-button upload-btn" onclick="document.getElementById('addImage').click()">
+                        <img src="icons/convert.svg">Add Image
+                    </button>
+                    <button id="linkToPage" class="secondary-button" 
+                            onclick="window.open('https://pepoafonso.github.io/color_converter_wplace/', '_blank')">
+                        <img src="icons/check.svg">Convert with Tool
+                    </button>
+                </div>
+                
                 <input type="file" id="convertInput" accept="image/*" style="display: none;">
                 <input type="file" id="addImage" accept="image/*" style="display: none;">
             </div>
 
-            <button id="linkToPage" class="primary-button" onclick="window.open('https://pepoafonso.github.io/color_converter_wplace/', '_blank')">
-            <img src="icons/check.svg">Convert with Tool
-            </button>
-
-            <div id="details" style="display: none;">
-                <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
-                <canvas id="templateCanvas"></canvas>
-                <div class="preview-controls">
-                    <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
-                    <label for="previewBorder">Preview Border:</label>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="previewBorder" value="0">
+            <div id="details" class="template-details">
+                <div class="template-info">
+                    <div class="info-stat">
+                        <span class="info-label">Size:</span>
+                        <span class="info-value" id="size"></span>
+                    </div>
+                    <div class="info-stat">
+                        <span class="info-label">Charges needed:</span>
+                        <span class="info-value" id="ink"></span>
+                    </div>
                 </div>
-                <canvas id="previewCanvas"></canvas>
+                
+                <div class="canvas-container">
+                    <canvas id="templateCanvas" class="template-canvas"></canvas>
+                </div>
+                
+                <div class="preview-section">
+                    <div class="preview-controls">
+                        <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
+                        <div class="preview-border-control">
+                            <label for="previewBorder">Preview Border:</label>
+                            <input type="number" id="previewBorder" value="0" min="0">
+                        </div>
+                    </div>
+                    <div class="canvas-container">
+                        <canvas id="previewCanvas" class="preview-canvas"></canvas>
+                    </div>
+                </div>
             </div>
-            <form id="templateForm">
+
+            <form id="templateForm" class="template-form">
                 <input type="file" style="display: none;" accept="image/png" id="convertInput">
-                <div class="setting-toggle">
-                    <label for="usePaidColors">Use paid colors when exact</label>
-                    <label class="switch">
-                        <input id="usePaidColors" name="usePaidColors" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <label for="templateName">Template Name</label>
-                <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
-                <label>Coordinates</label>
-                <div class="coordinate-grid">
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="px" placeholder="Pixel X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="py" placeholder="Pixel Y" required>
-                </div>
-                <label for="userSelectList">Users</label>
-                <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img
-                        src="icons/manageUsers.svg">Select All</button>
+                
+                <div class="form-section">
+                    <h3>Template Configuration</h3>
+                    
+                    <div class="settings-grid">
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="usePaidColors">Use paid colors when exact</label>
+                                <span class="setting-description">Enable premium color palette</span>
+                            </div>
+                            <label class="switch">
+                                <input id="usePaidColors" name="usePaidColors" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
 
-                <div class="setting-toggle">
-                    <label for="canBuyMaxCharges">Buy max charge upgrades</label>
-                    <label class="switch">
-                        <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="canBuyCharges">Buy paint charges when running out</label>
-                    <label class="switch">
-                        <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="antiGriefMode">Enable Anti Grief mode</label>
-                    <label class="switch">
-                        <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="autostart">Auto-start template on server startup</label>
-                    <label class="switch">
-                        <input id="autostart" name="autostart" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="enableAutostartPerTemplate">Enable autostart</label>
+                                <span class="setting-description">Start automatically when app launches</span>
+                            </div>
+                            <label class="switch">
+                                <input id="enableAutostartPerTemplate" name="enableAutostartPerTemplate" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
                 </div>
 
-                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add
-                    Template</button>
+                <div class="form-section">
+                    <h3>Basic Information</h3>
+                    <div class="input-group">
+                        <label for="templateName">Template Name</label>
+                        <input type="text" id="templateName" placeholder="Enter a descriptive name" required>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Position Coordinates</h3>
+                    <div class="coordinate-grid">
+                        <div class="input-group">
+                            <label for="tx">Tile X</label>
+                            <input type="number" id="tx" placeholder="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="ty">Tile Y</label>
+                            <input type="number" id="ty" placeholder="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="px">Pixel X</label>
+                            <input type="number" id="px" placeholder="0" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="py">Pixel Y</label>
+                            <input type="number" id="py" placeholder="0" required>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>User Selection</h3>
+                    <div class="user-selection-header">
+                        <label for="userSelectList">Assign Users</label>
+                        <button type="button" id="selectAllUsers" class="secondary-button">
+                            <img src="icons/manageUsers.svg">Select All
+                        </button>
+                    </div>
+                    <div id="userSelectList" class="user-select-container"></div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Advanced Options</h3>
+                    <div class="settings-grid">
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="canBuyMaxCharges">Buy max charge upgrades</label>
+                                <span class="setting-description">Automatically purchase charge upgrades</span>
+                            </div>
+                            <label class="switch">
+                                <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="canBuyCharges">Buy paint charges when low</label>
+                                <span class="setting-description">Automatically purchase paint when needed</span>
+                            </div>
+                            <label class="switch">
+                                <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="antiGriefMode">Anti-grief protection</label>
+                                <span class="setting-description">Protect against vandalism</span>
+                            </div>
+                            <label class="switch">
+                                <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" id="submitTemplate" class="primary-button">
+                        <img src="icons/addTemplate.svg">Create Template
+                    </button>
+                </div>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img
-                    src="icons/return.svg">Return</button>
+
+            <div class="page-actions">
+                <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button">
+                    <img src="icons/return.svg">Back to Dashboard
+                </button>
+            </div>
         </div>
 
-        <div id="manageTemplates" style="display: none;">
-            <h2>Manage Templates</h2>
+        <!-- Template Management Section -->
+        <div id="manageTemplates" class="page-content">
+            <div class="page-header">
+                <h2>Template Management</h2>
+                <p class="page-description">Monitor and control your active templates</p>
+            </div>
+
             <div class="template-actions-all">
-                <button id="startAll" class="primary-button"><img src="icons/playAll.svg">Start All</button>
-                <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
+                <button id="startAll" class="primary-button">
+                    <img src="icons/playAll.svg">Start All Templates
+                </button>
+                <button id="stopAll" class="secondary-button">
+                    <img src="icons/pauseAll.svg">Stop All Templates
+                </button>
             </div>
-            <div id="templateList"></div>
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+
+            <div class="templates-section">
+                <div id="templateList" class="template-grid"></div>
+            </div>
+
+            <div class="page-actions">
+                <button onclick="changeTab('main');" class="secondary-button">
+                    <img src="icons/return.svg">Back to Dashboard
+                </button>
+            </div>
         </div>
 
-        <div id="settings" style="display: none;">
-            <h2>Settings</h2>
-
-            <label for="drawingModeSelect">Drawing Mode</label>
-            <select id="drawingModeSelect">
-                <option value="linear">Top to Bottom</option>
-                <option value="linear-reversed">Bottom to Top</option>
-                <option value="linear-ltr">Left to Right</option>
-                <option value="linear-rtl">Right to Left</option>
-                <option value="singleColorRandom">Random Color</option>
-                <option value="colorByColor">Color by Color</option>
-                <option value="random">Random Pixels</option>
-            </select>
-
-            <div class="setting-toggle">
-                <label for="outlineMode">Enable outline mode</label>
-                <label class="switch">
-                    <input id="outlineMode" name="outlineMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
-                <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
-                <label class="switch">
-                    <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
-                    <span class="slider"></span>
-                </label>
+        <!-- Settings Section -->
+        <div id="settings" class="page-content">
+            <div class="page-header">
+                <h2>Application Settings</h2>
+                <p class="page-description">Configure drawing behavior and application preferences</p>
             </div>
 
-            <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
-            <input type="number" id="accountCooldown" min="0" value="20">
-            <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
-            <input type="number" id="purchaseCooldown" min="0" value="5">
-            <label for="dropletReserve">Minimum Droplets Before Buying</label>
-            <input type="number" id="dropletReserve" min="0" value="0">
-            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
-            <input type="number" id="antiGriefStandby" min="1" value="10">
-            <label for="chargeThreshold">Charge Threshold (%)</label>
-            <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+            <div class="settings-container">
+                <div class="form-section">
+                    <h3>Drawing Configuration</h3>
+                    <div class="input-group">
+                        <label for="drawingModeSelect">Drawing Mode</label>
+                        <select id="drawingModeSelect">
+                            <option value="linear">Top to Bottom</option>
+                            <option value="linear-reversed">Bottom to Top</option>
+                            <option value="linear-ltr">Left to Right</option>
+                            <option value="linear-rtl">Right to Left</option>
+                            <option value="singleColorRandom">Random Color</option>
+                            <option value="colorByColor">Color by Color</option>
+                            <option value="random">Random Pixels</option>
+                        </select>
+                    </div>
+                </div>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+                <div class="form-section">
+                    <h3>General Options</h3>
+                    <div class="settings-grid">
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="outlineMode">Outline mode</label>
+                                <span class="setting-description">Draw only the outline of templates</span>
+                            </div>
+                            <label class="switch">
+                                <input id="outlineMode" name="outlineMode" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="turnstileNotifications">Desktop notifications</label>
+                                <span class="setting-description">Show notifications for Turnstile challenges</span>
+                            </div>
+                            <label class="switch">
+                                <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-toggle">
+                            <div class="setting-info">
+                                <label for="autostartTemplates">Auto-start templates</label>
+                                <span class="setting-description">Automatically start templates on launch</span>
+                            </div>
+                            <label class="switch">
+                                <input id="autostartTemplates" name="autostart" type="checkbox">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-section">
+                    <h3>Timing & Thresholds</h3>
+                    <div class="settings-grid">
+                        <div class="input-group">
+                            <label for="autostartDelay">Autostart Delay (seconds)</label>
+                            <input type="number" id="autostartDelay" min="0" max="300" value="5">
+                            <span class="input-hint">Delay before auto-starting templates</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
+                            <input type="number" id="accountCooldown" min="0" value="20">
+                            <span class="input-hint">Time between account switches</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
+                            <input type="number" id="purchaseCooldown" min="0" value="5">
+                            <span class="input-hint">Delay between purchases</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="dropletReserve">Minimum Droplets Before Buying</label>
+                            <input type="number" id="dropletReserve" min="0" value="0">
+                            <span class="input-hint">Reserve droplets before making purchases</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
+                            <input type="number" id="antiGriefStandby" min="1" value="10">
+                            <span class="input-hint">Time to wait when grief is detected</span>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="chargeThreshold">Charge Threshold (%)</label>
+                            <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+                            <span class="input-hint">Minimum charge level before buying</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-actions">
+                <button onclick="changeTab('main');" class="secondary-button">
+                    <img src="icons/return.svg">Back to Dashboard
+                </button>
+            </div>
         </div>
 
-        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img
-                    src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img
-                    src="icons/github.svg"></a>
-        </p>
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p class="credits">
+                Made by 
+                <a href="https://github.com/luluwaffless" target="_blank" rel="noopener">
+                    luluwaffless <img src="icons/github.svg" alt="GitHub">
+                </a> 
+                and 
+                <a href="https://github.com/JinxTheCatto" target="_blank" rel="noopener">
+                    Jinx <img src="icons/github.svg" alt="GitHub">
+                </a>
+            </p>
+        </footer>
     </div>
 
-    <div id="messageBoxOverlay" class="hidden">
-        <div id="messageBox">
-            <h3 id="messageBoxTitle"></h3>
-            <p id="messageBoxContent"></p>
-            <div class="message-box-buttons">
+    <!-- Modal Overlay -->
+    <div id="messageBoxOverlay" class="modal-overlay hidden">
+        <div id="messageBox" class="modal-content">
+            <h3 id="messageBoxTitle" class="modal-title"></h3>
+            <p id="messageBoxContent" class="modal-text"></p>
+            <div class="modal-actions">
                 <button id="messageBoxCancel" class="secondary-button">Cancel</button>
                 <button id="messageBoxConfirm" class="primary-button">OK</button>
             </div>
