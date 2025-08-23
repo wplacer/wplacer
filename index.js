@@ -107,7 +107,6 @@ const TokenManager = {
 
     setToken(t) {
         }
-    },
 
     invalidateToken() {
     },
