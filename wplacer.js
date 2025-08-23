@@ -3,6 +3,15 @@ import { Impit } from "impit";
 import { Image, createCanvas } from "canvas"
 import { appendFileSync } from "node:fs";
 
+class SuspensionError extends Error {
+    constructor(message, durationMs) {
+        super(message);
+        this.name = "SuspensionError";
+        this.durationMs = durationMs;
+        this.suspendedUntil = Date.now() + durationMs;
+    }
+}
+
 const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
 const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
 const pallete = { ...basic_colors, ...premium_colors };
@@ -83,9 +92,7 @@ export class WPlacer {
             throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText.substring(0, 150)}..."`);
         }
     };
-    cookieStr = (obj) => Object.keys(obj).map(cookie => `${cookie}=${obj[cookie]}`).join(";");
     async post(url, body) {
-        // We already have a cookie jar
         const request = await this.browser.fetch(url, {
             method: "POST",
             headers: {
@@ -157,6 +164,9 @@ export class WPlacer {
             return { painted: body.colors.length };
         } else if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
             throw new Error('REFRESH_TOKEN');
+        } else if (response.status === 451 && response.data.suspension) {
+            const durationMs = response.data.durationMs || 0;
+            throw new SuspensionError(`Account is suspended.`, durationMs);
         } else if (response.status === 500) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Rate limited by the server. Waiting 40 seconds before retrying...`);
             await this.sleep(40000);
@@ -187,8 +197,8 @@ export class WPlacer {
                 if (!tile || !tile.data[localPx]) continue;
 
                 const tileColor = tile.data[localPx][localPy];
-
-                if (templateColor !== tileColor && this.hasColor(templateColor)) {
+                if (templateColor === -1 && tileColor !== 0) mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: 0, isEdge: false });
+                else if (templateColor > 0 && templateColor !== tileColor && this.hasColor(templateColor)) {
                     const neighbors = [
                         this.template.data[x - 1]?.[y],
                         this.template.data[x + 1]?.[y],
@@ -263,6 +273,13 @@ export class WPlacer {
                     }
                 }
                 mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                break;
+            }
+            case 'random': {
+                for (let i = mismatchedPixels.length - 1; i > 0; i--) {
+                    let r = Math.floor(Math.random() * (i + 1));
+                    [mismatchedPixels[i], mismatchedPixels[r]] = [mismatchedPixels[r], mismatchedPixels[i]];
+                };
                 break;
             }
         }

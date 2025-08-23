@@ -183,6 +183,13 @@ const drawTemplate = (template, canvas) => {
             const color = template.data[x][y];
             if (color === 0) continue;
             const i = (y * template.width + x) * 4;
+            if (color === -1) {
+                imageData.data[i] = 158;
+                imageData.data[i + 1] = 189;
+                imageData.data[i + 2] = 255;
+                imageData.data[i + 3] = 255;
+                continue;
+            };
             const [r, g, b] = colorById(color).split(',').map(Number);
             imageData.data[i] = r;
             imageData.data[i + 1] = g;
@@ -306,8 +313,11 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
-                matrix[x][y] = id;
+                if (rgb == "158,189,255") matrix[x][y] = -1;
+                else {
+                    const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
+                    matrix[x][y] = id;
+                };
                 ink++;
             } else {
                 matrix[x][y] = 0;
