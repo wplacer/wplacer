@@ -23,19 +23,12 @@ window.addEventListener('message', (e) => {
     } catch { /* ignore */ }
 }, true);
 
-
-// --- Run a leader election and reload the page ---
-const initiateReloadElection = () => {
-    const REFRESH_LOCK_KEY = 'wplacer_refresh_lock';
-    const ELECTION_CANDIDATE_KEY = 'wplacer_election_candidate';
-    const LOCK_DURATION_MS = 30000;
     const ELECTION_WAIT_MS = 250;
 
     const now = Date.now();
     const lock = localStorage.getItem(REFRESH_LOCK_KEY);
 
     if (lock && (now - parseInt(lock, 10)) < LOCK_DURATION_MS) {
-        console.log("wplacer: A refresh is already in progress by another tab. Standing by.");
         return;
     }
 
@@ -61,29 +54,10 @@ const initiateReloadElection = () => {
         }
     }, ELECTION_WAIT_MS);
 };
-
-// --- Function to attempt triggering the Turnstile API, with reload as a fallback ---
-const requestNewToken = () => {
-    // This script is injected into the main page's context to access window.turnstile
-    const scriptToInject = `
-        if (window.turnstile && typeof window.turnstile.reset === 'function') {
-            console.log('✅ wplacer: Attempting to trigger Turnstile reset via API.');
-            window.turnstile.reset();
-            window.postMessage({ type: 'WPLACER_API_ATTEMPT', success: true }, '*');
-        } else {
-            console.warn('wplacer: Turnstile API not found on this page.');
-            window.postMessage({ type: 'WPLACER_API_ATTEMPT', success: false }, '*');
         }
     `;
 
     const handleApiResponse = (event) => {
-        if (event.source === window && event.data.type === 'WPLACER_API_ATTEMPT') {
-            window.removeEventListener('message', handleApiResponse); // Clean up listener
-            if (event.data.success) {
-                console.log("wplacer: API reset command sent. Waiting for new token from message listener.");
-            } else {
-                // If the API was not found, this tab will enter the election to reload.
-                console.log("wplacer: API not available, entering reload election.");
                 initiateReloadElection();
             }
         }
@@ -103,8 +77,7 @@ const initializeSse = (serverUrl) => {
         const eventsUrl = new URL('/events', serverUrl).href;
         const es = new EventSource(eventsUrl);
         es.addEventListener("request-token", () => {
-            console.log("wplacer: Received token request from server.");
-            requestNewToken();
+
         });
         console.log(`wplacer: Connected to event source at ${eventsUrl}`);
     } catch (e) { 
