@@ -913,7 +913,7 @@ openManageTemplates.addEventListener("click", () => {
                     // Set up periodic updates
                     const progressInterval = setInterval(() => {
                         updateTemplateProgress(id, progressContainer);
-                    }, 30000); // Update every 30 seconds
+                    }, accountCooldown.value); // Update every user cycle
                     
                     progressContainer.dataset.intervalId = progressInterval.toString();
                     console.log(`Set interval ${progressInterval} for template ${id}`);
