@@ -35,7 +35,6 @@ An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.liv
 - **Dual Image Modes**: Convert images to nearest colors OR use pre-validated images with exact color matching
 - **Live Canvas Preview**: Real-time preview of template placement on actual canvas with mismatch detection
 - **Hot-Swap Templates**: Update images and settings without stopping active drawing sessions
-- **Smart Coordinate Parsing**: Auto-detection of wplace.live URLs, coordinate strings, and bulk coordinate entry
 - **Premium Color Support**: Full access to extended color palette with paid color integration
 
 ### ⚙️ **Comprehensive Control Interface**
@@ -51,8 +50,11 @@ An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.liv
 
 ### Prerequisites
 - **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime environment
+- **Modern Browser** - Chrome, Edge, or Brave recommended (Firefox has known compatibility issues)
+
+## Reccomendations
 - **[Tampermonkey](https://www.tampermonkey.net/)** - Browser extension for userscripts
-- **Modern Browser** - Chrome, Edge, or Safari recommended (Firefox has known compatibility issues)
+- **[Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble/releases/download/v0.84.0/BlueMarble.user.js)** - A userscript that allows for putting templates on the canvas and seeing coordinates
 
 ### Quick Setup
 
@@ -101,7 +103,7 @@ An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.liv
 
 ### Creating Templates
 
-#### Method 1: Image Conversion (Recommended for Most Users)
+#### Method 1: Image Conversion (Recommended for fore ease of use)
 1. Navigate to **Add Template**
 2. **Convert Image**: Click "Convert Image" and select a PNG file
    - Colors will be automatically converted to the nearest valid palette colors
@@ -109,9 +111,6 @@ An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.liv
    - Supports both basic and premium color palettes
 3. **Set Coordinates**: 
    - Enter tile coordinates (TX, TY) and pixel coordinates (PX, PY)
-   - Or paste a wplace.live URL for automatic coordinate extraction
-   - Or enter space-separated coordinates: `TX TY PX PY`
-4. **Configure Options**:
    - **Use Paid Colors**: Enable for exact color matching with premium palette
    - **Auto-Purchase Max Charges**: Enable automatic charge upgrade buying
    - **Auto-Purchase Charges**: Enable pixel charge purchasing
@@ -119,7 +118,7 @@ An advanced, multi-account auto-drawing bot for [wplace.live](https://wplace.liv
 5. **Assign Users**: Select which accounts should work on this template
 6. Click **Add Template**
 
-#### Method 2: Pre-Validated Images (Advanced Users)
+#### Method 2: Pre-Validated Images (More time but better results)
 1. Use the **Add Image** option instead of Convert Image
 2. Upload an image that already uses exact wplace.live colors
 3. System will validate all pixels and reject images with invalid colors
@@ -177,7 +176,7 @@ services:
 
 ---
 
-## ⚙️ Advanced Configuration Options
+## ⚙️ Configuration Options
 
 ### Drawing & Performance Settings
 - **Drawing Mode**: Choose from 8 different pixel placement strategies
@@ -208,7 +207,7 @@ services:
 | **Random Color** | Shuffled color order | Balanced color distribution | Medium |
 | **Color by Color** | Complete each color sequentially | Organized, methodical approach | Medium |
 | **Random Pixels** | Completely randomized | Stealth drawing, anti-detection | Slow |
-| **Edges First** | Outline before fill | Professional template boundaries | Medium |
+| **Edges First** | Outline before fill | Marks boundaries | Medium |
 
 **Outline Mode Enhancement**: When enabled with any strategy, prioritizes edge pixels first for cleaner template placement and better visual results.
 
@@ -327,5 +326,5 @@ Licensed under [GNU Affero General Public License v3.0](LICENSE)
   <br>
   <em>Making pixel art accessible to everyone, everywhere</em>
   <br><br>
-  <sub>Version 2.0+ - Now with enhanced automation, real-time progress tracking, and premium features</sub>
+  <img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer" alt="Version">
 </div>
