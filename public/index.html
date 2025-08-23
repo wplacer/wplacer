@@ -47,12 +47,19 @@
         <div id="addTemplate" style="display: none;">
             <h2 id="templateFormTitle">Add Template</h2>
             <div style="display: flex; gap: 10px;">
+                <!-- Buttons visible to the user -->
                 <button class="primary-button" onclick="document.getElementById('convertInput').click()">
                     <img src="icons/convert.svg">Convert Image
                 </button>
-                <button class="primary-button" onclick="document.getElementById('convertInput').click()">
+
+                <button class="primary-button" onclick="document.getElementById('addImage').click()">
                     <img src="icons/convert.svg">Add Image
                 </button>
+
+                <!-- Hidden file inputs that are triggered by the buttons -->
+                <input type="file" id="convertInput" accept="image/*" style="display: none;">
+                <input type="file" id="addImage" accept="image/*" style="display: none;">
+
             </div>
 
             <div id="details" style="display: none;">

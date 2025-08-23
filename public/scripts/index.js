@@ -25,6 +25,7 @@ const previewBorder = $("previewBorder");
 const templateForm = $("templateForm");
 const templateFormTitle = $("templateFormTitle");
 const convertInput = $("convertInput");
+const addImage = $("addImage");
 const templateName = $("templateName");
 const tx = $("tx");
 const ty = $("ty");
@@ -186,6 +187,7 @@ const drawTemplate = (template, canvas) => {
     };
     ctx.putImageData(imageData, 0, 0);
 };
+
 const loadTemplates = async (f) => {
     try {
         const templates = await axios.get("/templates");
@@ -321,20 +323,53 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
-const processEvent = () => {
-    const file = convertInput.files[0];
-    if (file) {
-        templateName.value = file.name.replace(/\.[^/.]+$/, "");
+
+const processEvent = (event) => {
+    const input = event.target; // the input that triggered the event
+    const file = input.files[0];
+    if (!file) return;
+
+    // Set default template name
+    templateName.value = file.name.replace(/\.[^/.]+$/, "");
+
+    if (input.id === "convertInput") {
+        // --- Convert Image behavior ---
         processImageFile(file, (template) => {
             currentTemplate = template;
-            drawTemplate(template, templateCanvas);
+            drawTemplate(template, templateCanvas); // your conversion & color mapping
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
             details.style.display = "block";
         });
-    };
+    } else if (input.id === "addImage") {
+        // --- Add Image behavior (raw) ---
+        const img = new Image();
+        img.onload = () => {
+            templateCanvas.width = img.width;
+            templateCanvas.height = img.height;
+
+            const ctx = templateCanvas.getContext("2d");
+            ctx.clearRect(0, 0, img.width, img.height);
+            ctx.drawImage(img, 0, 0);
+
+            size.innerHTML = `${img.width}x${img.height}px`;
+            ink.innerHTML = "?"; // optional: raw image doesn't have ink calculated
+            details.style.display = "block";
+
+            // If you want, you can store the raw image as a template object:
+            currentTemplate = {
+                width: img.width,
+                height: img.height,
+                data: null, // or extract pixel data if needed
+                rawImage: img
+            };
+        };
+        img.src = URL.createObjectURL(file);
+    }
 };
+
 convertInput.addEventListener('change', processEvent);
+addImage.addEventListener('change', processEvent); // EVENT LISTENER FOR DIRECT ADD
 usePaidColors.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
