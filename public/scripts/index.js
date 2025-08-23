@@ -57,6 +57,8 @@ const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
+const logStream = $("logStream");
+const clearLogs = $("clearLogs");
 
 // Message Box
 let confirmCallback = null;
@@ -116,6 +118,59 @@ const handleError = (error) => {
     showMessage("Error", message);
 };
 
+// Live Logs via SSE
+const MAX_LOG_ENTRIES = 1000;
+let eventSource = null;
+
+const appendLog = (log) => {
+    if (!logStream) return;
+    const { timestamp, id, name, message, level } = log || {};
+    const line = document.createElement('div');
+    line.className = `log-entry ${level === 'error' ? 'log-error' : 'log-info'}`;
+    const idPart = (name && id) ? ` (${name}#${id})` : '';
+    line.textContent = `[${timestamp || new Date().toLocaleString()}]${idPart} ${message || ''}`;
+    const atBottom = Math.abs((logStream.scrollTop + logStream.clientHeight) - logStream.scrollHeight) < 8;
+    logStream.appendChild(line);
+    // Trim
+    while (logStream.children.length > MAX_LOG_ENTRIES) {
+        logStream.removeChild(logStream.firstChild);
+    }
+    if (atBottom) logStream.scrollTop = logStream.scrollHeight;
+};
+
+// Load persisted logs from server before connecting to SSE
+const loadPersistedLogs = async () => {
+    try {
+        const res = await axios.get('/logs');
+        const logs = Array.isArray(res.data) ? res.data : [];
+        // Optional: ensure chronological order if server doesn't guarantee it
+        // logs.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        logs.forEach(l => appendLog(l));
+    } catch (e) {
+        appendLog({ level: 'error', message: 'Failed to load persisted logs.' });
+    }
+};
+
+const initSseLogs = () => {
+    try {
+        if (eventSource) return;
+        eventSource = new EventSource('/events');
+        eventSource.addEventListener('log', (e) => {
+            try { appendLog(JSON.parse(e.data)); } catch {/* ignore */}
+        });
+        // Optional: indicate connectivity
+        eventSource.addEventListener('open', () => appendLog({ level: 'info', message: 'Connected to server events.' }));
+        eventSource.addEventListener('error', () => appendLog({ level: 'error', message: 'SSE connection error. Retrying automatically...' }));
+    } catch (e) {
+        appendLog({ level: 'error', message: 'Failed to initialize SSE logs.' });
+    }
+};
+
+if (clearLogs) {
+    clearLogs.addEventListener('click', () => {
+        if (logStream) logStream.innerHTML = '';
+    });
+}
 
 // users
 const loadUsers = async (f) => {
@@ -433,14 +488,16 @@ stopAll.addEventListener('click', async () => {
 });
 
 
-// tabs
-let currentTab = main;
+// tabs -> now behave as in-page navigation (no show/hide)
+let suppressScroll = false;
 const changeTab = (el) => {
-    currentTab.style.display = "none";
-    el.style.display = "block";
-    currentTab = el;
+    if (suppressScroll) return;
+    if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
 };
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 openManageUsers.addEventListener("click", () => {
     userList.innerHTML = "";
     userForm.reset();
@@ -815,4 +872,19 @@ tx.addEventListener('blur', () => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
+});
+
+// Initialize all sections on load (no scrolling)
+window.addEventListener('load', () => {
+    suppressScroll = true;
+    try {
+        // Populate sections using existing handlers
+        openManageUsers.click();
+        openManageTemplates.click();
+        openAddTemplate.click();
+        openSettings.click();
+        loadPersistedLogs().finally(() => initSseLogs());
+    } finally {
+        suppressScroll = false;
+    }
 });

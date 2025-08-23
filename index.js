@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { WPlacer, log, duration } from "./wplacer.js";
+import { WPlacer, log, duration, logEmitter } from "./wplacer.js";
 import express from "express";
 import cors from "cors";
 
@@ -52,10 +52,33 @@ const sseClients = new Set();
 const activeBrowserUsers = new Set(); // --- BROWSER LOCK ---
 let activePaintingTasks = 0; // Counter for active painting managers
 
+// In-memory ring buffer for recent logs (persist across page refreshes during server lifetime)
+const LOG_BUFFER_LIMIT = 1000;
+const logBuffer = [];
+const addLogToBuffer = (entry) => {
+    try {
+        logBuffer.push(entry);
+        while (logBuffer.length > LOG_BUFFER_LIMIT) logBuffer.shift();
+    } catch (_) {
+        // no-op: avoid crashing on buffer push issues
+    }
+};
+
 function sseBroadcast(event, data) {
     const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
     for (const res of sseClients) res.write(payload);
 }
+
+// Bridge backend logs to SSE clients
+logEmitter.on('log', (data) => {
+    try {
+        // Persist to in-memory buffer
+        addLogToBuffer(data);
+        sseBroadcast('log', data);
+    } catch (e) {
+        // Avoid crashing on SSE broadcast issues
+    }
+});
 
 function requestTokenFromClients(reason = "unknown") {
     if (sseClients.size === 0) {
@@ -491,11 +514,13 @@ app.get("/events", (req, res) => {
 });
 
 // frontend endpoints
+app.get('/logs', (_, res) => res.json(logBuffer));
 app.get("/users", (_, res) => res.json(users));
 app.get("/templates", (_, res) => {
     const sanitizedTemplates = {};
     for (const id in templates) {
         const t = templates[id];
+
         sanitizedTemplates[id] = {
             name: t.name,
             template: t.template,

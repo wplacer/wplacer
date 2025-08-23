@@ -2,6 +2,7 @@ import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas } from "canvas"
 import { appendFileSync } from "node:fs";
+import { EventEmitter } from "node:events";
 
 class SuspensionError extends Error {
     constructor(message, durationMs) {
@@ -19,6 +20,7 @@ const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1 // +1 for the transparent color id (0)
 
 export const duration = (durationMs) => {
+
     if (durationMs <= 0) return "0s";
     const totalSeconds = Math.floor(durationMs / 1000);
     const seconds = totalSeconds % 60;
@@ -30,18 +32,24 @@ export const duration = (durationMs) => {
     if (seconds || parts.length === 0) parts.push(`${seconds}s`);
     return parts.join(' ');
 };
+export const logEmitter = new EventEmitter();
 export const log = async (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
         appendFileSync(`errors.log`, `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+        const payload = { timestamp, id, name, message: data, level: 'error', error: { message: error.message, stack: error.stack } };
+        logEmitter.emit('log', payload);
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
         appendFileSync(`logs.log`, `[${timestamp}] ${identifier} ${data}\n`);
+        const payload = { timestamp, id, name, message: data, level: 'info' };
+        logEmitter.emit('log', payload);
     };
 };
 export class WPlacer {
+
     constructor(template, coords, canBuyCharges, settings, templateName) {
         this.status = "Waiting until called to start.";
         this.template = template;

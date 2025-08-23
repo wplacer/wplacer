@@ -14,7 +14,7 @@
     <div class="container">
         <h1><img src="icons/favicon.png">wplacer</h1>
 
-        <div id="main">
+        <div id="main" style="display: none;">
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
             <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
@@ -22,8 +22,12 @@
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
         </div>
 
-        <div id="manageUsers" style="display: none;">
+        <div id="sections">
+
+        <div id="manageUsers">
             <h2>Add/Manage Users</h2>
+            <details id="addUserDetails">
+                <summary>Add New User</summary>
             <form id="userForm">
                 <label for="jcookie">JWT Cookie (j)</label>
                 <input type="password" id="jcookie" required>
@@ -32,19 +36,22 @@
                 <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
                     User</button>
             </form>
+            </details>
 
-            <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
+            <details id="existingUsersDetails" open>
+                <summary><span id="manageUsersTitle" class="section-title">Existing Users</span></summary>
             <div id="chargeSummary">
                 <b>Total Available Charges:</b> <span id="totalCharges">?</span> |
                 <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
             </div>
             <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
             <div id="userList"></div>
+            </details>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main);" class="secondary-button hidden"><img src="icons/return.svg">Return</button>
         </div>
 
-        <div id="addTemplate" style="display: none;">
+        <div id="addTemplate">
             <h2 id="templateFormTitle">Add Template</h2>
             <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg">Convert Image</button>
             <div id="details" style="display: none;">
@@ -59,108 +66,133 @@
             </div>
             <form id="templateForm">
                 <input type="file" style="display: none;" accept="image/png" id="convertInput">
-                <div class="setting-toggle">
-                    <label for="usePaidColors">Use paid colors when exact</label>
-                    <label class="switch">
-                        <input id="usePaidColors" name="usePaidColors" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <label for="templateName">Template Name</label>
-                <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
-                <label>Coordinates</label>
-                <div class="coordinate-grid">
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="px" placeholder="Pixel X" required>
-                    <input type="text" inputmode="numeric" pattern="[0-9]*" id="py" placeholder="Pixel Y" required>
-                </div>
-                <label for="userSelectList">Users</label>
-                <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
 
-                <div class="setting-toggle">
-                    <label for="canBuyMaxCharges">Buy max charge upgrades</label>
-                    <label class="switch">
-                        <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="canBuyCharges">Buy paint charges when running out</label>
-                    <label class="switch">
-                        <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
-                <div class="setting-toggle">
-                    <label for="antiGriefMode">Enable Anti Grief mode</label>
-                    <label class="switch">
-                        <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
+                <details id="templateBasics" open>
+                    <summary>Template Details</summary>
+                    <label for="templateName">Template Name</label>
+                    <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
+                    <label>Coordinates</label>
+                    <div class="coordinate-grid">
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="px" placeholder="Pixel X" required>
+                        <input type="text" inputmode="numeric" pattern="[0-9]*" id="py" placeholder="Pixel Y" required>
+                    </div>
+                    <label for="userSelectList">Users</label>
+                    <div id="userSelectList"></div>
+                    <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
+                </details>
+
+                <details id="templateAdvanced">
+                    <summary>Advanced Options</summary>
+                    <div class="setting-toggle">
+                        <label for="usePaidColors">Use paid colors when exact</label>
+                        <label class="switch">
+                            <input id="usePaidColors" name="usePaidColors" type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-toggle">
+                        <label for="canBuyMaxCharges">Buy max charge upgrades</label>
+                        <label class="switch">
+                            <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-toggle">
+                        <label for="canBuyCharges">Buy paint charges when running out</label>
+                        <label class="switch">
+                            <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div class="setting-toggle">
+                        <label for="antiGriefMode">Enable Anti Grief mode</label>
+                        <label class="switch">
+                            <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                </details>
 
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button hidden"><img src="icons/return.svg">Return</button>
         </div>
 
-        <div id="manageTemplates" style="display: none;">
+        <div id="manageTemplates">
             <h2>Manage Templates</h2>
             <div class="template-actions-all">
                 <button id="startAll" class="primary-button"><img src="icons/playAll.svg">Start All</button>
                 <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
             </div>
             <div id="templateList"></div>
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main);" class="secondary-button hidden"><img src="icons/return.svg">Return</button>
         </div>
 
-        <div id="settings" style="display: none;">
+        <div id="settings">
             <h2>Settings</h2>
 
-            <label for="drawingModeSelect">Drawing Mode</label>
-            <select id="drawingModeSelect">
-                <option value="linear">Top to Bottom</option>
-                <option value="linear-reversed">Bottom to Top</option>
-                <option value="linear-ltr">Left to Right</option>
-                <option value="linear-rtl">Right to Left</option>
-                <option value="singleColorRandom">Random Color</option>
-                <option value="colorByColor">Color by Color</option>
-                <option value="random">Random Pixels</option>
-            </select>
+            <details id="drawingSettings" open>
+                <summary>Drawing</summary>
+                <label for="drawingModeSelect">Drawing Mode</label>
+                <select id="drawingModeSelect">
+                    <option value="linear">Top to Bottom</option>
+                    <option value="linear-reversed">Bottom to Top</option>
+                    <option value="linear-ltr">Left to Right</option>
+                    <option value="linear-rtl">Right to Left</option>
+                    <option value="singleColorRandom">Random Color</option>
+                    <option value="colorByColor">Color by Color</option>
+                    <option value="random">Random Pixels</option>
+                </select>
+            </details>
 
-            <div class="setting-toggle">
-                <label for="outlineMode">Enable outline mode</label>
-                <label class="switch">
-                    <input id="outlineMode" name="outlineMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
-                <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
-                <label class="switch">
-                    <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
+            <details id="generalSettings">
+                <summary>General</summary>
+                <div class="setting-toggle">
+                    <label for="outlineMode">Enable outline mode</label>
+                    <label class="switch">
+                        <input id="outlineMode" name="outlineMode" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-toggle">
+                    <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
+                    <label class="switch">
+                        <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+            </details>
 
-            <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
-            <input type="number" id="accountCooldown" min="0" value="20">
-            <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
-            <input type="number" id="purchaseCooldown" min="0" value="5">
-            <label for="dropletReserve">Minimum Droplets Before Buying</label>
-            <input type="number" id="dropletReserve" min="0" value="0">
-            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
-            <input type="number" id="antiGriefStandby" min="1" value="10">
-            <label for="chargeThreshold">Charge Threshold (%)</label>
-            <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+            <details id="cooldownSettings">
+                <summary>Cooldowns &amp; Limits</summary>
+                <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
+                <input type="number" id="accountCooldown" min="0" value="20">
+                <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
+                <input type="number" id="purchaseCooldown" min="0" value="5">
+                <label for="dropletReserve">Minimum Droplets Before Buying</label>
+                <input type="number" id="dropletReserve" min="0" value="0">
+                <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
+                <input type="number" id="antiGriefStandby" min="1" value="10">
+                <label for="chargeThreshold">Charge Threshold (%)</label>
+                <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+            </details>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab(main);" class="secondary-button hidden"><img src="icons/return.svg">Return</button>
+        </div>
         </div>
 
         <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
         </p>
+
+        <div id="liveLogs">
+            <h2>Live Logs</h2>
+            <div class="template-actions" id="logControls">
+                <button id="clearLogs" class="secondary-button"><img src="icons/remove.svg">Clear</button>
+            </div>
+            <div id="logStream" aria-live="polite"></div>
+        </div>
     </div>
 
     <div id="messageBoxOverlay" class="hidden">
