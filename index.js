@@ -20,7 +20,7 @@ const saveTemplates = () => {
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
-            autostart: t.autostart, 
+            autostart: t.autostart, // ADD THIS LINE
             userIds: t.userIds
         };
     }
@@ -161,7 +161,7 @@ class TemplateManager {
         this.canBuyCharges = canBuyCharges;
         this.canBuyMaxCharges = canBuyMaxCharges;
         this.antiGriefMode = antiGriefMode;
-        this.autostart = autostart; 
+        this.autostart = autostart; // ADD THIS LINE
         this.userIds = userIds;
         this.running = false;
         this.status = "Waiting to be started.";
@@ -527,7 +527,7 @@ app.post("/template", async (req, res) => {
             req.body.canBuyCharges, 
             req.body.canBuyMaxCharges, 
             req.body.antiGriefMode, 
-            req.body.autostart, 
+            req.body.autostart, // ADD THIS LINE
             req.body.userIds
         );
         saveTemplates();
@@ -566,7 +566,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = updatedData.canBuyCharges;
     manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
     manager.antiGriefMode = updatedData.antiGriefMode;
-    manager.autostart = updatedData.autostart; 
+    manager.autostart = updatedData.autostart; // ADD THIS LINE
 
     if (updatedData.template) {
         manager.template = updatedData.template;

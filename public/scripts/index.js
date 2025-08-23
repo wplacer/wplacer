@@ -59,6 +59,8 @@ const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
 
+const autostart = $("autostart");
+
 // Message Box
 let confirmCallback = null;
 
@@ -561,6 +563,9 @@ const resetTemplateForm = () => {
     // Remove existing image note if present
     const existingNote = document.getElementById('existingImageNote');
     if (existingNote) existingNote.remove();
+    
+    // Reset autostart checkbox
+    autostart.checked = false; // ADD THIS LINE
 };
 
 templateForm.addEventListener('submit', async (e) => {
@@ -584,7 +589,8 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
-        antiGriefMode: antiGriefMode.checked
+        antiGriefMode: antiGriefMode.checked,
+        autostart: autostart.checked
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -1122,6 +1128,7 @@ const createEditButton = (t, id) => {
         canBuyCharges.checked = t.canBuyCharges;
         canBuyMaxCharges.checked = t.canBuyMaxCharges;
         antiGriefMode.checked = t.antiGriefMode;
+        autostart.checked = t.autostart; // ADD THIS LINE
 
         // Select users
         document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
@@ -1173,6 +1180,7 @@ openManageTemplates.addEventListener("click", () => {
                     <b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br>
                     <b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br>
                     <b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br>
+                    <b>Auto-start on Startup:</b> ${t.autostart ? "Yes" : "No"}<br>
                     <b class="status-text">Status:</b> ${t.status}
                 `;
                 template.appendChild(infoSpan);
