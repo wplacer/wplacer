@@ -27,7 +27,7 @@ const saveTemplates = () => {
 };
 
 const app = express();
-app.use(cors({ origin: 'https://wplace.live' }));
+app.use(cors()); // Use a more flexible CORS policy
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
@@ -35,7 +35,7 @@ let currentSettings = {
     turnstileNotifications: false,
     accountCooldown: 20000,
     purchaseCooldown: 5000,
-    keepAliveCooldown: 5000, // New setting for delay between keep-alive checks
+    keepAliveCooldown: 5000,
     dropletReserve: 0,
     antiGriefStandby: 600000,
     drawingMethod: 'linear',
@@ -67,12 +67,12 @@ function requestTokenFromClients(reason = "unknown") {
 }
 
 const TokenManager = {
-    token: null,
+    tokenQueue: [],
     tokenPromise: null,
     resolvePromise: null,
     requestTimeout: null,
     isWaitingForClient: false,
-    TOKEN_REQUEST_TIMEOUT: 15000,
+    TOKEN_REQUEST_TIMEOUT: 30000,
 
     _requestNewToken() {
         log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: Requesting new token from clients...');
@@ -93,8 +93,8 @@ const TokenManager = {
     },
 
     getToken() {
-        if (this.token) {
-            return Promise.resolve(this.token);
+        if (this.tokenQueue.length > 0) {
+            return Promise.resolve(this.tokenQueue[0]);
         }
         if (!this.tokenPromise) {
             this.tokenPromise = new Promise((resolve) => {
@@ -106,17 +106,19 @@ const TokenManager = {
     },
 
     setToken(t) {
-        log('SYSTEM', 'wplacer', '✅ TOKEN_MANAGER: Token received.');
-        this.token = t;
+        log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received and added to queue. Queue size: ${this.tokenQueue.length + 1}`);
+        this.tokenQueue.push(t);
         if (this.resolvePromise) {
-            this.resolvePromise(t);
+            this.resolvePromise(this.tokenQueue[0]);
         }
-        this._reset();
+        if (this.tokenPromise) {
+            this._reset();
+        }
     },
 
     invalidateToken() {
-        log('SYSTEM', 'wplacer', '🔄 TOKEN_MANAGER: Invalidating current token.');
-        this.token = null;
+        const invalidToken = this.tokenQueue.shift();
+        log('SYSTEM', 'wplacer', `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
     },
     
     _reset() {
@@ -139,7 +141,7 @@ const TokenManager = {
 
 function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
-    if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)")) {
+    if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
         log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
         log(id, name, `❌ Failed to ${context}`, error);
@@ -173,7 +175,7 @@ class TemplateManager {
                 if (this.sleepInterval) {
                     clearInterval(this.sleepInterval);
                     this.sleepInterval = null;
-                    if (withProgressBar) process.stdout.write('\n');
+                    if (withProgressBar && process.stdout && process.stdout.isTTY) process.stdout.write('\n');
                 }
                 if (this.sleepResolve) {
                     this.sleepResolve = null;
@@ -196,11 +198,9 @@ class TemplateManager {
                     const bar = `[${'█'.repeat(filledWidth)}${' '.repeat(emptyWidth)}]`;
                     const time = `${duration(elapsed)} / ${duration(totalDuration)}`;
                     const eta = duration(totalDuration - elapsed);
-                    if (process.stdout && process.stdout.isTTY) {
-                        if (typeof process.stdout.clearLine === 'function') process.stdout.clearLine(0);
-                        if (typeof process.stdout.cursorTo === 'function') process.stdout.cursorTo(0);
-                        process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
-                    }
+                    if (typeof process.stdout.clearLine === 'function') process.stdout.clearLine(0);
+                    if (typeof process.stdout.cursorTo === 'function') process.stdout.cursorTo(0);
+                    process.stdout.write(`⏲️ ${bar} ${percentage.toFixed(0)}% ${time} (ETA: ${eta}) `);
                 };
                 updateProgressBar();
                 this.sleepInterval = setInterval(updateProgressBar, 1000);
@@ -215,7 +215,7 @@ class TemplateManager {
             if (this.sleepInterval) {
                 clearInterval(this.sleepInterval);
                 this.sleepInterval = null;
-                process.stdout.write('\n');
+                if (process.stdout && process.stdout.isTTY) process.stdout.write('\n');
             }
             this.sleepResolve();
             this.sleepResolve = null;
@@ -246,17 +246,22 @@ class TemplateManager {
         let paintingComplete = false;
         while (!paintingComplete && this.running) {
             try {
-                const token = await TokenManager.getToken();
-                wplacer.token = token;
+                wplacer.token = await TokenManager.getToken();
                 await wplacer.paint(currentSettings.drawingMethod);
-                paintingComplete = true; // Succeeded
+                paintingComplete = true;
             } catch (error) {
-                if (error.message === 'REFRESH_TOKEN') {
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Requesting a new one...`);
+                if (error.name === "SuspensionError") {
+                    const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended from painting until ${suspendedUntilDate}.`);
+                    users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
+                    saveUsers();
+                    paintingComplete = true; // End this user's turn
+                } else if (error.message === 'REFRESH_TOKEN') {
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token in queue...`);
                     TokenManager.invalidateToken();
-                    await this.sleep(2000); // Brief pause before retrying
+                    await this.sleep(1000);
                 } else {
-                    throw error; // Re-throw other errors
+                    throw error;
                 }
             }
         }
@@ -294,7 +299,9 @@ class TemplateManager {
 
                     for (const userId of sortedUserIds) {
                         if (!this.running) break;
+                        if (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil) continue;
                         if (activeBrowserUsers.has(userId)) continue;
+                        
                         activeBrowserUsers.add(userId);
                         const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                         try {
@@ -312,7 +319,7 @@ class TemplateManager {
                         } catch (error) {
                             logUserError(error, userId, users[userId].name, "perform initial user turn", this.name);
                         } finally {
-                            if (wplacer.browser) await wplacer.close();
+                            await wplacer.close();
                             activeBrowserUsers.delete(userId);
                         }
                          if (this.running && this.userIds.length > 1) {
@@ -360,7 +367,9 @@ class TemplateManager {
 
                 let userStates = [];
                 for (const userId of this.userIds) {
+                     if (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil) continue;
                      if (activeBrowserUsers.has(userId)) continue;
+                     
                      activeBrowserUsers.add(userId);
                      const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
                      try {
@@ -392,10 +401,17 @@ class TemplateManager {
                     try {
                         const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                         this.status = `Running user ${name}#${id}`;
-                        log(id, name, `[${this.name}] 🔋 User has enough charges. Starting turn...`);
                         
+                        if (wplacer.userInfo.charges.count === wplacer.userInfo.charges.max) {
+                            log(id, name, `[${this.name}] 🔋 User is at max charges. Checking for upgrades before painting...`);
+                            await this.handleUpgrades(wplacer);
+                            await wplacer.loadUserInfo();
+                        }
+                        
+                        log(id, name, `[${this.name}] 🔋 User has ${Math.floor(wplacer.userInfo.charges.count)} charges. Starting turn...`);
                         await this._performPaintTurn(wplacer);
                         await this.handleUpgrades(wplacer);
+
                     } catch (error) {
                         logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn", this.name);
                     } finally {
@@ -458,18 +474,19 @@ app.get("/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
-    res.setHeader("Access-Control-Allow-Origin", "*");
     res.write("retry: 1000\n\n");
 
     sseClients.add(res);
+    console.log(`✅ Client connected to SSE. Total clients: ${sseClients.size}`);
     TokenManager.clientConnected();
 
-    if (TokenManager.tokenPromise && !TokenManager.token) {
+    if (TokenManager.tokenPromise && TokenManager.tokenQueue.length === 0) {
         sseBroadcast("request-token", { reason: "new-client-join" });
     }
 
     req.on("close", () => {
         sseClients.delete(res);
+        console.log(`❌ Client disconnected from SSE. Total clients: ${sseClients.size}`);
     });
 });
 
@@ -731,11 +748,10 @@ const keepAlive = async () => {
         } catch (error) {
             logUserError(error, userId, user.name, 'perform keep-alive check');
         } finally {
-            if (wplacer.browser) await wplacer.close();
+            await wplacer.close();
             activeBrowserUsers.delete(userId);
         }
 
-        // Wait before processing the next user, but not after the last one.
         if (index < userIds.length - 1) {
             await sleep(currentSettings.keepAliveCooldown);
         }
@@ -763,15 +779,20 @@ const diffVer = (v1, v2) => v1.split(".").map(Number).reduce((r, n, i) => r || (
         console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
     }
 
-    const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
-    const githubVersion = (await githubPackage.json()).version;
-    const diff = diffVer(version, githubVersion);
-    if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    try {
+        const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+        const githubVersion = (await githubPackage.json()).version;
+        const diff = diffVer(version, githubVersion);
+        if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    } catch (e) {
+        console.warn("⚠️ Could not check for updates.");
+    }
     
     const port = Number(process.env.PORT) || 80;
-    const host = process.env.HOST || "127.0.0.1";
+    const host = process.env.HOST || "0.0.0.0"; // Bind to 0.0.0.0 for broader accessibility
     app.listen(port, host, () => {
-        console.log(`✅ Open http://${host}${port !== 80 ? `:${port}` : ""}/ in your browser to start!`);
+        console.log(`✅ Server listening on http://${host}:${port}`);
+        console.log(`   Open the web UI in your browser to start!`);
         TokenManager.getToken().catch(() => {}); // Initial token request
         setInterval(keepAlive, 20 * 60 * 1000);
     });
