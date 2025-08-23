@@ -92,6 +92,10 @@ const TokenManager = {
             log('SYSTEM', 'wplacer', '🛑 TOKEN_MANAGER: Stalled. Waiting for a browser client to connect...');
         }
     },
+
+    async getToken() {
+        if (this.tokenQueue.length > 0) {
+            return this.tokenQueue.shift();
         }
 
         if (!this.tokenPromise) {
@@ -100,17 +104,27 @@ const TokenManager = {
             });
             this._requestNewToken();
         }
-        
-        await this.tokenPromise; 
+
+        await this.tokenPromise;
         return this.tokenQueue.shift();
     },
 
     setToken(t) {
+        if (!t) return;
+        this.tokenQueue.push(t);
+        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length}`);
+
+        if (this.resolvePromise) {
+            this.resolvePromise();
+            this._resetPromise();
         }
+    },
 
     invalidateToken() {
+        log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: Token invalidated, requesting new one...');
+        this._requestNewToken();
     },
-    
+
     _resetPromise() {
         clearTimeout(this.requestTimeout);
         this.requestTimeout = null;
@@ -161,7 +175,7 @@ class TemplateManager {
     sleep(ms, withProgressBar = false) {
         return new Promise(resolve => {
             this.sleepResolve = resolve;
-            
+
             this.sleepTimeout = setTimeout(() => {
                 if (this.sleepInterval) {
                     clearInterval(this.sleepInterval);
@@ -214,7 +228,7 @@ class TemplateManager {
 
     async handleUpgrades(wplacer) {
         if (!this.canBuyMaxCharges) return false;
-        
+
         await wplacer.loadUserInfo();
         const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
         const amountToBuy = Math.floor(affordableDroplets / 500);
@@ -241,6 +255,10 @@ class TemplateManager {
                 await wplacer.paint(currentSettings.drawingMethod);
                 paintingComplete = true;
             } catch (error) {
+                if (error.message.includes('TOKEN_INVALID') || error.message.includes('token')) {
+                    log('SYSTEM', 'wplacer', '🔄 Token invalid, requesting new token...');
+                    TokenManager.invalidateToken();
+                    // Continue loop to retry with new token
                 } else {
                     throw error;
                 }
@@ -256,23 +274,41 @@ class TemplateManager {
 
         try {
             while (this.running) {
+                const userStates = [];
+                let userToRun = null;
+
+                // Check all users and their charge status
+                for (const userId of this.userIds) {
+                    // Skip suspended users
+                    if (this.suspendedUsers.has(userId)) {
+                        const suspensionEndTime = this.suspendedUsers.get(userId);
+                        if (Date.now() < suspensionEndTime) {
+                            continue; // Still suspended
+                        } else {
+                            this.suspendedUsers.delete(userId); // Suspension expired
                         }
                     }
-                     if (activeBrowserUsers.has(userId)) continue;
-                     
-                     activeBrowserUsers.add(userId);
-                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
-                     try {
-                         await wplacer.login(users[userId].cookies);
-                         userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
-                     } catch (error) {
-                         logUserError(error, userId, users[userId].name, "check user status", this.name);
-                     } finally {
-                         await wplacer.close();
-                         activeBrowserUsers.delete(userId);
-                     }
+
+                    if (activeBrowserUsers.has(userId)) continue;
+
+                    activeBrowserUsers.add(userId);
+                    const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
+                    try {
+                        await wplacer.login(users[userId].cookies);
+                        userStates.push({
+                            userId,
+                            charges: wplacer.userInfo.charges,
+                            cooldownMs: wplacer.userInfo.charges.cooldownMs
+                        });
+                    } catch (error) {
+                        logUserError(error, userId, users[userId].name, "check user status", this.name);
+                    } finally {
+                        await wplacer.close();
+                        activeBrowserUsers.delete(userId);
+                    }
                 }
-                
+
+                // Find users ready to paint
                 const readyUsers = userStates.filter(u => {
                     const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                     return u.charges.count >= target;
@@ -286,13 +322,22 @@ class TemplateManager {
                 if (userToRun) {
                     let turnSuccess = false;
                     if (activeBrowserUsers.has(userToRun.userId)) continue;
+
                     activeBrowserUsers.add(userToRun.userId);
                     const wplacer = new WPlacer(this.template, this.coords, this.canBuyCharges, currentSettings, this.name);
+
                     try {
                         const { id, name } = await wplacer.login(users[userToRun.userId].cookies);
                         this.status = `Running user ${name}#${id}`;
-                        
+
+                        // Handle max charge upgrades if at full charges
                         if (wplacer.userInfo.charges.count === wplacer.userInfo.charges.max) {
+                            await this.handleUpgrades(wplacer);
+                        }
+
+                        // Perform painting
+                        await this._performPaintTurn(wplacer);
+                        turnSuccess = true;
 
                     } catch (error) {
                         if (error.message.startsWith('ACCOUNT_SUSPENDED:')) {
@@ -307,12 +352,13 @@ class TemplateManager {
                         await wplacer.close();
                         activeBrowserUsers.delete(userToRun.userId);
                     }
-                    
+
                     if (turnSuccess && this.running && this.userIds.length > 1) {
                         log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Turn finished. Waiting ${currentSettings.accountCooldown / 1000} seconds before checking next account.`);
                         await this.sleep(currentSettings.accountCooldown);
                     }
                 } else if (this.running) {
+                    // Try to buy charges if enabled
                     if (this.canBuyCharges) {
                         if (!activeBrowserUsers.has(this.masterId)) {
                             activeBrowserUsers.add(this.masterId);
@@ -321,7 +367,8 @@ class TemplateManager {
                                 await chargeBuyer.login(users[this.masterId].cookies);
                                 const pixelsRemaining = await chargeBuyer.pixelsLeft();
                                 const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                                if(affordableDroplets >= 500 && pixelsRemaining > 0) {
+
+                                if (affordableDroplets >= 500 && pixelsRemaining > 0) {
                                     const maxAffordable = Math.floor(affordableDroplets / 500);
                                     const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), maxAffordable);
                                     if (amountToBuy > 0) {
@@ -332,14 +379,15 @@ class TemplateManager {
                                     }
                                 }
                             } catch (error) {
-                                 logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
+                                logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges", this.name);
                             } finally {
                                 await chargeBuyer.close();
                                 activeBrowserUsers.delete(this.masterId);
                             }
                         }
                     }
-                    
+
+                    // Calculate wait time until next user is ready
                     const times = userStates.map(u => {
                         const target = Math.max(1, u.charges.max * currentSettings.chargeThreshold);
                         return Math.max(0, (target - u.charges.count) * u.cooldownMs);
@@ -355,76 +403,11 @@ class TemplateManager {
             activePaintingTasks--;
             if (this.status !== "Finished.") {
                 this.status = "Stopped.";
-                log('SYSTEM', 'wplacer', `[${this.name}] ✖️ Template stopped.`);
+                log('SYSTEM', 'wplacer', `[${this.name}] ❌ Template stopped.`);
             }
         }
     }
 }
-
-
-
-// Function to show existing template image when editing
-const showExistingTemplateImage = (template) => {
-    if (template && template.width > 0) {
-        currentTemplate = template;
-        drawTemplate(template, templateCanvas);
-        size.innerHTML = `${template.width}x${template.height}px`;
-        ink.innerHTML = template.ink || calculateTemplateInk(template);
-        details.style.display = "block";
-        
-        // Add a note that this is the existing image
-        const existingImageNote = document.createElement('div');
-        existingImageNote.id = 'existingImageNote';
-        existingImageNote.className = 'existing-image-note';
-        existingImageNote.innerHTML = '📋 <strong>Current Template Image</strong> - Upload a new image to replace it';
-        
-        // Remove any existing note
-        const oldNote = document.getElementById('existingImageNote');
-        if (oldNote) oldNote.remove();
-        
-        // Insert after the details div
-        details.parentNode.insertBefore(existingImageNote, details.nextSibling);
-    }
-};
-
-// Function to calculate template ink if not provided
-const calculateTemplateInk = (template) => {
-    let ink = 0;
-    for (let x = 0; x < template.width; x++) {
-        for (let y = 0; y < template.height; y++) {
-            if (template.data[x][y] !== 0) ink++;
-        }
-    }
-    return ink;
-};
-
-// Function to create progress bar element
-const createProgressBar = (percentage, status) => {
-    const progressContainer = document.createElement('div');
-    progressContainer.className = 'progress-container';
-    
-    const progressBar = document.createElement('div');
-    progressBar.className = 'progress-bar';
-    
-    const progressFill = document.createElement('div');
-    progressFill.className = 'progress-fill';
-    progressFill.style.width = `${Math.min(Math.max(percentage || 0, 0), 100)}%`;
-    
-    const progressText = document.createElement('div');
-    progressText.className = 'progress-text';
-    progressText.textContent = `${percentage || 0}%`;
-    
-    progressBar.appendChild(progressFill);
-    progressBar.appendChild(progressText);
-    progressContainer.appendChild(progressBar);
-    
-    const progressStatus = document.createElement('div');
-    progressStatus.className = 'progress-status';
-    progressStatus.textContent = status || 'Loading...';
-    
-    progressContainer.appendChild(progressStatus);
-    return progressContainer;
-};
 
 app.get("/events", (req, res) => {
     res.setHeader("Content-Type", "text/event-stream");
@@ -504,10 +487,10 @@ app.post("/user", async (req, res) => {
         const userInfo = await wplacer.login(req.body.cookies);
         if (activeBrowserUsers.has(userInfo.id)) return res.sendStatus(409);
         activeBrowserUsers.add(userInfo.id);
-        users[userInfo.id] = { 
-            name: userInfo.name, 
+        users[userInfo.id] = {
+            name: userInfo.name,
             cookies: req.body.cookies,
-            expirationDate: req.body.expirationDate 
+            expirationDate: req.body.expirationDate
         };
         saveUsers();
         res.json(userInfo);
@@ -521,7 +504,7 @@ app.post("/user", async (req, res) => {
 });
 app.post("/template", async (req, res) => {
     if (!req.body.templateName || !req.body.template || !req.body.coords || !req.body.userIds || !req.body.userIds.length) return res.sendStatus(400);
-    
+
     const isDuplicateName = Object.values(templates).some(t => t.name === req.body.templateName);
     if (isDuplicateName) {
         return res.status(409).json({ error: "A template with this name already exists." });
@@ -566,7 +549,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = updatedData.canBuyCharges;
     manager.canBuyMaxCharges = updatedData.canBuyMaxCharges;
     manager.antiGriefMode = updatedData.antiGriefMode;
-    
+
     if (updatedData.template) {
         manager.template = updatedData.template;
     }
@@ -643,7 +626,7 @@ const keepAlive = async () => {
         activeBrowserUsers.add(userId);
         const user = users[userId];
         const wplacer = new WPlacer();
-        try {
+        try { // <-- This try block was missing
             await wplacer.login(user.cookies);
             log(userId, user.name, '✅ Cookie keep-alive successful.');
         } catch (error) {
@@ -678,111 +661,113 @@ const keepAlive = async () => {
         console.log(`✅ Loaded ${Object.keys(templates).length} templates.`);
     }
 
-    try {
+    try { // <-- This try block was missing
         const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
         const githubVersion = (await githubPackage.json()).version;
+    } catch (error) { // <-- This catch block was missing
+        console.log("Could not check for updates");
     }
-    
+
     const port = Number(process.env.PORT) || 80;
-    const host = process.env.HOST || "0.0.0.0"; // Bind to 0.0.0.0 for broader accessibility
+    const host = process.env.HOST || "0.0.0.0";
     app.listen(port, host, () => {
+        console.log(`🚀 Server running on http://${host}:${port}`);
         setInterval(keepAlive, 20 * 60 * 1000);
     });
-})();
 
-// Add this endpoint after your other template endpoints
-app.get("/template/progress/:id", async (req, res) => {
-    const { id } = req.params;
-    if (!templates[id]) {
-        return res.status(404).json({ 
-            error: "Template not found",
-            totalPixels: 0, 
-            completedPixels: 0, 
-            percentage: 0,
-            running: false 
-        });
-    }
-    
-    const template = templates[id];
-    
-    if (!template.running) {
-        return res.json({ 
-            totalPixels: 0, 
-            completedPixels: 0, 
-            percentage: 0,
-            running: false,
-            status: template.status || "Stopped"
-        });
-    }
-
-    try {
-        if (activeBrowserUsers.has(template.masterId)) {
-            return res.json({ 
-                totalPixels: 0, 
-                completedPixels: 0, 
+    // Add this endpoint after your other template endpoints
+    app.get("/template/progress/:id", async (req, res) => {
+        const { id } = req.params;
+        if (!templates[id]) {
+            return res.status(404).json({
+                error: "Template not found",
+                totalPixels: 0,
+                completedPixels: 0,
                 percentage: 0,
-                running: true,
-                status: "Checking progress..." 
+                running: false
             });
         }
 
-        activeBrowserUsers.add(template.masterId);
-        const wplacer = new WPlacer(template.template, template.coords, template.canBuyCharges, currentSettings, template.name);
-        
+        const template = templates[id];
+
+        if (!template.running) {
+            return res.json({
+                totalPixels: 0,
+                completedPixels: 0,
+                percentage: 0,
+                running: false,
+                status: template.status || "Stopped"
+            });
+        }
+
         try {
-            await wplacer.login(users[template.masterId].cookies);
-            
-            let totalPixels = 0;
-            for (let x = 0; x < template.template.width; x++) {
-                for (let y = 0; y < template.template.height; y++) {
-                    if (template.template.data[x][y] !== 0) {
-                        totalPixels++;
+            if (activeBrowserUsers.has(template.masterId)) {
+                return res.json({
+                    totalPixels: 0,
+                    completedPixels: 0,
+                    percentage: 0,
+                    running: true,
+                    status: "Checking progress..."
+                });
+            }
+
+            activeBrowserUsers.add(template.masterId);
+            const wplacer = new WPlacer(template.template, template.coords, template.canBuyCharges, currentSettings, template.name);
+
+            try {
+                await wplacer.login(users[template.masterId].cookies);
+
+                let totalPixels = 0;
+                for (let x = 0; x < template.template.width; x++) {
+                    for (let y = 0; y < template.template.height; y++) {
+                        if (template.template.data[x][y] !== 0) {
+                            totalPixels++;
+                        }
                     }
                 }
+
+                const pixelsLeft = await wplacer.pixelsLeft();
+                const completedPixels = Math.max(0, totalPixels - pixelsLeft);
+                const percentage = totalPixels > 0 ? Math.min(100, Math.round((completedPixels / totalPixels) * 100)) : 0;
+
+                let enhancedStatus = template.status || "Running";
+                if (pixelsLeft === 0) {
+                    enhancedStatus = template.antiGriefMode ? "Complete - Monitoring for changes" : "Complete";
+                } else if (completedPixels > 0) {
+                    enhancedStatus = "Drawing in progress";
+                }
+
+                res.json({
+                    totalPixels,
+                    completedPixels,
+                    pixelsLeft,
+                    percentage,
+                    running: true,
+                    status: enhancedStatus
+                });
+
+            } catch (error) {
+                res.json({
+                    totalPixels: 0,
+                    completedPixels: 0,
+                    percentage: 0,
+                    running: true,
+                    status: "Error checking progress",
+                    error: error.message
+                });
+            } finally {
+                if (wplacer.browser) await wplacer.close();
+                activeBrowserUsers.delete(template.masterId);
             }
-            
-            const pixelsLeft = await wplacer.pixelsLeft();
-            const completedPixels = Math.max(0, totalPixels - pixelsLeft);
-            const percentage = totalPixels > 0 ? Math.min(100, Math.round((completedPixels / totalPixels) * 100)) : 0;
-            
-            let enhancedStatus = template.status || "Running";
-            if (pixelsLeft === 0) {
-                enhancedStatus = template.antiGriefMode ? "Complete - Monitoring for changes" : "Complete";
-            } else if (completedPixels > 0) {
-                enhancedStatus = "Drawing in progress";
-            }
-            
-            res.json({
-                totalPixels,
-                completedPixels,
-                pixelsLeft,
-                percentage,
-                running: true,
-                status: enhancedStatus
-            });
-            
+
         } catch (error) {
-            res.json({ 
-                totalPixels: 0, 
-                completedPixels: 0, 
-                percentage: 0,
-                running: true,
-                status: "Error checking progress",
-                error: error.message
-            });
-        } finally {
-            if (wplacer.browser) await wplacer.close();
             activeBrowserUsers.delete(template.masterId);
+            res.status(500).json({
+                error: error.message,
+                totalPixels: 0,
+                completedPixels: 0,
+                percentage: 0,
+                running: template.running
+            });
         }
-        
-    } catch (error) {
-        activeBrowserUsers.delete(template.masterId);
-        res.status(500).json({ 
-            error: error.message,
-            totalPixels: 0, 
-            completedPixels: 0, 
-            percentage: 0,
-            running: template.running
-        });
-    }
-});
+    });
