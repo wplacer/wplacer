@@ -47,7 +47,7 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 ### Prerequisites
 - **[Node.js 16+](https://nodejs.org/)** - JavaScript runtime
 - **[Tampermonkey](https://www.tampermonkey.net/)** - Browser extension for userscripts
-- **Modern Browser** - Chrome, Firefox, or Edge with extension support
+- **Modern Browser** - Any browser that allows for unloaded extension (Firefox not reccomended)
 
 ### Quick Setup
 
@@ -66,13 +66,13 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
    - Open your browser's extension management page
    - Enable **Developer Mode**
    - Click **"Load Unpacked"** and select the `LOAD_UNPACKED` folder
-   - Repeat for each browser profile you want to use
+   - Repeat for each browser you want to use
 
 4. **Configure Environment (Optional)**
    ```bash
-   # Create .env file for custom settings
-   echo "HOST=127.0.0.1" > .env
-   echo "PORT=80" >> .env
+   # Default .env file
+   echo "HOST=127.0.0.1"
+   echo "PORT=80"
    ```
 
 5. **Start wplacer**
@@ -107,19 +107,6 @@ A sophisticated, multi-account auto-drawing bot for [wplace.live](https://wplace
 - **Bulk Actions**: Start or stop all templates at once  
 - **Edit Templates**: Modify settings, coordinates, or swap images
 - **Real-time Status**: Monitor progress and user activity
-
-### Advanced Coordinate Input
-wplacer supports multiple coordinate input methods:
-```
-# Direct URL paste
-https://wplace.live/pixel/0/0?x=500&y=250
-
-# Space-separated values  
-0 0 500 250
-
-# Individual fields
-TX: 0, TY: 0, PX: 500, PY: 250
-```
 
 ---
 
