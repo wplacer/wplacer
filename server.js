@@ -208,7 +208,7 @@ class WPlacer {
         return mismatched;
     }
 
-    async paint() {
+    async paint(method = 'linear') {
         await this.loadUserInfo();
         await this.loadTiles();
         if (!this.token) throw new Error("Token not provided to paint method.");
@@ -217,6 +217,56 @@ class WPlacer {
         if (mismatchedPixels.length === 0) return 0;
 
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
+
+        // --- Sorting Logic based on Drawing Mode ---
+        const [startX, startY] = this.coords;
+        const getGlobalY = (p) => (p.ty - startY) * 1000 + p.py;
+        const getGlobalX = (p) => (p.tx - startX) * 1000 + p.px;
+
+        switch (method) {
+            case 'linear-reversed': // Bottom to Top
+                mismatchedPixels.sort((a, b) => getGlobalY(b) - getGlobalY(a));
+                break;
+            case 'linear-ltr': // Left to Right
+                mismatchedPixels.sort((a, b) => getGlobalX(a) - getGlobalX(b));
+                break;
+            case 'linear-rtl': // Right to Left
+                mismatchedPixels.sort((a, b) => getGlobalX(b) - getGlobalX(a));
+                break;
+            case 'random':
+                for (let i = mismatchedPixels.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [mismatchedPixels[i], mismatchedPixels[j]] = [mismatchedPixels[j], mismatchedPixels[i]];
+                }
+                break;
+            case 'colorByColor':
+            case 'singleColorRandom': {
+                const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
+                    if (!acc[p.color]) acc[p.color] = [];
+                    acc[p.color].push(p);
+                    return acc;
+                }, {});
+                const colors = Object.keys(pixelsByColor);
+                if (method === 'singleColorRandom') {
+                    for (let i = colors.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [colors[i], colors[j]] = [colors[j], colors[i]];
+                    }
+                }
+                mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
+                break;
+            }
+            case 'interleaved': {
+                const firstPass = mismatchedPixels.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 === 0);
+                const secondPass = mismatchedPixels.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 !== 0);
+                mismatchedPixels = [...firstPass, ...secondPass];
+                break;
+            }
+            case 'linear':
+            default:
+                // The default order from _getMismatchedPixels is already linear top-to-bottom
+                break;
+        }
 
         if (this.settings?.outlineMode) {
             const edgePixels = mismatchedPixels.filter(p => p.isEdge);
@@ -288,6 +338,7 @@ let currentSettings = {
     turnstileNotifications: false, accountCooldown: 20000, purchaseCooldown: 5000,
     keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
     drawingMethod: 'linear', chargeThreshold: 0.5, outlineMode: false,
+    accountCheckCooldown: 0,
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
     currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
@@ -360,6 +411,8 @@ class TemplateManager {
         this.masterName = users[this.masterId]?.name || 'Unknown';
         this.isFirstRun = true;
         this.sleepResolve = null;
+        this.totalPixels = this.template.data.flat().filter(p => p > 0).length;
+        this.pixelsRemaining = this.totalPixels;
     }
 
     sleep(ms) {
@@ -404,7 +457,7 @@ class TemplateManager {
         while (!paintingComplete && this.running) {
             try {
                 wplacer.token = await TokenManager.getToken();
-                await wplacer.paint();
+                await wplacer.paint(currentSettings.drawingMethod);
                 paintingComplete = true;
             } catch (error) {
                 if (error.name === "SuspensionError") {
@@ -434,17 +487,16 @@ class TemplateManager {
         try {
             while (this.running) {
                 const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                let pixelsRemaining;
                 try {
                     await checkWplacer.login(users[this.masterId].cookies);
-                    pixelsRemaining = await checkWplacer.pixelsLeft();
+                    this.pixelsRemaining = await checkWplacer.pixelsLeft();
                 } catch (error) {
                     logUserError(error, this.masterId, this.masterName, "check pixels left");
                     await this.sleep(60000);
                     continue;
                 }
 
-                if (pixelsRemaining === 0) {
+                if (this.pixelsRemaining === 0) {
                     if (this.antiGriefMode) {
                         this.status = "Monitoring for changes.";
                         log('SYSTEM', 'wplacer', `[${this.name}] 🖼 Template is complete. Monitoring... Checking again in ${currentSettings.antiGriefStandby / 60000} minutes.`);
@@ -504,7 +556,7 @@ class TemplateManager {
                             await chargeBuyer.login(users[this.masterId].cookies);
                             const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
                             if (affordableDroplets >= 500) {
-                                const amountToBuy = Math.min(Math.ceil(pixelsRemaining / 30), Math.floor(affordableDroplets / 500));
+                                const amountToBuy = Math.min(Math.ceil(this.pixelsRemaining / 30), Math.floor(affordableDroplets / 500));
                                 if (amountToBuy > 0) {
                                     log(this.masterId, this.masterName, `[${this.name}] 💰 Attempting to buy pixel charges...`);
                                     await chargeBuyer.buyProduct(80, amountToBuy);
@@ -530,7 +582,6 @@ class TemplateManager {
             activePaintingTasks--;
             if (this.status !== "Finished.") {
                 this.status = "Stopped.";
-                log('SYSTEM', 'wplacer', `[${this.name}] ✖️ Template stopped.`);
             }
         }
     }
@@ -622,10 +673,17 @@ app.get("/templates", (_, res) => {
     for (const id in templates) {
         const t = templates[id];
         sanitizedTemplates[id] = {
-            name: t.name, template: t.template, coords: t.coords,
-            canBuyCharges: t.canBuyCharges, canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode, userIds: t.userIds,
-            running: t.running, status: t.status
+            name: t.name,
+            template: t.template,
+            coords: t.coords,
+            canBuyCharges: t.canBuyCharges,
+            canBuyMaxCharges: t.canBuyMaxCharges,
+            antiGriefMode: t.antiGriefMode,
+            userIds: t.userIds,
+            running: t.running,
+            status: t.status,
+            pixelsRemaining: t.pixelsRemaining,
+            totalPixels: t.totalPixels
         };
     }
     res.json(sanitizedTemplates);
@@ -662,7 +720,10 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyCharges = canBuyCharges;
     manager.canBuyMaxCharges = canBuyMaxCharges;
     manager.antiGriefMode = antiGriefMode;
-    if (template) manager.template = template;
+    if (template) {
+        manager.template = template;
+        manager.totalPixels = manager.template.data.flat().filter(p => p > 0).length;
+    }
     manager.masterId = manager.userIds[0];
     manager.masterName = users[manager.masterId].name;
     saveTemplates();

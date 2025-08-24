@@ -46,6 +46,7 @@ const outlineMode = $("outlineMode");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
+const accountCheckCooldown = $("accountCheckCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
@@ -57,6 +58,9 @@ const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
+
+// --- Global State ---
+let templateUpdateInterval = null;
 
 // Message Box
 let confirmCallback = null;
@@ -436,6 +440,10 @@ stopAll.addEventListener('click', async () => {
 // tabs
 let currentTab = main;
 const changeTab = (el) => {
+    if (templateUpdateInterval) {
+        clearInterval(templateUpdateInterval);
+        templateUpdateInterval = null;
+    }
     currentTab.style.display = "none";
     el.style.display = "block";
     currentTab = el;
@@ -473,7 +481,7 @@ openManageUsers.addEventListener("click", () => {
             user.querySelector('.delete-btn').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
-                    `Are you sure you want to delete ${users[id].name} (#${id})?`,
+                    `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
                     async () => {
                         try {
                             await axios.delete(`/user/${id}`);
@@ -516,24 +524,6 @@ openManageUsers.addEventListener("click", () => {
     changeTab(manageUsers);
 });
 
-async function processInParallel(tasks, concurrency) {
-    const queue = [...tasks];
-    const workers = [];
-
-    const runTask = async () => {
-        while (queue.length > 0) {
-            const task = queue.shift();
-            if (task) await task();
-        }
-    };
-
-    for (let i = 0; i < concurrency; i++) {
-        workers.push(runTask());
-    }
-
-    await Promise.all(workers);
-}
-
 checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.disabled = true;
     checkUserStatus.innerHTML = "Checking...";
@@ -542,7 +532,10 @@ checkUserStatus.addEventListener("click", async () => {
     let totalCurrent = 0;
     let totalMax = 0;
 
-    const tasks = userElements.map(userEl => async () => {
+    const { data: settings } = await axios.get('/settings');
+    const cooldown = settings.accountCheckCooldown || 0;
+
+    for (const userEl of userElements) {
         const id = userEl.id.split('-')[1];
         const infoSpans = userEl.querySelectorAll('.user-info > span');
         const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
@@ -575,9 +568,10 @@ checkUserStatus.addEventListener("click", async () => {
             levelProgressEl.textContent = "(?%)";
             infoSpans.forEach(span => span.style.color = 'var(--error-color)');
         }
-    });
-
-    await processInParallel(tasks, 5);
+        if (cooldown > 0) {
+            await sleep(cooldown);
+        }
+    }
 
     totalCharges.textContent = totalCurrent;
     totalMaxCharges.textContent = totalMax;
@@ -615,7 +609,7 @@ selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
 
-const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
+const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
     const button = document.createElement('button');
     const isRunning = template.running;
 
@@ -626,9 +620,13 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
         try {
             await axios.put(`/template/${id}`, { running: !isRunning });
             template.running = !isRunning;
-            const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
+            const newStatus = !isRunning ? 'Started' : 'Stopped';
+            const newButton = createToggleButton(template, id, buttonsContainer, progressBarText, currentPercent);
             button.replaceWith(newButton);
-            statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+            progressBarText.textContent = `${currentPercent}% | ${newStatus}`;
+            const progressBar = progressBarText.previousElementSibling;
+            progressBar.classList.toggle('stopped', !isRunning);
+
         } catch (error) {
             handleError(error);
         }
@@ -636,8 +634,46 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
+const updateTemplateStatus = async () => {
+    try {
+        const { data: templates } = await axios.get("/templates");
+        for (const id in templates) {
+            const t = templates[id];
+            const templateElement = $(id);
+            if (!templateElement) continue;
+
+            const total = t.totalPixels || 1;
+            const remaining = t.pixelsRemaining !== null ? t.pixelsRemaining : total;
+            const completed = total - remaining;
+            const percent = Math.floor((completed / total) * 100);
+
+            const progressBar = templateElement.querySelector('.progress-bar');
+            const progressBarText = templateElement.querySelector('.progress-bar-text');
+            const pixelCount = templateElement.querySelector('.pixel-count');
+
+            if (progressBar) progressBar.style.width = `${percent}%`;
+            if (progressBarText) progressBarText.textContent = `${percent}% | ${t.status}`;
+            if (pixelCount) pixelCount.textContent = `${completed} / ${total}`;
+
+            if (t.status === "Finished.") {
+                progressBar.classList.add('finished');
+                progressBar.classList.remove('stopped');
+            } else if (!t.running) {
+                progressBar.classList.add('stopped');
+                progressBar.classList.remove('finished');
+            } else {
+                progressBar.classList.remove('stopped', 'finished');
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update template statuses:", error);
+    }
+};
+
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
+    if (templateUpdateInterval) clearInterval(templateUpdateInterval);
+
     loadUsers(users => {
         loadTemplates(templates => {
             for (const id of Object.keys(templates)) {
@@ -650,16 +686,43 @@ openManageTemplates.addEventListener("click", () => {
                 const template = document.createElement('div');
                 template.id = id;
                 template.className = "template";
+
+                const total = t.totalPixels || 1;
+                const remaining = t.pixelsRemaining !== null ? t.pixelsRemaining : total;
+                const completed = total - remaining;
+                const percent = Math.floor((completed / total) * 100);
+
                 const infoSpan = document.createElement('span');
-                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b class="status-text">Status:</b> ${t.status}`;
+                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Pixels:</b> <span class="pixel-count">${completed} / ${total}</span>`;
                 template.appendChild(infoSpan);
+
+                const progressBarContainer = document.createElement('div');
+                progressBarContainer.className = 'progress-bar-container';
+
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.width = `${percent}%`;
+
+                const progressBarText = document.createElement('span');
+                progressBarText.className = 'progress-bar-text';
+                progressBarText.textContent = `${percent}% | ${t.status}`;
+
+                if (t.status === "Finished.") {
+                    progressBar.classList.add('finished');
+                } else if (!t.running) {
+                    progressBar.classList.add('stopped');
+                }
+
+                progressBarContainer.appendChild(progressBar);
+                progressBarContainer.appendChild(progressBarText);
+                template.appendChild(progressBarContainer);
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
-                const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
+                const toggleButton = createToggleButton(t, id, buttons, progressBarText, percent);
                 buttons.appendChild(toggleButton);
 
                 const editButton = document.createElement('button');
@@ -707,6 +770,7 @@ openManageTemplates.addEventListener("click", () => {
                 template.append(buttons);
                 templateList.append(template);
             };
+            templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
         });
     });
     changeTab(manageTemplates);
@@ -720,6 +784,7 @@ openSettings.addEventListener("click", async () => {
         outlineMode.checked = currentSettings.outlineMode;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
+        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
@@ -759,6 +824,15 @@ purchaseCooldown.addEventListener('change', () => {
         return;
     }
     saveSetting({ purchaseCooldown: value });
+});
+
+accountCheckCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
+    }
+    saveSetting({ accountCheckCooldown: value });
 });
 
 dropletReserve.addEventListener('change', () => {
