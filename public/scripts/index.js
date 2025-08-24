@@ -752,6 +752,30 @@ templateForm.addEventListener("submit", async (e) => {
   }
 });
 
+// Import/Export Event Handlers
+document.addEventListener('DOMContentLoaded', () => {
+  // Import Templates button
+  const importTemplatesBtn = document.getElementById('importTemplates');
+  if (importTemplatesBtn) {
+    importTemplatesBtn.addEventListener('click', importTemplateFile);
+  }
+
+  // Export All Templates button
+  const exportAllTemplatesBtn = document.getElementById('exportAllTemplates');
+  if (exportAllTemplatesBtn) {
+    exportAllTemplatesBtn.addEventListener('click', () => {
+      loadTemplates((templates) => {
+        if (Object.keys(templates).length === 0) {
+          showMessage("Export Error", "No templates available to export.");
+          return;
+        }
+        exportAllTemplates(templates);
+        showMessage("Success", "Templates exported successfully!");
+      });
+    });
+  }
+});
+
 startAll.addEventListener("click", async () => {
   for (const child of templateList.children) {
     try {
@@ -800,6 +824,265 @@ function changeTab(targetId) {
     console.error("Target element not found!");
   }
 }
+
+// Export functionality
+const exportTemplate = (templateId, templateData) => {
+  // Create a clean export object without user IDs and timestamps
+  const exportData = {
+    name: templateData.name,
+    template: templateData.template,
+    coords: templateData.coords,
+    canBuyCharges: templateData.canBuyCharges,
+    canBuyMaxCharges: templateData.canBuyMaxCharges,
+    antiGriefMode: templateData.antiGriefMode,
+    autoStart: templateData.autoStart || false,
+    // Note: userIds are not exported as they're account-specific
+    exportedAt: new Date().toISOString(),
+    exportedFrom: "wplacer"
+  };
+
+  const dataStr = JSON.stringify(exportData, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(dataBlob);
+  link.download = `${templateData.name.replace(/[^a-z0-9]/gi, '_')}_template.json`;
+  link.click();
+  
+  URL.revokeObjectURL(link.href);
+};
+
+const exportAllTemplates = (templatesData) => {
+  const exportData = {
+    templates: {},
+    exportedAt: new Date().toISOString(),
+    exportedFrom: "wplacer",
+    note: "User IDs have been removed and must be reassigned when importing"
+  };
+
+  // Process each template
+  Object.entries(templatesData).forEach(([id, templateData]) => {
+    exportData.templates[id] = {
+      name: templateData.name,
+      template: templateData.template,
+      coords: templateData.coords,
+      canBuyCharges: templateData.canBuyCharges,
+      canBuyMaxCharges: templateData.canBuyMaxCharges,
+      antiGriefMode: templateData.antiGriefMode,
+      autoStart: templateData.autoStart || false
+      // Note: userIds are not exported
+    };
+  });
+
+  const dataStr = JSON.stringify(exportData, null, 2);
+  const dataBlob = new Blob([dataStr], { type: 'application/json' });
+  
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(dataBlob);
+  link.download = `wplacer_templates_${new Date().toISOString().split('T')[0]}.json`;
+  link.click();
+  
+  URL.revokeObjectURL(link.href);
+};
+
+// Import functionality
+const importTemplateFile = () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = handleTemplateImport;
+  input.click();
+};
+
+const handleTemplateImport = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const importData = JSON.parse(e.target.result);
+      processImportData(importData);
+    } catch (error) {
+      showMessage("Import Error", "Invalid JSON file. Please check the file format.");
+    }
+  };
+  reader.readAsText(file);
+};
+
+const processImportData = (importData) => {
+  // Check if it's a single template or multiple templates
+  if (importData.templates) {
+    // Multiple templates export
+    processMultipleTemplatesImport(importData.templates);
+  } else if (importData.name && importData.template) {
+    // Single template export
+    processSingleTemplateImport(importData);
+  } else {
+    showMessage("Import Error", "Unrecognized template file format.");
+  }
+};
+
+const processSingleTemplateImport = (templateData) => {
+  // Validate required fields
+  if (!templateData.name || !templateData.template || !templateData.coords) {
+    showMessage("Import Error", "Template file is missing required data (name, template, or coords).");
+    return;
+  }
+
+  showImportDialog([templateData]);
+};
+
+const processMultipleTemplatesImport = (templatesData) => {
+  const templates = Object.values(templatesData);
+  
+  // Validate each template
+  const validTemplates = templates.filter(template => {
+    return template.name && template.template && template.coords;
+  });
+
+  if (validTemplates.length === 0) {
+    showMessage("Import Error", "No valid templates found in the file.");
+    return;
+  }
+
+  if (validTemplates.length !== templates.length) {
+    showMessage("Warning", `${templates.length - validTemplates.length} templates were skipped due to missing data.`);
+  }
+
+  showImportDialog(validTemplates);
+};
+
+const showImportDialog = (templates) => {
+  // Get available users
+  loadUsers((users) => {
+    if (Object.keys(users).length === 0) {
+      showMessage("Import Error", "No users available. Please add at least one user before importing templates.");
+      return;
+    }
+
+    createImportModal(templates, users);
+  });
+};
+
+const createImportModal = (templates, users) => {
+  // Create modal overlay
+  const modalOverlay = document.createElement('div');
+  modalOverlay.className = 'modal-overlay';
+  modalOverlay.style.display = 'block';
+  
+  const modalContent = document.createElement('div');
+  modalContent.className = 'modal-content import-modal';
+  modalContent.style.maxWidth = '600px';
+  modalContent.style.maxHeight = '80vh';
+  modalContent.style.overflow = 'auto';
+  
+  modalContent.innerHTML = `
+    <h3 class="modal-title">Import Templates</h3>
+    <p>Found ${templates.length} template(s) to import. Please assign users to each template:</p>
+    <div id="importTemplateList" class="import-template-list"></div>
+    <div class="modal-actions">
+      <button id="cancelImport" class="secondary-button">Cancel</button>
+      <button id="confirmImport" class="primary-button">Import Templates</button>
+    </div>
+  `;
+  
+  modalOverlay.appendChild(modalContent);
+  document.body.appendChild(modalOverlay);
+  
+  const importTemplateList = document.getElementById('importTemplateList');
+  
+  // Create template items with user selection
+  templates.forEach((template, index) => {
+    const templateItem = document.createElement('div');
+    templateItem.className = 'import-template-item';
+    templateItem.style.cssText = `
+      border: 1px solid var(--border-color);
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 6px;
+      background: var(--card-background);
+    `;
+    
+    templateItem.innerHTML = `
+      <div class="template-info">
+        <h4>${template.name}</h4>
+        <p>Size: ${template.template.width}x${template.template.height}px | 
+           Coordinates: ${template.coords.join(', ')}</p>
+      </div>
+      <div class="user-assignment">
+        <label>Assign Users:</label>
+        <div class="user-checkboxes" data-template-index="${index}">
+          ${Object.entries(users).map(([id, user]) => `
+            <label class="user-checkbox-label">
+              <input type="checkbox" name="import_user_${index}" value="${id}">
+              ${user.name} (#${id})
+            </label>
+          `).join('')}
+        </div>
+        <button type="button" class="select-all-import" data-index="${index}">Select All</button>
+      </div>
+    `;
+    
+    importTemplateList.appendChild(templateItem);
+    
+    // Add select all functionality
+    templateItem.querySelector('.select-all-import').addEventListener('click', () => {
+      const checkboxes = templateItem.querySelectorAll(`input[name="import_user_${index}"]`);
+      checkboxes.forEach(cb => cb.checked = true);
+    });
+  });
+  
+  // Handle cancel
+  document.getElementById('cancelImport').addEventListener('click', () => {
+    document.body.removeChild(modalOverlay);
+  });
+  
+  // Handle import confirmation
+  document.getElementById('confirmImport').addEventListener('click', async () => {
+    const importResults = [];
+    
+    for (let i = 0; i < templates.length; i++) {
+      const selectedUsers = Array.from(
+        document.querySelectorAll(`input[name="import_user_${i}"]:checked`)
+      ).map(cb => cb.value);
+      
+      if (selectedUsers.length === 0) {
+        showMessage("Error", `Please assign at least one user to template "${templates[i].name}"`);
+        return;
+      }
+      
+      // Prepare template data for import
+      const templateData = {
+        templateName: templates[i].name,
+        coords: templates[i].coords,
+        userIds: selectedUsers,
+        canBuyCharges: templates[i].canBuyCharges || false,
+        canBuyMaxCharges: templates[i].canBuyMaxCharges || false,
+        antiGriefMode: templates[i].antiGriefMode || false,
+        autoStart: templates[i].autoStart || false,
+        template: templates[i].template
+      };
+      
+      try {
+        await axios.post("/template", templateData);
+        importResults.push(`✓ ${templates[i].name}`);
+      } catch (error) {
+        importResults.push(`✗ ${templates[i].name}: ${error.message}`);
+      }
+    }
+    
+    document.body.removeChild(modalOverlay);
+    
+    // Show results
+    showMessage("Import Complete", `Import Results:<br><br>${importResults.join('<br>')}`);
+    
+    // Refresh templates view if we're on that page
+    if (currentTab === 'manageTemplates') {
+      openManageTemplates.click();
+    }
+  });
+};
 
 const showExistingTemplateImage = (template, coords) => {
   if (template && template.width > 0) {
@@ -935,10 +1218,16 @@ const createToggleButton = (template, id) => {
   return button;
 };
 
+// Modified createEditButton function to include individual export
 const createEditButton = (t, id) => {
+  const buttonContainer = document.createElement('div');
+  buttonContainer.style.display = 'flex';
+  buttonContainer.style.gap = '0.5rem';
+  buttonContainer.style.flexWrap = 'wrap';
+
   const editButton = document.createElement("button");
   editButton.className = "secondary-button";
-  editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
+  editButton.innerHTML = '<img src="icons/settings.svg">Edit';
   editButton.addEventListener("click", () => {
     openAddTemplate.click();
     templateFormTitle.textContent = `Edit Template: ${t.name}`;
@@ -951,7 +1240,7 @@ const createEditButton = (t, id) => {
     canBuyCharges.checked = t.canBuyCharges;
     canBuyMaxCharges.checked = t.canBuyMaxCharges;
     antiGriefMode.checked = t.antiGriefMode;
-    autoStart.checked = t.autoStart || false; // Add this line
+    autoStart.checked = t.autoStart || false;
 
     // Select users
     document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
@@ -961,7 +1250,20 @@ const createEditButton = (t, id) => {
     // Show existing template image with auto-preview
     showExistingTemplateImage(t.template, t.coords);
   });
-  return editButton;
+
+  const exportButton = document.createElement("button");
+  exportButton.className = "template-export-btn";
+  exportButton.innerHTML = '<img src="icons/convert.svg" style="width: 14px; height: 14px;">Export';
+  exportButton.addEventListener("click", (e) => {
+    e.stopPropagation();
+    exportTemplate(id, t);
+    showMessage("Success", `Template "${t.name}" exported successfully!`);
+  });
+
+  buttonContainer.appendChild(editButton);
+  buttonContainer.appendChild(exportButton);
+  
+  return buttonContainer;
 };
 
 const updateTemplateProgress = async (templateId) => {
@@ -1229,12 +1531,12 @@ openManageTemplates.addEventListener("click", () => {
         const toggleButton = createToggleButton(t, id);
         buttons.appendChild(toggleButton);
 
-        const editButton = createEditButton(t, id);
+        const editButton = createEditButton(t, id); // This now includes export
         buttons.appendChild(editButton);
 
         const delButton = document.createElement("button");
         delButton.className = "destructive-button";
-        delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
+        delButton.innerHTML = '<img src="icons/remove.svg">Delete';
         delButton.addEventListener("click", () => {
           showConfirmation(
             "Delete Template",

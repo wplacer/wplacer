@@ -157,12 +157,12 @@
                     <button class="primary-button upload-btn" onclick="document.getElementById('addImage').click()">
                         <img src="icons/convert.svg">Add Image
                     </button>
-                    <button id="linkToPage" class="secondary-button" 
-                            onclick="window.open('https://pepoafonso.github.io/color_converter_wplace/', '_blank')">
+                    <button id="linkToPage" class="secondary-button"
+                        onclick="window.open('https://pepoafonso.github.io/color_converter_wplace/', '_blank')">
                         <img src="icons/check.svg">Convert with Tool
                     </button>
                 </div>
-                
+
                 <input type="file" id="convertInput" accept="image/*" style="display: none;">
                 <input type="file" id="addImage" accept="image/*" style="display: none;">
             </div>
@@ -178,11 +178,11 @@
                         <span class="info-value" id="ink"></span>
                     </div>
                 </div>
-                
+
                 <div class="canvas-container">
                     <canvas id="templateCanvas" class="template-canvas"></canvas>
                 </div>
-                
+
                 <div class="preview-section">
                     <div class="preview-controls">
                         <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
@@ -199,10 +199,10 @@
 
             <form id="templateForm" class="template-form">
                 <input type="file" style="display: none;" accept="image/png" id="convertInput">
-                
+
                 <div class="form-section">
                     <h3>Template Configuration</h3>
-                    
+
                     <div class="settings-grid">
                         <div class="setting-toggle">
                             <div class="setting-info">
@@ -341,170 +341,183 @@
                 <div id="templateList" class="template-grid"></div>
             </div>
 
-            <div class="page-actions">
-                <button onclick="changeTab('main');" class="secondary-button">
-                    <img src="icons/return.svg">Back to Dashboard
-                </button>
-            </div>
-        </div>
-
-        <!-- Settings Section -->
-        <div id="settings" class="page-content">
-            <div class="page-header">
-                <h2>Application Settings</h2>
-                <p class="page-description">Configure drawing behavior and application preferences</p>
-            </div>
-
-            <div class="settings-container">
-                <div class="form-section">
-                    <h3>Drawing Configuration</h3>
-                    <div class="input-group">
-                        <label for="drawingDirection">Drawing Direction</label>
-                        <select id="drawingDirection">
-                            <option value="ttb">Top to Bottom</option>
-                            <option value="btt">Bottom to Top</option>
-                            <option value="ltr">Left to Right</option>
-                            <option value="rtl">Right to Left</option>
-                        </select>
-                    </div>
-                    
-                    <div class="input-group">
-                        <label for="drawingOrder">Drawing Order</label>
-                        <select id="drawingOrder">
-                            <option value="linear">Linear</option>
-                            <option value="random">Random</option>
-                            <option value="color">Color by Color</option>
-                            <option value="randomColor">Random Color Order</option>
-                        </select>
+            <div class="import-export-section">
+                <div class="import-export-actions">
+                    <h3>Template Management</h3>
+                    <div class="import-export-buttons">
+                        <button id="importTemplates" class="secondary-button">
+                            <img src="icons/addTemplate.svg">Import Templates
+                        </button>
+                        <button id="exportAllTemplates" class="secondary-button">
+                            <img src="icons/convert.svg">Export All Templates
+                        </button>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <h3>General Options</h3>
-                    <div class="settings-grid">
-                        <div class="setting-toggle">
-                            <div class="setting-info">
-                                <label for="outlineMode">Outline mode</label>
-                                <span class="setting-description">Draw only the outline of templates</span>
-                            </div>
-                            <label class="switch">
-                                <input id="outlineMode" name="outlineMode" type="checkbox">
-                                <span class="slider"></span>
-                            </label>
+                <div class="page-actions">
+                    <button onclick="changeTab('main');" class="secondary-button">
+                        <img src="icons/return.svg">Back to Dashboard
+                    </button>
+                </div>
+            </div>
+
+            <!-- Settings Section -->
+            <div id="settings" class="page-content">
+                <div class="page-header">
+                    <h2>Application Settings</h2>
+                    <p class="page-description">Configure drawing behavior and application preferences</p>
+                </div>
+
+                <div class="settings-container">
+                    <div class="form-section">
+                        <h3>Drawing Configuration</h3>
+                        <div class="input-group">
+                            <label for="drawingDirection">Drawing Direction</label>
+                            <select id="drawingDirection">
+                                <option value="ttb">Top to Bottom</option>
+                                <option value="btt">Bottom to Top</option>
+                                <option value="ltr">Left to Right</option>
+                                <option value="rtl">Right to Left</option>
+                            </select>
                         </div>
 
-                        <div class="setting-toggle">
-                            <div class="setting-info">
-                                <label for="interleavedMode">Interleaved mode</label>
-                                <span class="setting-description">Alternate between different pixel patterns</span>
-                            </div>
-                            <label class="switch">
-                                <input id="interleavedMode" name="interleavedMode" type="checkbox">
-                                <span class="slider"></span>
-                            </label>
+                        <div class="input-group">
+                            <label for="drawingOrder">Drawing Order</label>
+                            <select id="drawingOrder">
+                                <option value="linear">Linear</option>
+                                <option value="random">Random</option>
+                                <option value="color">Color by Color</option>
+                                <option value="randomColor">Random Color Order</option>
+                            </select>
                         </div>
+                    </div>
 
-                        <div class="setting-toggle">
-                            <div class="setting-info">
-                                <label for="skipPaintedPixels">Skip painted pixels</label>
-                                <span class="setting-description">Only paint blank pixels</span>
+                    <div class="form-section">
+                        <h3>General Options</h3>
+                        <div class="settings-grid">
+                            <div class="setting-toggle">
+                                <div class="setting-info">
+                                    <label for="outlineMode">Outline mode</label>
+                                    <span class="setting-description">Draw only the outline of templates</span>
+                                </div>
+                                <label class="switch">
+                                    <input id="outlineMode" name="outlineMode" type="checkbox">
+                                    <span class="slider"></span>
+                                </label>
                             </div>
-                            <label class="switch">
-                                <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
-                                <span class="slider"></span>
-                            </label>
+
+                            <div class="setting-toggle">
+                                <div class="setting-info">
+                                    <label for="interleavedMode">Interleaved mode</label>
+                                    <span class="setting-description">Alternate between different pixel patterns</span>
+                                </div>
+                                <label class="switch">
+                                    <input id="interleavedMode" name="interleavedMode" type="checkbox">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-toggle">
+                                <div class="setting-info">
+                                    <label for="skipPaintedPixels">Skip painted pixels</label>
+                                    <span class="setting-description">Only paint blank pixels</span>
+                                </div>
+                                <label class="switch">
+                                    <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
+
+                            <div class="setting-toggle">
+                                <div class="setting-info">
+                                    <label for="turnstileNotifications">Desktop notifications</label>
+                                    <span class="setting-description">Show notifications for Turnstile challenges</span>
+                                </div>
+                                <label class="switch">
+                                    <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
+                                    <span class="slider"></span>
+                                </label>
+                            </div>
                         </div>
+                    </div>
 
-                        <div class="setting-toggle">
-                            <div class="setting-info">
-                                <label for="turnstileNotifications">Desktop notifications</label>
-                                <span class="setting-description">Show notifications for Turnstile challenges</span>
+                    <div class="form-section">
+                        <h3>Timing & Thresholds</h3>
+                        <div class="settings-grid">
+                            <div class="input-group">
+                                <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
+                                <input type="number" id="accountCooldown" min="0" value="20">
+                                <span class="input-hint">Time between account switches</span>
                             </div>
-                            <label class="switch">
-                                <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
-                                <span class="slider"></span>
-                            </label>
+
+                            <div class="input-group">
+                                <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
+                                <input type="number" id="purchaseCooldown" min="0" value="5">
+                                <span class="input-hint">Delay between purchases</span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="keepAliveCooldown">Keep Alive Cooldown (seconds)</label>
+                                <input type="number" id="keepAliveCooldown" min="0" value="5">
+                                <span class="input-hint">Delay between keep-alive checks</span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="dropletReserve">Minimum Droplets Before Buying</label>
+                                <input type="number" id="dropletReserve" min="0" value="0">
+                                <span class="input-hint">Reserve droplets before making purchases</span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
+                                <input type="number" id="antiGriefStandby" min="1" value="10">
+                                <span class="input-hint">Time to wait when template is complete</span>
+                            </div>
+
+                            <div class="input-group">
+                                <label for="chargeThreshold">Charge Threshold (%)</label>
+                                <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+                                <span class="input-hint">Minimum charge level before starting</span>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <div class="form-section">
-                    <h3>Timing & Thresholds</h3>
-                    <div class="settings-grid">
-                        <div class="input-group">
-                            <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
-                            <input type="number" id="accountCooldown" min="0" value="20">
-                            <span class="input-hint">Time between account switches</span>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
-                            <input type="number" id="purchaseCooldown" min="0" value="5">
-                            <span class="input-hint">Delay between purchases</span>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="keepAliveCooldown">Keep Alive Cooldown (seconds)</label>
-                            <input type="number" id="keepAliveCooldown" min="0" value="5">
-                            <span class="input-hint">Delay between keep-alive checks</span>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="dropletReserve">Minimum Droplets Before Buying</label>
-                            <input type="number" id="dropletReserve" min="0" value="0">
-                            <span class="input-hint">Reserve droplets before making purchases</span>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
-                            <input type="number" id="antiGriefStandby" min="1" value="10">
-                            <span class="input-hint">Time to wait when template is complete</span>
-                        </div>
-
-                        <div class="input-group">
-                            <label for="chargeThreshold">Charge Threshold (%)</label>
-                            <input type="number" id="chargeThreshold" min="0" max="100" value="50">
-                            <span class="input-hint">Minimum charge level before starting</span>
-                        </div>
-                    </div>
+                <div class="page-actions">
+                    <button onclick="changeTab('main');" class="secondary-button">
+                        <img src="icons/return.svg">Back to Dashboard
+                    </button>
                 </div>
             </div>
 
-            <div class="page-actions">
-                <button onclick="changeTab('main');" class="secondary-button">
-                    <img src="icons/return.svg">Back to Dashboard
-                </button>
+            <!-- Footer -->
+            <footer class="app-footer">
+                <p class="credits">
+                    Made by
+                    <a href="https://github.com/luluwaffless" target="_blank" rel="noopener">
+                        luluwaffless <img src="icons/github.svg" alt="GitHub">
+                    </a>
+                    and
+                    <a href="https://github.com/JinxTheCatto" target="_blank" rel="noopener">
+                        Jinx <img src="icons/github.svg" alt="GitHub">
+                    </a>
+                </p>
+            </footer>
+        </div>
+
+        <!-- Modal Overlay -->
+        <div id="messageBoxOverlay" class="modal-overlay hidden">
+            <div id="messageBox" class="modal-content">
+                <h3 id="messageBoxTitle" class="modal-title"></h3>
+                <p id="messageBoxContent" class="modal-text"></p>
+                <div class="modal-actions">
+                    <button id="messageBoxCancel" class="secondary-button">Cancel</button>
+                    <button id="messageBoxConfirm" class="primary-button">OK</button>
+                </div>
             </div>
         </div>
 
-        <!-- Footer -->
-        <footer class="app-footer">
-            <p class="credits">
-                Made by 
-                <a href="https://github.com/luluwaffless" target="_blank" rel="noopener">
-                    luluwaffless <img src="icons/github.svg" alt="GitHub">
-                </a> 
-                and 
-                <a href="https://github.com/JinxTheCatto" target="_blank" rel="noopener">
-                    Jinx <img src="icons/github.svg" alt="GitHub">
-                </a>
-            </p>
-        </footer>
-    </div>
-
-    <!-- Modal Overlay -->
-    <div id="messageBoxOverlay" class="modal-overlay hidden">
-        <div id="messageBox" class="modal-content">
-            <h3 id="messageBoxTitle" class="modal-title"></h3>
-            <p id="messageBoxContent" class="modal-text"></p>
-            <div class="modal-actions">
-                <button id="messageBoxCancel" class="secondary-button">Cancel</button>
-                <button id="messageBoxConfirm" class="primary-button">OK</button>
-            </div>
-        </div>
-    </div>
-
-    <script type="text/javascript" src="scripts/index.js"></script>
+        <script type="text/javascript" src="scripts/index.js"></script>
 </body>
 
 </html>
