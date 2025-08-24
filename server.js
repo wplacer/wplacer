@@ -535,8 +535,12 @@ class TemplateManager {
 
                 let userStates = [];
                 for (const userId of this.userIds) {
-                    if (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil) continue;
-                    if (activeBrowserUsers.has(userId)) continue;
+                    if (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil) {
+                        continue;
+                    }
+                    if (activeBrowserUsers.has(userId)) {
+                        continue;
+                    }
                     activeBrowserUsers.add(userId);
                     const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
                     try {
@@ -553,6 +557,13 @@ class TemplateManager {
                 const userToRun = readyUsers.length > 0 ? readyUsers.sort((a, b) => b.charges.count - a.charges.count)[0] : null;
 
                 if (userToRun) {
+                    const user = users[userToRun.userId];
+                    if (user.suspendedUntil && Date.now() < user.suspendedUntil) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] Safeguard: Skipped suspended user ${user.name}#${userToRun.userId}.`);
+                        await this.sleep(1000); // Small delay to prevent fast loops
+                        continue;
+                    }
+
                     if (activeBrowserUsers.has(userToRun.userId)) continue;
                     activeBrowserUsers.add(userToRun.userId);
                     const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
