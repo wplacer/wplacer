@@ -213,8 +213,51 @@ const deltaE = (labA, labB) => {
     return delta_e;
 };
 
+// Oklab color space conversion
+const linear_srgb_to_oklab = (r, g, b) => {
+    const l = 0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b;
+    const m = 0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b;
+    const s = 0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b;
+
+    const l_ = Math.cbrt(l);
+    const m_ = Math.cbrt(m);
+    const s_ = Math.cbrt(s);
+
+    return [
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    ];
+};
+
+const srgb_to_oklab = (rgb) => {
+    const r = rgb[0] / 255;
+    const g = rgb[1] / 255;
+    const b = rgb[2] / 255;
+
+    const r_ = r > 0.04045 ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    const g_ = g > 0.04045 ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    const b_ = b > 0.04045 ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    return linear_srgb_to_oklab(r_, g_, b_);
+};
+
+const deltaE_ok = (oklab1, oklab2) => {
+    const [l1, a1, b1] = oklab1;
+    const [l2, a2, b2] = oklab2;
+    const deltaL = l1 - l2;
+    const deltaA = a1 - a2;
+    const deltaB = b1 - b2;
+    return Math.sqrt(deltaL * deltaL + deltaA * deltaA + deltaB * deltaB);
+};
+
 const basic_colors_lab = Object.keys(basic_colors).reduce((acc, color) => {
     acc[color] = rgbToLab(color.split(',').map(Number));
+    return acc;
+}, {});
+
+const basic_colors_oklab = Object.keys(basic_colors).reduce((acc, color) => {
+    acc[color] = srgb_to_oklab(color.split(',').map(Number));
     return acc;
 }, {});
 
@@ -227,6 +270,24 @@ const closest_ciede2000 = color => {
 
     for (const key in basic_colors_lab) {
         const distance = deltaE(targetLab, basic_colors_lab[key]);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestColorKey = key;
+        }
+    }
+
+    return basic_colors[closestColorKey];
+};
+
+const closest_oklab = color => {
+    const targetRgb = color.split(',').map(Number);
+    const targetOklab = srgb_to_oklab(targetRgb);
+
+    let minDistance = Infinity;
+    let closestColorKey = null;
+
+    for (const key in basic_colors_oklab) {
+        const distance = deltaE_ok(targetOklab, basic_colors_oklab[key]);
         if (distance < minDistance) {
             minDistance = distance;
             closestColorKey = key;
@@ -380,6 +441,8 @@ const nearestimgdecoder = (imageData, width, height) => {
                             id = closest_rgb(rgb);
                         } else if (colorAlgorithm.value === 'CIEDE2000') {
                             id = closest_ciede2000(rgb);
+                        } else if (colorAlgorithm.value === 'Oklab') {
+                            id = closest_oklab(rgb);
                         }
                         else {
                             id = closest_rgb(rgb);
