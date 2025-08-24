@@ -61,6 +61,7 @@ const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
 const usePaidColors = $("usePaidColors");
+const colorAlgorithm = $("colorAlgorithm");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -153,14 +154,103 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const colors = { ...basic_colors, ...premium_colors };
 
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-const closest = color => {
-    const [tr, tg, tb] = color.split(',').map(Number);
-    // only use basic_colors for closest match to keep current behavior
-    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
+// Color conversion and comparison functions
+// RGB to LAB conversion
+const rgbToLab = (rgb) => {
+    let r = rgb[0] / 255, g = rgb[1] / 255, b = rgb[2] / 255;
+    let x, y, z;
+
+    r = (r > 0.04045) ? Math.pow((r + 0.055) / 1.055, 2.4) : r / 12.92;
+    g = (g > 0.04045) ? Math.pow((g + 0.055) / 1.055, 2.4) : g / 12.92;
+    b = (b > 0.04045) ? Math.pow((b + 0.055) / 1.055, 2.4) : b / 12.92;
+
+    x = (r * 0.4124 + g * 0.3576 + b * 0.1805) / 0.95047;
+    y = (r * 0.2126 + g * 0.7152 + b * 0.0722) / 1.00000;
+    z = (r * 0.0193 + g * 0.1192 + b * 0.9505) / 1.08883;
+
+    x = (x > 0.008856) ? Math.pow(x, 1 / 3) : (7.787 * x) + 16 / 116;
+    y = (y > 0.008856) ? Math.pow(y, 1 / 3) : (7.787 * y) + 16 / 116;
+    z = (z > 0.008856) ? Math.pow(z, 1 / 3) : (7.787 * z) + 16 / 116;
+
+    return [(116 * y) - 16, 500 * (x - y), 200 * (y - z)];
+};
+
+// CIEDE2000 color difference formula
+const deltaE = (labA, labB) => {
+    const l1 = labA[0], a1 = labA[1], b1 = labA[2];
+    const l2 = labB[0], a2 = labB[1], b2 = labB[2];
+    const c1 = Math.sqrt(a1 * a1 + b1 * b1);
+    const c2 = Math.sqrt(a2 * a2 + b2 * b2);
+    const c_bar = (c1 + c2) / 2;
+    const g = 0.5 * (1 - Math.sqrt(Math.pow(c_bar, 7) / (Math.pow(c_bar, 7) + Math.pow(25, 7))));
+    const a1_prime = (1 + g) * a1;
+    const a2_prime = (1 + g) * a2;
+    const c1_prime = Math.sqrt(a1_prime * a1_prime + b1 * b1);
+    const c2_prime = Math.sqrt(a2_prime * a2_prime + b2 * b2);
+    const c_bar_prime = (c1_prime + c2_prime) / 2;
+    let h1_prime = (Math.atan2(b1, a1_prime) * 180 / Math.PI);
+    if (h1_prime < 0) h1_prime += 360;
+    let h2_prime = (Math.atan2(b2, a2_prime) * 180 / Math.PI);
+    if (h2_prime < 0) h2_prime += 360;
+    const h_bar_prime = (Math.abs(h1_prime - h2_prime) > 180) ? (h1_prime + h2_prime + 360) / 2 : (h1_prime + h2_prime) / 2;
+    const t = 1 - 0.17 * Math.cos((h_bar_prime - 30) * Math.PI / 180) + 0.24 * Math.cos((2 * h_bar_prime) * Math.PI / 180) + 0.32 * Math.cos((3 * h_bar_prime + 6) * Math.PI / 180) - 0.20 * Math.cos((4 * h_bar_prime - 63) * Math.PI / 180);
+    let delta_h_prime = h2_prime - h1_prime;
+    if (Math.abs(delta_h_prime) > 180) {
+        if (h2_prime <= h1_prime) delta_h_prime += 360;
+        else delta_h_prime -= 360;
+    }
+    const delta_l_prime = l2 - l1;
+    const delta_c_prime = c2_prime - c1_prime;
+    const delta_H_prime = 2 * Math.sqrt(c1_prime * c2_prime) * Math.sin((delta_h_prime / 2) * Math.PI / 180);
+    const s_l = 1 + ((0.015 * Math.pow((l1 + l2) / 2 - 50, 2)) / Math.sqrt(20 + Math.pow((l1 + l2) / 2 - 50, 2)));
+    const s_c = 1 + 0.045 * c_bar_prime;
+    const s_h = 1 + 0.015 * c_bar_prime * t;
+    const delta_ro = 30 * Math.exp(-Math.pow(((h_bar_prime - 275) / 25), 2));
+    const r_c = 2 * Math.sqrt(Math.pow(c_bar_prime, 7) / (Math.pow(c_bar_prime, 7) + Math.pow(25, 7)));
+    const r_t = -r_c * Math.sin(2 * delta_ro * Math.PI / 180);
+    const kl = 1, kc = 1, kh = 1;
+    const delta_e = Math.sqrt(Math.pow(delta_l_prime / (kl * s_l), 2) + Math.pow(delta_c_prime / (kc * s_c), 2) + Math.pow(delta_H_prime / (kh * s_h), 2) + r_t * (delta_c_prime / (kc * s_c)) * (delta_H_prime / (kh * s_h)));
+    return delta_e;
+};
+
+const basic_colors_lab = Object.keys(basic_colors).reduce((acc, color) => {
+    acc[color] = rgbToLab(color.split(',').map(Number));
+    return acc;
+}, {});
+
+const closest_ciede2000 = color => {
+    const targetRgb = color.split(',').map(Number);
+    const targetLab = rgbToLab(targetRgb);
+
+    let minDistance = Infinity;
+    let closestColorKey = null;
+
+    for (const key in basic_colors_lab) {
+        const distance = deltaE(targetLab, basic_colors_lab[key]);
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestColorKey = key;
+        }
+    }
+
+    return basic_colors[closestColorKey];
+};
+
+const closest_rgb = color => {
+    const [r1, g1, b1] = color.split(',').map(Number);
+    let minDistance = Infinity;
+    let closestColorKey = null;
+
+    for (const key in basic_colors) {
+        const [r2, g2, b2] = key.split(',').map(Number);
+        const distance = Math.sqrt(Math.pow(r1 - r2, 2) + Math.pow(g1 - g2, 2) + Math.pow(b1 - b2, 2));
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestColorKey = key;
+        }
+    }
+
+    return basic_colors[closestColorKey];
 };
 
 const drawTemplate = (template, canvas) => {
@@ -282,7 +372,19 @@ const nearestimgdecoder = (imageData, width, height) => {
                 const rgb = `${r},${g},${b}`;
                 if (rgb == "158,189,255") matrix[x][y] = -1;
                 else {
-                    const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
+                    let id;
+                    if (colors[rgb] && usePaidColors.checked) {
+                        id = colors[rgb];
+                    } else {
+                        if (colorAlgorithm.value === 'RGB') {
+                            id = closest_rgb(rgb);
+                        } else if (colorAlgorithm.value === 'CIEDE2000') {
+                            id = closest_ciede2000(rgb);
+                        }
+                        else {
+                            id = closest_rgb(rgb);
+                        }
+                    }
                     matrix[x][y] = id;
                 };
                 ink++;
@@ -295,6 +397,7 @@ const nearestimgdecoder = (imageData, width, height) => {
 };
 
 let currentTemplate = { width: 0, height: 0, data: [] };
+let originalImageData = null;
 
 const processImageFile = (file, callback) => {
     if (!file) return;
@@ -310,6 +413,7 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            originalImageData = imageData;
             const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
@@ -338,8 +442,22 @@ const processEvent = () => {
         });
     };
 };
+const reprocessFromOriginal = () => {
+    if (!originalImageData) return;
+    const { matrix, ink } = nearestimgdecoder(originalImageData, originalImageData.width, originalImageData.height);
+    const template = {
+        width: originalImageData.width,
+        height: originalImageData.height,
+        ink,
+        data: matrix
+    };
+    currentTemplate = template;
+    drawTemplate(template, templateCanvas);
+    ink.innerHTML = template.ink;
+};
 convertInput.addEventListener('change', processEvent);
 usePaidColors.addEventListener('change', processEvent);
+colorAlgorithm.addEventListener('change', reprocessFromOriginal);
 
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
