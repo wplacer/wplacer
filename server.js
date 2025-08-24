@@ -50,6 +50,14 @@ class SuspensionError extends Error {
     }
 }
 
+// Custom error for network/Cloudflare issues
+class NetworkError extends Error {
+    constructor(message) {
+        super(message);
+        this.name = "NetworkError";
+    }
+}
+
 const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
 const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
 const pallete = { ...basic_colors, ...premium_colors };
@@ -83,6 +91,10 @@ class WPlacer {
         const me = await this.browser.fetch("https://backend.wplace.live/me");
         const bodyText = await me.text();
 
+        if (bodyText.trim().startsWith("<!DOCTYPE html>")) {
+            throw new NetworkError("Cloudflare interruption detected. The server may be down or rate limiting.");
+        }
+
         try {
             const userInfo = JSON.parse(bodyText);
             if (userInfo.error) throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
@@ -92,9 +104,10 @@ class WPlacer {
             }
             throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
         } catch (e) {
-            if (bodyText.includes('Error 1015')) throw new Error("(1015) You are being rate-limited by the server. Please wait a moment and try again.");
-            if (bodyText.includes('502') && bodyText.includes('gateway')) throw new Error(`(502) Bad Gateway: The server is temporarily unavailable. Please try again later.`);
-            throw new Error(`Failed to parse server response. The service may be down or returning an invalid format. Response: "${bodyText.substring(0, 150)}..."`);
+            if (e instanceof NetworkError) throw e; // Re-throw our custom error
+            if (bodyText.includes('Error 1015')) throw new NetworkError("(1015) You are being rate-limited by the server.");
+            if (bodyText.includes('502') && bodyText.includes('gateway')) throw new NetworkError(`(502) Bad Gateway: The server is temporarily unavailable.`);
+            throw new Error(`Failed to parse server response. Response: "${bodyText.substring(0, 150)}..."`);
         }
     };
 
@@ -174,7 +187,7 @@ class WPlacer {
             return { painted: 0 };
         }
         if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited. Please wait a moment and try again.");
+            throw new NetworkError("(1015) You are being rate-limited.");
         }
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
@@ -325,7 +338,7 @@ class WPlacer {
             return true;
         }
         if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new Error("(1015) You are being rate-limited while trying to make a purchase. Please wait.");
+            throw new NetworkError("(1015) You are being rate-limited while trying to make a purchase.");
         }
         throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
     };
@@ -374,15 +387,31 @@ let activePaintingTasks = 0;
 
 // --- Token Management ---
 const TokenManager = {
-    tokenQueue: [],
+    tokenQueue: [], // Now stores objects: { token: string, receivedAt: number }
     tokenPromise: null,
     resolvePromise: null,
     isTokenNeeded: false,
+    TOKEN_EXPIRATION_MS: 2 * 60 * 1000, // 2 minutes
+
+    _purgeExpiredTokens() {
+        const now = Date.now();
+        const initialSize = this.tokenQueue.length;
+        this.tokenQueue = this.tokenQueue.filter(
+            item => now - item.receivedAt < this.TOKEN_EXPIRATION_MS
+        );
+        const removedCount = initialSize - this.tokenQueue.length;
+        if (removedCount > 0) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Discarded ${removedCount} expired token(s).`);
+        }
+    },
 
     getToken() {
+        this._purgeExpiredTokens();
+
         if (this.tokenQueue.length > 0) {
-            return Promise.resolve(this.tokenQueue[0]);
+            return Promise.resolve(this.tokenQueue[0].token);
         }
+
         if (!this.tokenPromise) {
             log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: A task is waiting for a token. Flagging for clients.');
             this.isTokenNeeded = true;
@@ -392,16 +421,20 @@ const TokenManager = {
         }
         return this.tokenPromise;
     },
+
     setToken(t) {
         log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
         this.isTokenNeeded = false;
-        this.tokenQueue.push(t);
+        const newToken = { token: t, receivedAt: Date.now() };
+        this.tokenQueue.push(newToken);
+        
         if (this.resolvePromise) {
-            this.resolvePromise(this.tokenQueue[0]);
-            this.tokenPromise = null;
-            this.resolvePromise = null;
+             this.resolvePromise(newToken.token); // Resolve with the new token
+             this.tokenPromise = null;
+             this.resolvePromise = null;
         }
     },
+
     invalidateToken() {
         this.tokenQueue.shift();
         log('SYSTEM', 'wplacer', `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
@@ -411,7 +444,7 @@ const TokenManager = {
 // --- Error Handling ---
 function logUserError(error, id, name, context) {
     const message = error.message || "An unknown error occurred.";
-    if (message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
+    if (error.name === 'NetworkError' || message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
         log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
         log(id, name, `❌ Failed to ${context}`, error);
@@ -436,6 +469,11 @@ class TemplateManager {
         this.sleepResolve = null;
         this.totalPixels = this.template.data.flat().filter(p => p > 0).length;
         this.pixelsRemaining = this.totalPixels;
+
+        // Exponential backoff state
+        this.initialRetryDelay = 30 * 1000; // 30 seconds
+        this.maxRetryDelay = 5 * 60 * 1000; // 5 minutes
+        this.currentRetryDelay = this.initialRetryDelay;
     }
 
     sleep(ms) {
@@ -513,10 +551,19 @@ class TemplateManager {
                 try {
                     await checkWplacer.login(users[this.masterId].cookies);
                     this.pixelsRemaining = await checkWplacer.pixelsLeft();
+                    // If successful, reset the retry delay
+                    this.currentRetryDelay = this.initialRetryDelay;
                 } catch (error) {
-                    logUserError(error, this.masterId, this.masterName, "check pixels left");
-                    await this.sleep(60000);
-                    continue;
+                    if (error.name === 'NetworkError') {
+                        log('SYSTEM', 'wplacer', `[${this.name}] Network issue detected. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
+                        await this.sleep(this.currentRetryDelay);
+                        // Increase delay for next time
+                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                    } else {
+                        logUserError(error, this.masterId, this.masterName, "check pixels left");
+                        await this.sleep(60000); // Default wait for other errors
+                    }
+                    continue; // Restart the loop
                 }
 
                 if (this.pixelsRemaining === 0) {

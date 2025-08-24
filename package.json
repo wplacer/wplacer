@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "main": "server.js",
   "type": "module",
   "scripts": {
