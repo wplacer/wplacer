@@ -5,6 +5,8 @@ import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas } from "canvas";
+import { WebSocketServer } from "ws";
+import { createServer } from "http";
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -12,17 +14,65 @@ if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
 }
 
+// --- WebSocket Log Streaming ---
+let webLogClients = new Set();
+const webLogBuffer = [];
+const MAX_WEB_LOG_BUFFER = 1000;
+
+const formatLogForWeb = (id, name, data, error, isSystem = false) => {
+    const timestamp = new Date().toISOString();
+    const level = error ? 'ERROR' : 'INFO';
+    const identifier = isSystem ? `${name}#${id}` : `${name}#${id}`;
+    
+    // Simplify verbose logs for web display
+    let webData = data;
+    if (data.includes('TOKEN_MANAGER:')) {
+        if (data.includes('Requesting new token')) webData = 'Requesting token from browser';
+        else if (data.includes('Token received')) webData = `Token received (${data.match(/Queue size: (\d+)/)?.[1] || '?'} in queue)`;
+        else if (data.includes('Client connected')) webData = 'Browser client connected';
+        else if (data.includes('No clients connected')) webData = 'Waiting for browser connection';
+        else if (data.includes('Stalled')) webData = 'Waiting for browser client';
+    }
+    
+    return {
+        timestamp,
+        level,
+        identifier,
+        message: error ? `${webData}: ${error.message || error}` : webData,
+        raw: error ? `${data}: ${error.stack || error.message}` : data
+    };
+};
+
+const broadcastToWebClients = (logEntry) => {
+    const message = JSON.stringify({ type: 'log', data: logEntry });
+    webLogClients.forEach(ws => {
+        if (ws.readyState === 1) { // WebSocket.OPEN
+            ws.send(message);
+        }
+    });
+};
+
 // --- Logging and Utility Functions ---
 const log = async (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
+    const isSystem = id === 'SYSTEM';
+    
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
         appendFileSync(path.join(dataDir, `errors.log`), `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
         appendFileSync(path.join(dataDir, `logs.log`), `[${timestamp}] ${identifier} ${data}\n`);
-    };
+    }
+    
+    // Format and broadcast to web clients
+    const webLogEntry = formatLogForWeb(id, name, data, error, isSystem);
+    webLogBuffer.push(webLogEntry);
+    if (webLogBuffer.length > MAX_WEB_LOG_BUFFER) {
+        webLogBuffer.shift();
+    }
+    broadcastToWebClients(webLogEntry);
 };
 
 const duration = (durationMs) => {
@@ -538,11 +588,40 @@ class TemplateManager {
 
 // --- Express App Setup ---
 const app = express();
+const server = createServer(app);
 app.use(cors());
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
+// --- WebSocket Setup ---
+const wss = new WebSocketServer({ server });
+
+wss.on('connection', (ws) => {
+    webLogClients.add(ws);
+    
+    // Send existing log buffer to new client
+    ws.send(JSON.stringify({ 
+        type: 'history', 
+        data: webLogBuffer.slice(-100) // Send last 100 logs
+    }));
+    
+    ws.on('close', () => {
+        webLogClients.delete(ws);
+    });
+    
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+        webLogClients.delete(ws);
+    });
+});
+
 // --- API Endpoints ---
+app.get("/logs", (req, res) => {
+    const limit = parseInt(req.query.limit) || 100;
+    const logs = webLogBuffer.slice(-limit);
+    res.json({ logs });
+});
+
 app.get("/token-needed", (req, res) => {
     res.json({ needed: TokenManager.isTokenNeeded });
 });
@@ -754,7 +833,7 @@ const keepAlive = async () => {
 
     const port = Number(process.env.PORT) || 80;
     const host = "0.0.0.0";
-    app.listen(port, host, () => {
+    server.listen(port, host, () => {
         console.log(`✅ Server listening on http://localhost:${port}`);
         console.log(`   Open the web UI in your browser to start!`);
         setInterval(keepAlive, 20 * 60 * 1000); // 20 minutes

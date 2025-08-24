@@ -11,7 +11,8 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "impit": "0.5.3",
-    "tough-cookie": "^6.0.0"
+    "tough-cookie": "^6.0.0",
+    "ws": "^8.18.0"
   },
   "engines": {
     "node": ">=22.0.0",

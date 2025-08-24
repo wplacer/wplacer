@@ -816,3 +816,228 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
+
+// Log Widget Implementation
+class LogWidget {
+    constructor() {
+        this.widget = $('logWidget');
+        this.header = $('logHeader');
+        this.content = $('logContent');
+        this.status = $('logStatus');
+        this.clearBtn = $('logClearBtn');
+        this.toggleBtn = $('logToggleBtn');
+        this.filters = $('logFilters');
+        
+        this.ws = null;
+        this.logs = [];
+        this.maxLogs = 1000;
+        this.isCollapsed = true;
+        this.autoScroll = true;
+        this.activeFilter = 'all';
+        
+        this.init();
+    }
+    
+    init() {
+        this.setupEventListeners();
+        this.connectWebSocket();
+        this.loadInitialLogs();
+    }
+    
+    setupEventListeners() {
+        this.header.addEventListener('click', () => this.toggleCollapse());
+        this.clearBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.clearLogs();
+        });
+        this.toggleBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.toggleCollapse();
+        });
+        
+        // Filter buttons
+        this.filters.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (e.target.classList.contains('log-filter-btn')) {
+                this.setFilter(e.target.dataset.filter);
+            }
+        });
+        
+        // Auto-scroll detection
+        this.content.addEventListener('scroll', () => {
+            const { scrollTop, scrollHeight, clientHeight } = this.content;
+            this.autoScroll = scrollTop + clientHeight >= scrollHeight - 10;
+        });
+    }
+    
+    connectWebSocket() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}`;
+        
+        this.updateStatus('connecting');
+        
+        try {
+            this.ws = new WebSocket(wsUrl);
+            
+            this.ws.onopen = () => {
+                this.updateStatus('connected');
+                console.log('Log WebSocket connected');
+            };
+            
+            this.ws.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'log') {
+                        this.addLog(data.data);
+                    } else if (data.type === 'history') {
+                        this.loadHistoryLogs(data.data);
+                    }
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+            
+            this.ws.onclose = () => {
+                this.updateStatus('disconnected');
+                console.log('Log WebSocket disconnected');
+                // Attempt to reconnect after 3 seconds
+                setTimeout(() => this.connectWebSocket(), 3000);
+            };
+            
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                this.updateStatus('disconnected');
+            };
+        } catch (error) {
+            console.error('Failed to create WebSocket:', error);
+            this.updateStatus('disconnected');
+        }
+    }
+    
+    async loadInitialLogs() {
+        try {
+            const response = await axios.get('/logs?limit=50');
+            if (response.data.logs) {
+                this.loadHistoryLogs(response.data.logs);
+            }
+        } catch (error) {
+            console.error('Failed to load initial logs:', error);
+        }
+    }
+    
+    loadHistoryLogs(logs) {
+        this.logs = [];
+        this.content.innerHTML = '';
+        logs.forEach(log => this.addLog(log, false));
+        if (!this.isCollapsed) {
+            this.scrollToBottom();
+        }
+    }
+    
+    addLog(logData, shouldScroll = true) {
+        // Limit log buffer size
+        if (this.logs.length >= this.maxLogs) {
+            this.logs.shift();
+            const firstEntry = this.content.firstChild;
+            if (firstEntry) firstEntry.remove();
+        }
+        
+        this.logs.push(logData);
+        
+        const logEntry = document.createElement('div');
+        logEntry.className = `log-entry ${logData.level.toLowerCase()}`;
+        
+        // Determine entry type for styling
+        if (logData.identifier.includes('SYSTEM')) {
+            logEntry.classList.add('system');
+        } else {
+            logEntry.classList.add('user');
+        }
+        
+        const timestamp = new Date(logData.timestamp).toLocaleTimeString();
+        
+        logEntry.innerHTML = `<span class="log-timestamp">[${timestamp}]</span> <span class="log-identifier">${logData.identifier}</span> <span class="log-message">${logData.message}</span>`;
+        
+        // Apply current filter
+        this.applyFilterToEntry(logEntry, logData);
+        
+        this.content.appendChild(logEntry);
+        
+        if (shouldScroll && this.autoScroll) {
+            this.scrollToBottom();
+        }
+    }
+    
+    clearLogs() {
+        this.logs = [];
+        this.content.innerHTML = '';
+    }
+    
+    setFilter(filter) {
+        this.activeFilter = filter;
+        
+        // Update active filter button
+        this.filters.querySelectorAll('.log-filter-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.filter === filter);
+        });
+        
+        // Apply filter to all entries
+        this.content.querySelectorAll('.log-entry').forEach((entry, index) => {
+            const logData = this.logs[index];
+            if (logData) {
+                this.applyFilterToEntry(entry, logData);
+            }
+        });
+        
+        if (this.autoScroll) {
+            this.scrollToBottom();
+        }
+    }
+    
+    applyFilterToEntry(entry, logData) {
+        let shouldShow = false;
+        
+        switch (this.activeFilter) {
+            case 'all':
+                shouldShow = true;
+                break;
+            case 'system':
+                shouldShow = logData.identifier.includes('SYSTEM');
+                break;
+            case 'user':
+                shouldShow = !logData.identifier.includes('SYSTEM');
+                break;
+            case 'error':
+                shouldShow = logData.level === 'ERROR';
+                break;
+        }
+        
+        entry.classList.toggle('visible', shouldShow);
+    }
+    
+    toggleCollapse() {
+        this.isCollapsed = !this.isCollapsed;
+        this.widget.classList.toggle('collapsed', this.isCollapsed);
+        this.toggleBtn.textContent = this.isCollapsed ? '▲' : '▼';
+        
+        if (!this.isCollapsed && this.autoScroll) {
+            setTimeout(() => this.scrollToBottom(), 100);
+        }
+    }
+    
+    updateStatus(status) {
+        this.status.className = `log-status ${status}`;
+    }
+    
+    scrollToBottom() {
+        if (!this.isCollapsed) {
+            this.content.scrollTop = this.content.scrollHeight;
+        }
+    }
+}
+
+// Initialize log widget when page loads
+let logWidget;
+document.addEventListener('DOMContentLoaded', () => {
+    logWidget = new LogWidget();
+});

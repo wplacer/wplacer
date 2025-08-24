@@ -174,6 +174,27 @@
         </div>
     </div>
 
+    <!-- Log Widget -->
+    <div id="logWidget" class="log-widget collapsed">
+        <div class="log-header" id="logHeader">
+            <div class="log-title">
+                <div class="log-status" id="logStatus"></div>
+                wplacer logs
+            </div>
+            <div class="log-controls">
+                <div class="log-filters" id="logFilters">
+                    <button class="log-filter-btn active" data-filter="all">All</button>
+                    <button class="log-filter-btn" data-filter="system">System</button>
+                    <button class="log-filter-btn" data-filter="user">Users</button>
+                    <button class="log-filter-btn" data-filter="error">Errors</button>
+                </div>
+                <button class="log-clear-btn" id="logClearBtn">Clear</button>
+                <button class="log-toggle-btn" id="logToggleBtn">▲</button>
+            </div>
+        </div>
+        <div class="log-content" id="logContent"></div>
+    </div>
+
     <script type="text/javascript" src="scripts/index.js"></script>
 </body>
 
