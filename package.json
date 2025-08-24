@@ -1,6 +1,7 @@
 {
   "name": "wplacer",
-  "main": "index.js",
+  "version": "4.0.0",
+  "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node --env-file=.env ."

@@ -42,11 +42,15 @@ const templateList = $("templateList");
 const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
-const drawingModeSelect = $("drawingModeSelect");
+const drawingDirectionSelect = $("drawingDirectionSelect");
+const drawingOrderSelect = $("drawingOrderSelect");
 const outlineMode = $("outlineMode");
+const interleavedMode = $("interleavedMode");
+const skipPaintedPixels = $("skipPaintedPixels");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
+const accountCheckCooldown = $("accountCheckCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
@@ -1023,7 +1027,10 @@ checkUserStatus.addEventListener("click", async () => {
     let totalCurrent = 0;
     let totalMax = 0;
 
-    const tasks = userElements.map(userEl => async () => {
+    const { data: settings } = await axios.get('/settings');
+    const cooldown = settings.accountCheckCooldown || 0;
+
+    for (const userEl of userElements) {
         const id = userEl.id.split('-')[1];
         const infoSpans = userEl.querySelectorAll('.user-info > span');
         const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
@@ -1056,9 +1063,10 @@ checkUserStatus.addEventListener("click", async () => {
             levelProgressEl.textContent = "(?%)";
             infoSpans.forEach(span => span.style.color = 'var(--error-color)');
         }
-    });
-
-    await processInParallel(tasks, 5);
+        if (cooldown > 0) {
+            await sleep(cooldown);
+        }
+    }
 
     totalCharges.textContent = totalCurrent;
     totalMaxCharges.textContent = totalMax;
@@ -1096,7 +1104,7 @@ selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
 
-const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
+const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
     const button = document.createElement('button');
     const isRunning = template.running;
 
@@ -1269,7 +1277,7 @@ openManageTemplates.addEventListener("click", () => {
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
-                const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
+                const toggleButton = createToggleButton(t, id, buttons, progressBarText, percent);
                 buttons.appendChild(toggleButton);
                 
                 const editButton = createEditButton(t, id);
@@ -1317,11 +1325,15 @@ openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
-        drawingModeSelect.value = currentSettings.drawingMethod;
+        drawingDirectionSelect.value = currentSettings.drawingDirection;
+        drawingOrderSelect.value = currentSettings.drawingOrder;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
         outlineMode.checked = currentSettings.outlineMode;
+        interleavedMode.checked = currentSettings.interleavedMode;
+        skipPaintedPixels.checked = currentSettings.skipPaintedPixels;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
+        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
@@ -1341,9 +1353,12 @@ const saveSetting = async (setting) => {
     }
 };
 
-drawingModeSelect.addEventListener('change', () => saveSetting({ drawingMethod: drawingModeSelect.value }));
+drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
+drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
+interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
+skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;
@@ -1361,6 +1376,15 @@ purchaseCooldown.addEventListener('change', () => {
         return;
     }
     saveSetting({ purchaseCooldown: value });
+});
+
+accountCheckCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
+    }
+    saveSetting({ accountCheckCooldown: value });
 });
 
 dropletReserve.addEventListener('change', () => {
