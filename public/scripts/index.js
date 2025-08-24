@@ -297,6 +297,26 @@ const closest_oklab = color => {
     return basic_colors[closestColorKey];
 };
 
+const closest_cie76 = color => {
+    const targetRgb = color.split(',').map(Number);
+    const targetLab = rgbToLab(targetRgb);
+
+    let minDistance = Infinity;
+    let closestColorKey = null;
+
+    for (const key in basic_colors_lab) {
+        const [l1, a1, b1] = targetLab;
+        const [l2, a2, b2] = basic_colors_lab[key];
+        const distance = Math.sqrt(Math.pow(l1 - l2, 2) + Math.pow(a1 - a2, 2) + Math.pow(b1 - b2, 2));
+        if (distance < minDistance) {
+            minDistance = distance;
+            closestColorKey = key;
+        }
+    }
+
+    return basic_colors[closestColorKey];
+};
+
 const closest_rgb = color => {
     const [r1, g1, b1] = color.split(',').map(Number);
     let minDistance = Infinity;
@@ -443,6 +463,8 @@ const nearestimgdecoder = (imageData, width, height) => {
                             id = closest_ciede2000(rgb);
                         } else if (colorAlgorithm.value === 'Oklab') {
                             id = closest_oklab(rgb);
+                        } else if (colorAlgorithm.value === 'CIE76') {
+                            id = closest_cie76(rgb);
                         }
                         else {
                             id = closest_rgb(rgb);
