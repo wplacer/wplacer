@@ -88,10 +88,44 @@ const sendCookie = async (callback) => {
     }
 };
 
+const quickLogout = (callback) => {
+    const origin = "https://backend.wplace.live/";
+    console.log(`wplacer: Clearing browsing data for ${origin}`);
+    chrome.browsingData.remove({
+        origins: [origin]
+    }, {
+        cache: true,
+        cookies: true,
+        fileSystems: true,
+        indexedDB: true,
+        localStorage: true,
+        pluginData: true,
+        serviceWorkers: true,
+        webSQL: true
+    }, () => {
+        if (chrome.runtime.lastError) {
+            console.error("wplacer: Error clearing browsing data.", chrome.runtime.lastError);
+            if (callback) callback({ success: false, error: "Failed to clear data." });
+        } else {
+            console.log("wplacer: Browsing data cleared successfully. Reloading wplace.live tabs.");
+            chrome.tabs.query({ url: "https://wplace.live/*" }, (tabs) => {
+                if (tabs && tabs.length > 0) {
+                    tabs.forEach(tab => chrome.tabs.reload(tab.id));
+                }
+            });
+            if (callback) callback({ success: true });
+        }
+    });
+};
+
 // --- Event Listeners ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
+        return true; // Required for async response
+    }
+    if (request.action === "quickLogout") {
+        quickLogout(sendResponse);
         return true; // Required for async response
     }
     if (request.type === "SEND_TOKEN") {

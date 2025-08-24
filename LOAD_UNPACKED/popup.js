@@ -3,6 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const portInput = document.getElementById('port');
     const saveBtn = document.getElementById('saveSettingsBtn');
     const sendCookieBtn = document.getElementById('sendCookieBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
 
     let initialPort = 80;
 
@@ -40,6 +41,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             if (response.success) {
                 statusEl.textContent = `Success! User: ${response.name}.`;
+            } else {
+                statusEl.textContent = `Error: ${response.error}`;
+            }
+        });
+    });
+
+    // Quick logout
+    logoutBtn.addEventListener('click', () => {
+        statusEl.textContent = 'Logging out...';
+        chrome.runtime.sendMessage({ action: "quickLogout" }, (response) => {
+            if (chrome.runtime.lastError) {
+                statusEl.textContent = `Error: ${chrome.runtime.lastError.message}`;
+                return;
+            }
+            if (response.success) {
+                statusEl.textContent = 'Logout successful. Site data cleared.';
             } else {
                 statusEl.textContent = `Error: ${response.error}`;
             }

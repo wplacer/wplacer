@@ -41,8 +41,10 @@ const templateList = $("templateList");
 const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
-const drawingModeSelect = $("drawingModeSelect");
+const drawingDirectionSelect = $("drawingDirectionSelect");
+const drawingOrderSelect = $("drawingOrderSelect");
 const outlineMode = $("outlineMode");
+const interleavedMode = $("interleavedMode");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
@@ -779,9 +781,11 @@ openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
-        drawingModeSelect.value = currentSettings.drawingMethod;
+        drawingDirectionSelect.value = currentSettings.drawingDirection;
+        drawingOrderSelect.value = currentSettings.drawingOrder;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
         outlineMode.checked = currentSettings.outlineMode;
+        interleavedMode.checked = currentSettings.interleavedMode;
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
@@ -804,9 +808,11 @@ const saveSetting = async (setting) => {
     }
 };
 
-drawingModeSelect.addEventListener('change', () => saveSetting({ drawingMethod: drawingModeSelect.value }));
+drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
+drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
+interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;

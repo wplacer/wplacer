@@ -208,7 +208,7 @@ class WPlacer {
         return mismatched;
     }
 
-    async paint(method = 'linear') {
+    async paint() {
         await this.loadUserInfo();
         await this.loadTiles();
         if (!this.token) throw new Error("Token not provided to paint method.");
@@ -218,62 +218,80 @@ class WPlacer {
 
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 
-        // --- Sorting Logic based on Drawing Mode ---
+        let pixelsToProcess = mismatchedPixels;
+        let isOutlineTurn = false;
+
+        // 1. Prioritize Outline Mode
+        if (this.settings.outlineMode) {
+            const edgePixels = mismatchedPixels.filter(p => p.isEdge);
+            if (edgePixels.length > 0) {
+                pixelsToProcess = edgePixels;
+                isOutlineTurn = true;
+            }
+        }
+
+        // Helper functions for coordinates
         const [startX, startY] = this.coords;
         const getGlobalY = (p) => (p.ty - startY) * 1000 + p.py;
         const getGlobalX = (p) => (p.tx - startX) * 1000 + p.px;
 
-        switch (method) {
-            case 'linear-reversed': // Bottom to Top
-                mismatchedPixels.sort((a, b) => getGlobalY(b) - getGlobalY(a));
+        // 2. Base Directional Sort
+        switch (this.settings.drawingDirection) {
+            case 'btt': // Bottom to Top
+                pixelsToProcess.sort((a, b) => getGlobalY(b) - getGlobalY(a));
                 break;
-            case 'linear-ltr': // Left to Right
-                mismatchedPixels.sort((a, b) => getGlobalX(a) - getGlobalX(b));
+            case 'ltr': // Left to Right
+                pixelsToProcess.sort((a, b) => getGlobalX(a) - getGlobalX(b));
                 break;
-            case 'linear-rtl': // Right to Left
-                mismatchedPixels.sort((a, b) => getGlobalX(b) - getGlobalX(a));
+            case 'rtl': // Right to Left
+                pixelsToProcess.sort((a, b) => getGlobalX(b) - getGlobalX(a));
                 break;
+            case 'ttb': // Top to Bottom
+            default:
+                pixelsToProcess.sort((a, b) => getGlobalY(a) - getGlobalY(b));
+                break;
+        }
+
+        // 3. Apply Order Modification
+        switch (this.settings.drawingOrder) {
             case 'random':
-                for (let i = mismatchedPixels.length - 1; i > 0; i--) {
+                for (let i = pixelsToProcess.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
-                    [mismatchedPixels[i], mismatchedPixels[j]] = [mismatchedPixels[j], mismatchedPixels[i]];
+                    [pixelsToProcess[i], pixelsToProcess[j]] = [pixelsToProcess[j], pixelsToProcess[i]];
                 }
                 break;
-            case 'colorByColor':
-            case 'singleColorRandom': {
-                const pixelsByColor = mismatchedPixels.reduce((acc, p) => {
+            case 'color':
+            case 'randomColor': {
+                const pixelsByColor = pixelsToProcess.reduce((acc, p) => {
                     if (!acc[p.color]) acc[p.color] = [];
                     acc[p.color].push(p);
                     return acc;
                 }, {});
                 const colors = Object.keys(pixelsByColor);
-                if (method === 'singleColorRandom') {
+                if (this.settings.drawingOrder === 'randomColor') {
                     for (let i = colors.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
                         [colors[i], colors[j]] = [colors[j], colors[i]];
                     }
                 }
-                mismatchedPixels = colors.flatMap(color => pixelsByColor[color]);
-                break;
-            }
-            case 'interleaved': {
-                const firstPass = mismatchedPixels.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 === 0);
-                const secondPass = mismatchedPixels.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 !== 0);
-                mismatchedPixels = [...firstPass, ...secondPass];
+                pixelsToProcess = colors.flatMap(color => pixelsByColor[color]);
                 break;
             }
             case 'linear':
             default:
-                // The default order from _getMismatchedPixels is already linear top-to-bottom
+                // Do nothing, keep the directional sort
                 break;
         }
 
-        if (this.settings?.outlineMode) {
-            const edgePixels = mismatchedPixels.filter(p => p.isEdge);
-            if (edgePixels.length > 0) mismatchedPixels = edgePixels;
+        // 4. Apply Interleave
+        if (this.settings.interleavedMode && !isOutlineTurn) {
+            const firstPass = pixelsToProcess.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 === 0);
+            const secondPass = pixelsToProcess.filter(p => (getGlobalX(p) + getGlobalY(p)) % 2 !== 0);
+            pixelsToProcess = [...firstPass, ...secondPass];
         }
 
-        const pixelsToPaint = mismatchedPixels.slice(0, Math.floor(this.userInfo.charges.count));
+        // 5. Prepare and execute the paint job
+        const pixelsToPaint = pixelsToProcess.slice(0, Math.floor(this.userInfo.charges.count));
         const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
             const key = `${p.tx},${p.ty}`;
             if (!acc[key]) acc[key] = { colors: [], coords: [] };
@@ -337,8 +355,8 @@ const saveTemplates = () => {
 let currentSettings = {
     turnstileNotifications: false, accountCooldown: 20000, purchaseCooldown: 5000,
     keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
-    drawingMethod: 'linear', chargeThreshold: 0.5, outlineMode: false,
-    accountCheckCooldown: 0,
+    drawingDirection: 'ttb', drawingOrder: 'linear', chargeThreshold: 0.5,
+    outlineMode: false, interleavedMode: false, accountCheckCooldown: 0,
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
     currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
@@ -457,7 +475,7 @@ class TemplateManager {
         while (!paintingComplete && this.running) {
             try {
                 wplacer.token = await TokenManager.getToken();
-                await wplacer.paint(currentSettings.drawingMethod);
+                await wplacer.paint();
                 paintingComplete = true;
             } catch (error) {
                 if (error.name === "SuspensionError") {

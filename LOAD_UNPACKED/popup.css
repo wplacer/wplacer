@@ -66,6 +66,14 @@ button:hover {
     background-color: var(--accent-hover);
 }
 
+button.destructive {
+    background-color: hsl(0, 65%, 51%);
+}
+
+button.destructive:hover {
+    background-color: hsl(0, 65%, 45%);
+}
+
 .settings {
     display: flex;
     align-items: center;

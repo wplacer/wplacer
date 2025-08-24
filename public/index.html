@@ -119,22 +119,33 @@
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
 
-            <label for="drawingModeSelect">Drawing Mode</label>
-            <select id="drawingModeSelect">
-                <option value="linear">Top to Bottom</option>
-                <option value="linear-reversed">Bottom to Top</option>
-                <option value="linear-ltr">Left to Right</option>
-                <option value="linear-rtl">Right to Left</option>
-                <option value="interleaved">Interleaved</option>
-                <option value="singleColorRandom">Random Color</option>
-                <option value="colorByColor">Color by Color</option>
+            <label for="drawingDirectionSelect">Drawing Direction</label>
+            <select id="drawingDirectionSelect">
+                <option value="ttb">Top to Bottom</option>
+                <option value="btt">Bottom to Top</option>
+                <option value="ltr">Left to Right</option>
+                <option value="rtl">Right to Left</option>
+            </select>
+
+            <label for="drawingOrderSelect">Drawing Order</label>
+            <select id="drawingOrderSelect">
+                <option value="linear">Linear</option>
                 <option value="random">Random Pixels</option>
+                <option value="randomColor">Random Color</option>
+                <option value="color">Color by Color</option>
             </select>
 
             <div class="setting-toggle">
                 <label for="outlineMode">Enable outline mode</label>
                 <label class="switch">
                     <input id="outlineMode" name="outlineMode" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-toggle">
+                <label for="interleavedMode">Enable interleaved mode</label>
+                <label class="switch">
+                    <input id="interleavedMode" name="interleavedMode" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
