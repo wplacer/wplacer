@@ -61,8 +61,8 @@ const sendCookie = async (callback) => {
     const getCookie = (details) => new Promise(resolve => chrome.cookies.get(details, cookie => resolve(cookie)));
 
     const [jCookie, sCookie] = await Promise.all([
-        getCookie({ url: "https://wplace.live", name: "j" }),
-        getCookie({ url: "https://wplace.live", name: "s" })
+        getCookie({ url: "https://backend.wplace.live", name: "j" }),
+        getCookie({ url: "https://backend.wplace.live", name: "s" })
     ]);
 
     if (!jCookie) {
