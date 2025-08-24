@@ -805,8 +805,8 @@ app.get("/canvas", async (req, res) => {
 
 // --- Keep-Alive System ---
 const keepAlive = async () => {
-    if (activePaintingTasks > 0) {
-        log('SYSTEM', 'wplacer', '⚙️ Deferring keep-alive check: painting is active.');
+    if (activeBrowserUsers.size > 0) {
+        log('SYSTEM', 'wplacer', '⚙️ Deferring keep-alive check: a browser operation is active.');
         return;
     }
     log('SYSTEM', 'wplacer', '⚙️ Performing periodic cookie keep-alive check for all users...');
