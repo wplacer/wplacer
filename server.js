@@ -423,7 +423,22 @@ const TokenManager = {
     },
 
     setToken(t) {
-        log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
+        const newQueueSize = this.tokenQueue.length + 1;
+        log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size: ${newQueueSize}`);
+        
+        // Log queue status for monitoring
+        if (newQueueSize >= 10) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: EMERGENCY LEVEL - Queue extremely high (${newQueueSize})`);
+        } else if (newQueueSize >= 4) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: HIGH LEVEL - Refresh should stop (${newQueueSize})`);
+        } else if (newQueueSize >= 3) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: MAINTENANCE LEVEL - Slow refresh (${newQueueSize})`);
+        } else if (newQueueSize >= 2) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: MODERATE LEVEL - Medium refresh (${newQueueSize})`);
+        } else {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: LOW LEVEL - Fast refresh needed (${newQueueSize})`);
+        }
+        
         this.isTokenNeeded = false;
         const newToken = { token: t, receivedAt: Date.now() };
         this.tokenQueue.push(newToken);
@@ -438,6 +453,18 @@ const TokenManager = {
     invalidateToken() {
         this.tokenQueue.shift();
         log('SYSTEM', 'wplacer', `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
+    },
+
+    // Get current queue size for dynamic refresh control
+    getQueueSize() {
+        this._purgeExpiredTokens();
+        return this.tokenQueue.length;
+    },
+
+    // Check if token is needed by background script polling
+    isTokenNeededByClient() {
+        this._purgeExpiredTokens();
+        return this.isTokenNeeded || this.tokenQueue.length < 4;
     }
 };
 
@@ -676,14 +703,22 @@ app.use(express.json({ limit: Infinity }));
 
 // --- API Endpoints ---
 app.get("/token-needed", (req, res) => {
-    res.json({ needed: TokenManager.isTokenNeeded });
+    res.json({ needed: TokenManager.isTokenNeededByClient() });
 });
 
 app.post("/t", (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
+    
     TokenManager.setToken(t);
-    res.sendStatus(200);
+    
+    // Return queue size info for dynamic refresh control
+    const queueSize = TokenManager.getQueueSize();
+    res.json({ 
+        success: true, 
+        queueSize: queueSize,
+        refreshNeeded: queueSize <= 3 // Suggest refresh only if queue is 3 or below
+    });
 });
 
 app.get("/users", (_, res) => res.json(users));
