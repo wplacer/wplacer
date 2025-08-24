@@ -376,35 +376,94 @@ canvas {
     font-weight: 500;
 }
 
+/* Progress section structure */
+.progress-section {
+    width: 100%;
+    margin: 15px 0;
+    padding: 10px;
+    background-color: var(--bg-secondary, #f8f9fa);
+    border-radius: 6px;
+    border: 1px solid var(--border-color, #e5e7eb);
+}
+
+/* Progress text above the bar */
+.progress-text {
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+/* Progress container */
 .progress-container {
-    margin: 10px 0;
+    width: 100%;
+    position: relative;
 }
 
 .progress-background {
     width: 100%;
-    height: 20px;
-    background-color: var(--accent-secondary, #3f3f3fff);
-    border-radius: 10px;
+    height: 12px;
+    background-color: var(--bg-tertiary, #e5e7eb);
+    border-radius: 6px;
     overflow: hidden;
-    border: 1px solid var(--accent-primary, #e2b24bff);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
 }
 
 .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, var(--accent-primary, #e2b24bff), var(--success-color, #10b981));
-    transition: width 0.5s ease-in-out;
-    border-radius: 10px 0 0 10px;
+    background: linear-gradient(90deg, var(--accent-primary, #e2b24b) 0%, var(--success-color, #10b981) 100%);
+    transition: width 0.3s ease;
+    border-radius: 6px;
+    position: relative;
 }
 
-.progress-text {
-    font-size: 0.9em;
-    color: var(--text-primary, #1e293b);
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.2) 50%, transparent 100%);
+    animation: shimmer 2s infinite;
 }
 
-.template-actions, .template-actions-all {
+@keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+
+/* Ensure template actions (buttons) have higher z-index */
+.template-actions {
+    position: relative;
+    z-index: 10;
+    margin-top: 10px;
     display: flex;
-    gap: 10px;
-    margin-top: 16px;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+/* Make sure template cards have proper layout */
+.template {
+    display: flex;
+    flex-direction: column;
+    position: relative;
+    overflow: visible;
+    margin-bottom: 15px;
+}
+
+/* Ensure template info doesn't overflow */
+.template span {
+    display: block;
+    margin-bottom: 10px;
+    word-wrap: break-word;
+}
+
+/* Fix for the refresh button area specifically */
+.template-actions-all {
+    position: relative;
+    z-index: 100; /* Highest priority */
+    margin-bottom: 20px;
 }
 
 .setting-toggle {
@@ -534,18 +593,6 @@ input:checked + .slider:before {
     border-radius: 6px;
     transition: width 0.3s ease;
     position: relative;
-}
-
-.progress-text {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    color: var(--text-primary);
-    font-weight: 500;
-    font-size: 0.9rem;
-    z-index: 1;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
 }
 
 .progress-status {
@@ -1133,6 +1180,298 @@ button img:after {
 
 .import-modal {
     max-width: 700px !important;
+    width: 95vw !important;
+    max-height: 85vh !important;
+    overflow: hidden !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    backdrop-filter: blur(8px);
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.import-modal .modal-content {
+    background: linear-gradient(145deg, var(--background-secondary), var(--background-tertiary));
+    border: 2px solid var(--accent-primary);
+    box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6);
+    border-radius: 20px;
+    position: relative;
+}
+
+.import-modal .modal-title {
+    font-size: 1.8rem;
+    margin-bottom: 20px;
+    text-align: center;
+    background: linear-gradient(45deg, var(--accent-primary), var(--text-primary));
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 700;
+}
+
+.import-template-list {
+    max-height: 50vh;
+    overflow-y: auto;
+    padding: 0 10px;
+    margin: 20px 0;
+}
+
+/* Custom scrollbar for import list */
+.import-template-list::-webkit-scrollbar {
+    width: 8px;
+}
+
+.import-template-list::-webkit-scrollbar-track {
+    background: var(--background-primary);
+    border-radius: 4px;
+}
+
+.import-template-list::-webkit-scrollbar-thumb {
+    background: var(--accent-primary);
+    border-radius: 4px;
+}
+
+.import-template-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-hover);
+}
+
+.import-template-item {
+    border: 1px solid var(--border-color);
+    padding: 20px;
+    margin: 15px 0;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--background-tertiary), var(--background-primary));
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.import-template-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent-primary), var(--accent-hover));
+    transform: scaleX(0);
+    transition: transform 0.3s ease;
+}
+
+.import-template-item:hover {
+    border-color: var(--accent-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.import-template-item:hover::before {
+    transform: scaleX(1);
+}
+
+.import-template-item h4 {
+    margin: 0 0 12px 0;
+    color: var(--text-primary);
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.import-template-item p {
+    margin: 0 0 16px 0;
+    font-size: 0.95rem;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.user-assignment {
+    margin-top: 16px;
+}
+
+.user-assignment > label {
+    font-weight: 600;
+    display: block;
+    margin-bottom: 12px;
+    color: var(--text-primary);
+    font-size: 1.1rem;
+}
+
+.user-checkboxes {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    max-height: 180px;
+    overflow-y: auto;
+    padding: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background: var(--background-primary);
+}
+
+.user-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: normal !important;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    font-size: 0.95rem;
+}
+
+.user-checkbox-label:hover {
+    background-color: var(--background-tertiary);
+    transform: translateX(4px);
+}
+
+.user-checkbox-label input[type="checkbox"] {
+    width: 18px !important;
+    height: 18px !important;
+    margin: 0 !important;
+    accent-color: var(--accent-primary);
+}
+
+.select-all-import {
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--accent-primary);
+    color: white;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.select-all-import:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.import-modal .modal-actions {
+    display: flex;
+    gap: 16px;
+    justify-content: center;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.import-modal .modal-actions button {
+    min-width: 120px;
+    padding: 12px 24px;
+    font-weight: 600;
+    border-radius: 10px;
+    transition: all 0.2s ease;
+}
+
+.import-modal .modal-actions button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Import progress indicator */
+.import-progress {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    border-radius: 20px;
+    z-index: 10;
+}
+
+.import-progress h3 {
+    color: var(--text-primary);
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+}
+
+.import-spinner {
+    width: 50px;
+    height: 50px;
+    border: 4px solid var(--background-tertiary);
+    border-top: 4px solid var(--accent-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.import-results {
+    max-height: 300px;
+    overflow-y: auto;
+    background: var(--background-primary);
+    border-radius: 8px;
+    padding: 16px;
+    margin: 20px 0;
+}
+
+.import-results p {
+    margin: 8px 0;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+}
+
+.import-results .success {
+    background: rgba(16, 185, 129, 0.1);
+    border-left: 4px solid var(--success-color);
+    color: var(--success-color);
+}
+
+.import-results .error {
+    background: rgba(239, 68, 68, 0.1);
+    border-left: 4px solid var(--error-color);
+    color: var(--error-color);
+}
+
+/* Responsive design */
+@media (max-width: 768px) {
+    .import-modal {
+        width: 95vw !important;
+        max-width: none !important;
+        margin: 10px !important;
+    }
+    
+    .import-template-item {
+        padding: 16px;
+    }
+    
+    .user-checkboxes {
+        max-height: 120px;
+    }
+    
+    .import-modal .modal-actions {
+        flex-direction: column;
+    }
+    
+    .import-modal .modal-actions button {
+        width: 100%;
+    }
 }
 
 .import-template-item {
@@ -1201,19 +1540,65 @@ button img:after {
     background: var(--hover-background);
 }
 
-/* Individual template export button */
-.template-export-btn {
-    background: var(--button-secondary-background);
-    border: 1px solid var(--border-color);
-    padding: 0.5rem;
-    border-radius: 4px;
+.template-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr; /* Equal width columns for balanced layout */
+    gap: 12px;
+    margin-top: 16px;
+}
+
+/* Remove the button container styling and make all buttons consistent */
+.template-actions button {
+    font-family: var(--font-family);
+    font-weight: 500;
+    font-size: 1rem;
+    padding: 12px 20px;
+    border-radius: 8px;
     cursor: pointer;
-    display: flex;
+    transition: all 0.2s ease;
+    display: inline-flex;
     align-items: center;
-    gap: 0.25rem;
-    font-size: 0.8em;
+    justify-content: center;
+    gap: 0.75em;
+    border: none;
+    margin-bottom: 0;
+}
+
+/* Export button - make it consistent with other secondary buttons */
+.template-export-btn {
+    background-color: #3A3A3A !important;
+    color: var(--text-primary) !important;
+    border: 1px solid #4F4F4F !important;
+    font-size: 1rem !important;
+    padding: 12px 20px !important;
 }
 
 .template-export-btn:hover {
-    background: var(--hover-background);
+    background-color: #4F4F4F !important;
+    border-color: #666 !important;
+}
+
+.template-export-btn img {
+    width: 1.5em !important;
+    height: 1.5em !important;
+    filter: brightness(0) invert(1) !important;
+}
+
+/* Remove the old container styling that was causing the imbalance */
+.template-actions > div {
+    display: contents; /* This makes the container invisible for layout purposes */
+}
+
+/* Responsive design for smaller screens */
+@media (max-width: 768px) {
+    .template-actions {
+        grid-template-columns: 1fr; /* Stack vertically on mobile */
+        gap: 8px;
+    }
+}
+
+@media (max-width: 480px) {
+    .template-actions {
+        grid-template-columns: 1fr;
+    }
 }
