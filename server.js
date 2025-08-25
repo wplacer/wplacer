@@ -63,6 +63,62 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1;
 
+let loadedProxies = [];
+const loadProxies = () => {
+    const proxyPath = path.join(dataDir, "proxies.txt");
+    if (!existsSync(proxyPath)) {
+        writeFileSync(proxyPath, ""); // Create empty file if it doesn't exist
+        console.log('[SYSTEM] `data/proxies.txt` not found, created an empty one.');
+        loadedProxies = [];
+        return;
+    }
+
+    const lines = readFileSync(proxyPath, "utf8").split('\n').filter(line => line.trim() !== '');
+    const proxies = [];
+    const proxyRegex = /^(http|https|socks4|socks5):\/\/(?:([^:]+):([^@]+)@)?([^:]+):(\d+)$/;
+
+    for (const line of lines) {
+        const match = line.trim().match(proxyRegex);
+        if (match) {
+            proxies.push({
+                protocol: match[1],
+                username: match[2] || '',
+                password: match[3] || '',
+                host: match[4],
+                port: parseInt(match[5], 10)
+            });
+        } else {
+            console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
+        }
+    }
+    loadedProxies = proxies;
+};
+
+
+let nextProxyIndex = 0;
+const getNextProxy = () => {
+    const { proxyEnabled, proxyRotationMode } = currentSettings;
+    if (!proxyEnabled || loadedProxies.length === 0) {
+        return null;
+    }
+
+    let proxy;
+    if (proxyRotationMode === 'random') {
+        const randomIndex = Math.floor(Math.random() * loadedProxies.length);
+        proxy = loadedProxies[randomIndex];
+    } else { // Default to sequential
+        proxy = loadedProxies[nextProxyIndex];
+        nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
+    }
+
+    let proxyUrl = `${proxy.protocol}://`;
+    if (proxy.username && proxy.password) {
+        proxyUrl += `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
+    }
+    proxyUrl += `${proxy.host}:${proxy.port}`;
+    return proxyUrl;
+};
+
 class WPlacer {
     constructor(template, coords, settings, templateName) {
         this.template = template;
@@ -82,7 +138,22 @@ class WPlacer {
         for (const cookie of Object.keys(this.cookies)) {
             jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
         }
-        this.browser = new Impit({ cookieJar: jar, browser: "chrome", ignoreTlsErrors: true });
+        
+        const impitOptions = {
+            cookieJar: jar,
+            browser: "chrome",
+            ignoreTlsErrors: true
+        };
+
+        const proxyUrl = getNextProxy();
+        if (proxyUrl) {
+            impitOptions.proxyUrl = proxyUrl;
+            if (currentSettings.logProxyUsage) {
+                log('SYSTEM', 'wplacer', `Using proxy: ${proxyUrl.split('@').pop()}`);
+            }
+        }
+
+        this.browser = new Impit(impitOptions);
         await this.loadUserInfo();
         return this.userInfo;
     };
@@ -368,8 +439,7 @@ const saveTemplates = () => {
         templatesToSave[id] = {
             name: t.name, template: t.template, coords: t.coords,
             canBuyCharges: t.canBuyCharges, canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode, userIds: t.userIds,
-            enableAutostart: t.enableAutostart, userIds: t.userIds
+            antiGriefMode: t.antiGriefMode, enableAutostart: t.enableAutostart, userIds: t.userIds
         };
     }
     saveJSON("templates.json", templatesToSave);
@@ -387,7 +457,9 @@ let currentSettings = {
 if (existsSync(path.join(dataDir, "settings.json"))) {
     currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
 }
-const saveSettings = () => saveJSON("settings.json", currentSettings);
+const saveSettings = () => {
+    saveJSON("settings.json", currentSettings);
+};
 
 // --- Server State ---
 const activeBrowserUsers = new Set();
@@ -700,12 +772,8 @@ app.use(cors());
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
-// --- Autostartup of Templates Array ---
+// --- Autostartup Templates Array ---
 const autostartedTemplates = [];
-
-app.get("/api/autostarted", (req, res) => {
-    res.json(autostartedTemplates);
-});
 
 // --- API Endpoints ---
 app.get("/token-needed", (req, res) => {
@@ -875,6 +943,7 @@ app.put("/template/edit/:id", async (req, res) => {
     manager.canBuyMaxCharges = canBuyMaxCharges;
     manager.antiGriefMode = antiGriefMode;
     manager.enableAutostart = enableAutostart;
+
     if (template) {
         manager.template = template;
         manager.totalPixels = manager.template.data.flat().filter(p => p > 0).length;
@@ -897,7 +966,10 @@ app.put("/template/:id", async (req, res) => {
     res.sendStatus(200);
 });
 
-app.get('/settings', (_, res) => res.json(currentSettings));
+app.get('/settings', (_, res) => {
+    res.json({ ...currentSettings, proxyCount: loadedProxies.length });
+});
+
 app.put('/settings', (req, res) => {
     const oldSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
@@ -908,6 +980,11 @@ app.put('/settings', (req, res) => {
         }
     }
     res.sendStatus(200);
+});
+
+app.post('/reload-proxies', (req, res) => {
+    loadProxies();
+    res.status(200).json({ success: true, count: loadedProxies.length });
 });
 
 app.get("/canvas", async (req, res) => {
@@ -922,6 +999,11 @@ app.get("/canvas", async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// --- Autostart endpoint
+app.get("/api/autostarted", (req, res) => {
+    res.json(autostartedTemplates);
 });
 
 // --- Background Status Polling ---
@@ -960,11 +1042,10 @@ const updateUserStatuses = async () => {
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
 
-
     // Load Templates from templates.json
     const loadedTemplates = loadJSON("templates.json");
 
-    // Loop through loaded templates and check validity and autostart
+    // Loop through loaded templates and check validity
     for (const id in loadedTemplates) {
         const t = loadedTemplates[id];
         if (t.userIds.every(uid => users[uid])) {
@@ -981,16 +1062,18 @@ const updateUserStatuses = async () => {
             console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
         }
     }
-    console.log(`✅ Loaded ${Object.keys(templates).length} templates and ${Object.keys(users).length} users.`);
 
-    console.log(`✅ Loaded ${Object.keys(templates).length} templates and ${Object.keys(users).length} users.`);
+    // Load proxies 
+    loadProxies();
+
+    console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
 
     const port = Number(process.env.PORT) || 80;
     const host = "0.0.0.0";
     app.listen(port, host, () => {
         console.log(`✅ Server listening on http://localhost:${port}`);
         console.log(`   Open the web UI in your browser to start!`);
-        
+
         // Initial status check, then set interval
         updateUserStatuses();
         setInterval(updateUserStatuses, 5 * 60 * 1000); // Run every 5 minutes
