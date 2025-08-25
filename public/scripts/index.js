@@ -534,48 +534,59 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
 
+    // Set all users to "checking" state
+    userElements.forEach(userEl => {
+        const infoSpans = userEl.querySelectorAll('.user-info > span');
+        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+    });
+
     let totalCurrent = 0;
     let totalMax = 0;
 
-    const { data: settings } = await axios.get('/settings');
-    const cooldown = settings.accountCheckCooldown || 0;
+    try {
+        const response = await axios.post('/users/status');
+        const statuses = response.data;
 
-    for (const userEl of userElements) {
-        const id = userEl.id.split('-')[1];
-        const infoSpans = userEl.querySelectorAll('.user-info > span');
-        const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
-        const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
-        const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
-        const levelProgressEl = userEl.querySelector('.level-progress');
+        for (const userEl of userElements) {
+            const id = userEl.id.split('-')[1];
+            const status = statuses[id];
 
-        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
-        try {
-            const response = await axios.get(`/user/status/${id}`);
-            const userInfo = response.data;
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
+            const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
+            const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
+            const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const levelProgressEl = userEl.querySelector('.level-progress');
 
-            const charges = Math.floor(userInfo.charges.count);
-            const max = userInfo.charges.max;
-            const level = Math.floor(userInfo.level);
-            const progress = Math.round((userInfo.level % 1) * 100);
+            if (status && status.success) {
+                const userInfo = status.data;
+                const charges = Math.floor(userInfo.charges.count);
+                const max = userInfo.charges.max;
+                const level = Math.floor(userInfo.level);
+                const progress = Math.round((userInfo.level % 1) * 100);
 
-            currentChargesEl.textContent = charges;
-            maxChargesEl.textContent = max;
-            currentLevelEl.textContent = level;
-            levelProgressEl.textContent = `(${progress}%)`;
-            totalCurrent += charges;
-            totalMax += max;
+                currentChargesEl.textContent = charges;
+                maxChargesEl.textContent = max;
+                currentLevelEl.textContent = level;
+                levelProgressEl.textContent = `(${progress}%)`;
+                totalCurrent += charges;
+                totalMax += max;
 
-            infoSpans.forEach(span => span.style.color = 'var(--success-color)');
-        } catch (error) {
-            currentChargesEl.textContent = "ERR";
-            maxChargesEl.textContent = "ERR";
-            currentLevelEl.textContent = "?";
-            levelProgressEl.textContent = "(?%)";
+                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+            } else {
+                currentChargesEl.textContent = "ERR";
+                maxChargesEl.textContent = "ERR";
+                currentLevelEl.textContent = "?";
+                levelProgressEl.textContent = "(?%)";
+                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+            }
+        }
+    } catch (error) {
+        handleError(error);
+        // On general error, mark all as failed
+        userElements.forEach(userEl => {
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
             infoSpans.forEach(span => span.style.color = 'var(--error-color)');
-        }
-        if (cooldown > 0) {
-            await sleep(cooldown);
-        }
+        });
     }
 
     totalCharges.textContent = totalCurrent;
@@ -584,6 +595,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.disabled = false;
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
+
 openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
