@@ -712,7 +712,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     const autostarted = await res.json();
 
     if (autostarted.length > 0) {
-        showAutostartPopup(autostarted);
+        showMessage("Autostarted Templates", `The following templates were set to autostart and have been started:<br><br>${autostarted.map(t => `<b>${t.name}</b> (ID: ${t.id})`).join("<br>")}`);
     }
 });
 
