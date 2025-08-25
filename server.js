@@ -13,7 +13,7 @@ if (!existsSync(dataDir)) {
 }
 
 // --- Logging and Utility Functions ---
-const log =  (id, name, data, error) => {
+const log = async (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
     if (error) {
@@ -63,6 +63,62 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1;
 
+let loadedProxies = [];
+const loadProxies = () => {
+    const proxyPath = path.join(dataDir, "proxies.txt");
+    if (!existsSync(proxyPath)) {
+        writeFileSync(proxyPath, ""); // Create empty file if it doesn't exist
+        console.log('[SYSTEM] `data/proxies.txt` not found, created an empty one.');
+        loadedProxies = [];
+        return;
+    }
+
+    const lines = readFileSync(proxyPath, "utf8").split('\n').filter(line => line.trim() !== '');
+    const proxies = [];
+    const proxyRegex = /^(http|https|socks4|socks5):\/\/(?:([^:]+):([^@]+)@)?([^:]+):(\d+)$/;
+
+    for (const line of lines) {
+        const match = line.trim().match(proxyRegex);
+        if (match) {
+            proxies.push({
+                protocol: match[1],
+                username: match[2] || '',
+                password: match[3] || '',
+                host: match[4],
+                port: parseInt(match[5], 10)
+            });
+        } else {
+            console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
+        }
+    }
+    loadedProxies = proxies;
+};
+
+
+let nextProxyIndex = 0;
+const getNextProxy = () => {
+    const { proxyEnabled, proxyRotationMode } = currentSettings;
+    if (!proxyEnabled || loadedProxies.length === 0) {
+        return null;
+    }
+
+    let proxy;
+    if (proxyRotationMode === 'random') {
+        const randomIndex = Math.floor(Math.random() * loadedProxies.length);
+        proxy = loadedProxies[randomIndex];
+    } else { // Default to sequential
+        proxy = loadedProxies[nextProxyIndex];
+        nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
+    }
+
+    let proxyUrl = `${proxy.protocol}://`;
+    if (proxy.username && proxy.password) {
+        proxyUrl += `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
+    }
+    proxyUrl += `${proxy.host}:${proxy.port}`;
+    return proxyUrl;
+};
+
 class WPlacer {
     constructor(template, coords, settings, templateName) {
         this.template = template;
@@ -82,7 +138,22 @@ class WPlacer {
         for (const cookie of Object.keys(this.cookies)) {
             jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
         }
-        this.browser = new Impit({ cookieJar: jar, browser: "chrome", ignoreTlsErrors: true });
+        
+        const impitOptions = {
+            cookieJar: jar,
+            browser: "chrome",
+            ignoreTlsErrors: true
+        };
+
+        const proxyUrl = getNextProxy();
+        if (proxyUrl) {
+            impitOptions.proxyUrl = proxyUrl;
+            if (currentSettings.logProxyUsage) {
+                log('SYSTEM', 'wplacer', `Using proxy: ${proxyUrl.split('@').pop()}`);
+            }
+        }
+
+        this.browser = new Impit(impitOptions);
         await this.loadUserInfo();
         return this.userInfo;
     };
@@ -375,11 +446,16 @@ let currentSettings = {
     keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
     drawingDirection: 'ttb', drawingOrder: 'linear', chargeThreshold: 0.5,
     outlineMode: false, interleavedMode: false, skipPaintedPixels: false, accountCheckCooldown: 0,
+    proxyEnabled: false,
+    proxyRotationMode: 'sequential',
+    logProxyUsage: false
 };
 if (existsSync(path.join(dataDir, "settings.json"))) {
     currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
 }
-const saveSettings = () => saveJSON("settings.json", currentSettings);
+const saveSettings = () => {
+    saveJSON("settings.json", currentSettings);
+};
 
 // --- Server State ---
 const activeBrowserUsers = new Set();
@@ -581,6 +657,7 @@ class TemplateManager {
                 }
 
                 let userStates = [];
+                const statusChecker = new WPlacer(this.template, this.coords, currentSettings, this.name);
                 for (const userId of this.userIds) {
                     if (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil) {
                         continue;
@@ -589,10 +666,9 @@ class TemplateManager {
                         continue;
                     }
                     activeBrowserUsers.add(userId);
-                    const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
                     try {
-                        await wplacer.login(users[userId].cookies);
-                        userStates.push({ userId, charges: wplacer.userInfo.charges, cooldownMs: wplacer.userInfo.charges.cooldownMs });
+                        await statusChecker.login(users[userId].cookies);
+                        userStates.push({ userId, charges: statusChecker.userInfo.charges, cooldownMs: statusChecker.userInfo.charges.cooldownMs });
                     } catch (error) {
                         logUserError(error, userId, users[userId].name, "check user status");
                     } finally {
@@ -823,7 +899,10 @@ app.put("/template/:id", async (req, res) => {
     res.sendStatus(200);
 });
 
-app.get('/settings', (_, res) => res.json(currentSettings));
+app.get('/settings', (_, res) => {
+    res.json({ ...currentSettings, proxyCount: loadedProxies.length });
+});
+
 app.put('/settings', (req, res) => {
     const oldSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
@@ -834,6 +913,11 @@ app.put('/settings', (req, res) => {
         }
     }
     res.sendStatus(200);
+});
+
+app.post('/reload-proxies', (req, res) => {
+    loadProxies();
+    res.status(200).json({ success: true, count: loadedProxies.length });
 });
 
 app.get("/canvas", async (req, res) => {
@@ -892,7 +976,10 @@ const keepAlive = async () => {
             console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
         }
     }
-    console.log(`✅ Loaded ${Object.keys(templates).length} templates and ${Object.keys(users).length} users.`);
+    
+    loadProxies();
+
+    console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
 
     const port = Number(process.env.PORT) || 80;
     const host = "0.0.0.0";
