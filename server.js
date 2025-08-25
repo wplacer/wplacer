@@ -13,7 +13,7 @@ if (!existsSync(dataDir)) {
 }
 
 // --- Logging and Utility Functions ---
-const log = async (id, name, data, error) => {
+const log =  (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
     if (error) {
