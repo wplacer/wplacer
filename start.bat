@@ -2,6 +2,10 @@
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
+if not exist "data\" mkdir "data"
+if exist "users.json" move /Y "users.json" "data\users.json"
+if exist "templates.json" move /Y "templates.json" "data\templates.json"
+
 set NEED_INSTALL=0
 if not exist "node_modules\" (
   set NEED_INSTALL=1

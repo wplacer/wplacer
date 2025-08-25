@@ -326,19 +326,33 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
+
+const displayTemplateCanvas = (template) => {
+    currentTemplate = template;
+    drawTemplate(template, templateCanvas);
+    size.innerHTML = `${template.width}x${template.height}px`;
+    ink.innerHTML = template.ink;
+    if (template.hasPremium) {
+        premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
+        premiumWarning.style.display = "block";
+    } else {
+        premiumWarning.style.display = "none";
+    }
+    templateCanvas.style.display = 'block';
+    previewCanvas.style.display = 'none';
+    details.style.display = "block";
+};
+
 const processEvent = () => {
     const file = convertInput.files[0];
     if (file) {
         templateName.value = file.name.replace(/\.[^/.]+$/, "");
         processImageFile(file, (template) => {
-            currentTemplate = template;
-            drawTemplate(template, templateCanvas);
-            size.innerHTML = `${template.width}x${template.height}px`;
-            ink.innerHTML = template.ink;
-            details.style.display = "block";
+            displayTemplateCanvas(template);
         });
     };
 };
+
 convertInput.addEventListener('change', processEvent);
 usePaidColors.addEventListener('change', processEvent);
 
@@ -596,7 +610,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
 
-openAddTemplate.addEventListener("click", () => {
+const initializeTemplateForm = (userIds = null) => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
     loadUsers(users => {
@@ -612,6 +626,7 @@ openAddTemplate.addEventListener("click", () => {
             checkbox.id = `user_${id}`;
             checkbox.name = 'user_checkbox';
             checkbox.value = id;
+            checkbox.checked = userIds && userIds.map(String).includes(id);
             const label = document.createElement('label');
             label.htmlFor = `user_${id}`;
             label.textContent = `${users[id].name} (#${id})`;
@@ -621,7 +636,12 @@ openAddTemplate.addEventListener("click", () => {
         }
     });
     changeTab(addTemplate);
+}
+
+openAddTemplate.addEventListener("click", () => {
+    initializeTemplateForm();
 });
+
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
@@ -756,12 +776,13 @@ openManageTemplates.addEventListener("click", () => {
                 editButton.className = 'secondary-button';
                 editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
                 editButton.addEventListener('click', () => {
-                    openAddTemplate.click();
+                    initializeTemplateForm(t.userIds);
                     templateFormTitle.textContent = `Edit Template: ${t.name}`;
                     submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
                     templateForm.dataset.editId = id;
 
                     templateName.value = t.name;
+                    displayTemplateCanvas(t.template);
                     [tx.value, ty.value, px.value, py.value] = t.coords;
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
