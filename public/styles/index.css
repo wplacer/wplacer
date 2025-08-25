@@ -523,3 +523,32 @@ input:checked + .slider:before {
 .hidden {
     display: none !important;
 }
+
+.info-box, .warning-box {
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin: 16px 0;
+    text-align: left;
+    line-height: 1.5;
+}
+
+.info-box {
+    background-color: rgba(64, 147, 228, 0.15);
+    border: 1px solid rgba(64, 147, 228, 0.4);
+    color: var(--text-secondary);
+}
+
+.info-box a {
+    color: hsl(208, 88%, 75%);
+    text-decoration: none;
+}
+
+.info-box a:hover {
+    text-decoration: underline;
+}
+
+.warning-box {
+    background-color: rgba(255, 153, 0, 0.1);
+    border: 1px solid var(--warning-color);
+    color: var(--text-secondary);
+}
