@@ -677,7 +677,7 @@ class TemplateManager {
                         return state &&
                             !activeBrowserUsers.has(id) &&
                             !(users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) &&
-                            state.charges.count >= Math.max(1, state.charges.max * currentSettings.chargeThreshold);
+                            Math.floor(state.charges.count) >= Math.max(1, Math.floor(state.charges.max * currentSettings.chargeThreshold));
                     })
                     .sort((a, b) => userStates[b].charges.count - userStates[a].charges.count);
 
@@ -686,25 +686,26 @@ class TemplateManager {
                 if (userToRunId) {
                     activeBrowserUsers.add(userToRunId);
                     const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
+                    let paintedInTurn = false;
                     try {
                         const userInfo = await wplacer.login(users[userToRunId].cookies);
-                        const currentCharges = Math.floor(userInfo.charges.count);
-
-                        if (currentCharges < 1) {
-                            log(userInfo.id, userInfo.name, `[${this.name}] 🔋 User has 0 charges. Skipping turn.`);
-                        } else {
-                            this.status = `Running user ${userInfo.name}#${userInfo.id}`;
-                            log(userInfo.id, userInfo.name, `[${this.name}] 🔋 User has ${currentCharges} charges. Starting turn...`);
-                            
-                            await this._performPaintTurn(wplacer);
-                            await this.handleUpgrades(wplacer);
-                            this.currentRetryDelay = this.initialRetryDelay;
-
-                            if (this.running && this.userIds.length > 1) {
-                                log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
-                                await this.sleep(currentSettings.accountCooldown);
-                            }
+                        userStates[userToRunId] = { charges: userInfo.charges }; // IMMEDIATE CACHE UPDATE
+                        
+                        this.status = `Running user ${userInfo.name}#${userInfo.id}`;
+                        log(userInfo.id, userInfo.name, `[${this.name}] 🔋 User has ${Math.floor(userInfo.charges.count)} charges. Starting turn...`);
+                        
+                        await this._performPaintTurn(wplacer);
+                        paintedInTurn = true;
+                        
+                        // After painting, get the latest user info again to update the cache
+                        await wplacer.loadUserInfo();
+                        if (wplacer.userInfo) {
+                            userStates[userToRunId] = { charges: wplacer.userInfo.charges };
                         }
+
+                        await this.handleUpgrades(wplacer);
+                        this.currentRetryDelay = this.initialRetryDelay;
+
                     } catch (error) {
                         logUserError(error, userToRunId, users[userToRunId].name, "perform paint turn");
                         if (error.name === 'NetworkError') {
@@ -715,6 +716,12 @@ class TemplateManager {
                     } finally {
                         activeBrowserUsers.delete(userToRunId);
                     }
+                    
+                    if (paintedInTurn && this.running && this.userIds.length > 1) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
+                        await this.sleep(currentSettings.accountCooldown);
+                    }
+
                 } else {
                     if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
                         activeBrowserUsers.add(this.masterId);
@@ -741,7 +748,7 @@ class TemplateManager {
                     const cooldowns = this.userIds
                         .map(id => userStates[id]?.charges)
                         .filter(Boolean)
-                        .map(c => Math.max(0, (Math.max(1, c.max * currentSettings.chargeThreshold) - c.count) * c.cooldownMs));
+                        .map(c => Math.max(0, (Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold)) - Math.floor(c.count)) * c.cooldownMs));
                     
                     const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
                     this.status = `Waiting for charges.`;
