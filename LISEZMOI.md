@@ -4,7 +4,8 @@
 <a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
 <a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
 <a href="README.md"><img src="https://img.shields.io/badge/translation-english-red"></a>
-<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a></p>
+<a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a>
+<a href="README_zh-cn.md"><img src="https://img.shields.io/badge/翻译-简体中文-red"></a></p>
 
 Un bot de dessin automatique massivement mis à jour pour [wplace.live](https://wplace.live/).
 
