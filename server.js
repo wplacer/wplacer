@@ -1,5 +1,5 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
-import { appendFile } from 'fs/promises';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, createWriteStream } from "node:fs";
+import fsPromises from "fs/promises";
 import path from "node:path";
 import express from "express";
 import cors from "cors";
@@ -13,20 +13,57 @@ if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
 }
 
+// --- Create Persistent Log Streams ---
+// The 'a' flag means 'append mode', which is crucial for log files.
+const logStream = createWriteStream(path.join(dataDir, "logs.log"), { flags: 'a' });
+const errorStream = createWriteStream(path.join(dataDir, "errors.log"), { flags: 'a' });
+
+// ---  Handle stream errors (e.g., if the disk is full) ---
+logStream.on('error', (err) => console.error('Log Stream Error:', err));
+errorStream.on('error', (err) => console.error('Error Stream Error:', err));
+
 // --- Logging and Utility Functions ---
-const log = async (id, name, data, error) => {
+const logQueue = [];
+let isProcessing = false; // Renamed for clarity
+
+const processQueue = () => {
+    if (isProcessing || logQueue.length === 0) return;
+    isProcessing = true;
+
+    // Process all items currently in the queue in one go
+    while (logQueue.length > 0) {
+        const { targetStream, content } = logQueue.shift();
+        try {
+            targetStream.write(content);
+        } catch (err) {
+            console.error("Failed to write to log stream:", err);
+        }
+    }
+
+    isProcessing = false;
+};
+
+export const log = (id, name, data, error) => { // No longer needs to be async
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
-    
+
+    let targetStream, content;
+
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
-        await appendFile(path.join(dataDir, `errors.log`), 
-            `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+        targetStream = errorStream;
+        content = `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`;
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
-        await appendFile(path.join(dataDir, `logs.log`), 
-            `[${timestamp}] ${identifier} ${data}\n`);
+        targetStream = logStream;
+        content = `[${timestamp}] ${identifier} ${data}\n`;
     }
+
+    // Push to queue and trigger processing
+    logQueue.push({ targetStream, content });
+    
+    // Use setImmediate to batch multiple log calls in the same event loop tick
+    setImmediate(processQueue);
 };
 
 const duration = (durationMs) => {
