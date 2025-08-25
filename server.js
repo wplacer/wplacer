@@ -1,4 +1,5 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
+import { appendFile } from 'fs/promises';
 import path from "node:path";
 import express from "express";
 import cors from "cors";
@@ -13,16 +14,19 @@ if (!existsSync(dataDir)) {
 }
 
 // --- Logging and Utility Functions ---
-const log =  (id, name, data, error) => {
+const log = async (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
+    
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
-        appendFileSync(path.join(dataDir, `errors.log`), `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+        await appendFile(path.join(dataDir, `errors.log`), 
+            `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
-        appendFileSync(path.join(dataDir, `logs.log`), `[${timestamp}] ${identifier} ${data}\n`);
-    };
+        await appendFile(path.join(dataDir, `logs.log`), 
+            `[${timestamp}] ${identifier} ${data}\n`);
+    }
 };
 
 const duration = (durationMs) => {
