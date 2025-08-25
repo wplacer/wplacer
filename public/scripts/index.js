@@ -18,7 +18,6 @@ const convert = $("convert");
 const details = $("details");
 const size = $("size");
 const ink = $("ink");
-const premiumWarning = $("premiumWarning");
 const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
@@ -61,12 +60,8 @@ const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
-const proxyEnabled = $("proxyEnabled");
-const proxyFormContainer = $("proxyFormContainer");
-const proxyRotationMode = $("proxyRotationMode");
-const proxyCount = $("proxyCount");
-const reloadProxiesBtn = $("reloadProxiesBtn");
-const logProxyUsage = $("logProxyUsage");
+const usePaidColors = $("usePaidColors");
+const enableAutostart = $("enableAutostart");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -161,14 +156,12 @@ const colors = { ...basic_colors, ...premium_colors };
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
 const closest = color => {
     const [tr, tg, tb] = color.split(',').map(Number);
-    // Search all available colors (basic and premium)
-    return Object.keys(colors).reduce((closestKey, currentKey) => {
-        const [cr, cg, cb] = currentKey.split(',').map(Number);
-        const [clR, clG, clB] = closestKey.split(',').map(Number);
-        const currentDistance = Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2);
-        const closestDistance = Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2);
-        return currentDistance < closestDistance ? currentKey : closestKey;
-    });
+    // only use basic_colors for closest match to keep current behavior
+    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
+        const [cr, cg, cb] = current.split(',').map(Number);
+        const [clR, clG, clB] = closest.split(',').map(Number);
+        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
+    })];
 };
 
 const drawTemplate = (template, canvas) => {
@@ -274,14 +267,12 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
         ctx.fillRect(canvasX, canvasY, 1, 1);
     }
-    previewCanvas.style.display = 'block';
 };
 
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
     let ink = 0;
-    let hasPremium = false;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -290,20 +281,18 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                if (rgb == "158,189,255") {
-                    matrix[x][y] = -1;
-                } else {
-                    const id = colors[rgb] || colors[closest(rgb)];
+                if (rgb == "158,189,255") matrix[x][y] = -1;
+                else {
+                    const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
                     matrix[x][y] = id;
-                    if (id >= 32) hasPremium = true;
-                }
+                };
                 ink++;
             } else {
                 matrix[x][y] = 0;
             }
         }
     }
-    return { matrix, ink, hasPremium };
+    return { matrix, ink };
 };
 
 let currentTemplate = { width: 0, height: 0, data: [] };
@@ -322,14 +311,13 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink, hasPremium } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
-                data: matrix,
-                hasPremium
+                data: matrix
             };
 
             canvas.remove();
@@ -347,19 +335,12 @@ const processEvent = () => {
             drawTemplate(template, templateCanvas);
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
-            if (template.hasPremium) {
-                premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
-                premiumWarning.style.display = "block";
-            } else {
-                premiumWarning.style.display = "none";
-            }
-            templateCanvas.style.display = 'block';
-            previewCanvas.style.display = 'none';
             details.style.display = "block";
         });
     };
 };
 convertInput.addEventListener('change', processEvent);
+usePaidColors.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
@@ -391,8 +372,6 @@ const resetTemplateForm = () => {
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = "none";
-    premiumWarning.style.display = "none";
-    previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
 };
 
@@ -417,7 +396,8 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
-        antiGriefMode: antiGriefMode.checked
+        antiGriefMode: antiGriefMode.checked,
+        enableAutostart: enableAutostart.checked
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -695,6 +675,16 @@ const updateTemplateStatus = async () => {
     }
 };
 
+window.addEventListener("DOMContentLoaded", async () => {
+    const res = await fetch("/api/autostarted");
+    const autostarted = await res.json();
+
+    if (autostarted.length > 0) {
+        showAutostartPopup(autostarted);
+    }
+});
+
+
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
     if (templateUpdateInterval) clearInterval(templateUpdateInterval);
@@ -764,6 +754,8 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
+                    enableAutostart.checked = t.enableAutostart;
+
 
                     document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
                         if (t.userIds.includes(cb.value)) {
@@ -810,13 +802,6 @@ openSettings.addEventListener("click", async () => {
         outlineMode.checked = currentSettings.outlineMode;
         interleavedMode.checked = currentSettings.interleavedMode;
         skipPaintedPixels.checked = currentSettings.skipPaintedPixels;
-
-        proxyEnabled.checked = currentSettings.proxyEnabled;
-        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
-        logProxyUsage.checked = currentSettings.logProxyUsage;
-        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
-        proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
-
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
         accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
@@ -845,31 +830,6 @@ turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileN
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
 interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
 skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
-
-proxyEnabled.addEventListener('change', () => {
-    proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
-    saveSetting({ proxyEnabled: proxyEnabled.checked });
-});
-
-logProxyUsage.addEventListener('change', () => {
-    saveSetting({ logProxyUsage: logProxyUsage.checked });
-});
-
-proxyRotationMode.addEventListener('change', () => {
-    saveSetting({ proxyRotationMode: proxyRotationMode.value });
-});
-
-reloadProxiesBtn.addEventListener('click', async () => {
-    try {
-        const response = await axios.post('/reload-proxies');
-        if (response.data.success) {
-            proxyCount.textContent = `${response.data.count} proxies reloaded from file.`;
-            showMessage("Success", "Proxies reloaded successfully!");
-        }
-    } catch (error) {
-        handleError(error);
-    }
-});
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;
