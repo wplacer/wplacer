@@ -18,6 +18,7 @@ const convert = $("convert");
 const details = $("details");
 const size = $("size");
 const ink = $("ink");
+const premiumWarning = $("premiumWarning");
 const templateCanvas = $("templateCanvas");
 const previewCanvas = $("previewCanvas");
 const previewCanvasButton = $("previewCanvasButton");
@@ -41,11 +42,15 @@ const templateList = $("templateList");
 const startAll = $("startAll");
 const stopAll = $("stopAll");
 const settings = $("settings");
-const drawingModeSelect = $("drawingModeSelect");
+const drawingDirectionSelect = $("drawingDirectionSelect");
+const drawingOrderSelect = $("drawingOrderSelect");
 const outlineMode = $("outlineMode");
+const interleavedMode = $("interleavedMode");
+const skipPaintedPixels = $("skipPaintedPixels");
 const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
+const accountCheckCooldown = $("accountCheckCooldown");
 const dropletReserve = $("dropletReserve");
 const antiGriefStandby = $("antiGriefStandby");
 const chargeThreshold = $("chargeThreshold");
@@ -56,7 +61,15 @@ const messageBoxTitle = $("messageBoxTitle");
 const messageBoxContent = $("messageBoxContent");
 const messageBoxConfirm = $("messageBoxConfirm");
 const messageBoxCancel = $("messageBoxCancel");
-const usePaidColors = $("usePaidColors");
+const proxyEnabled = $("proxyEnabled");
+const proxyFormContainer = $("proxyFormContainer");
+const proxyRotationMode = $("proxyRotationMode");
+const proxyCount = $("proxyCount");
+const reloadProxiesBtn = $("reloadProxiesBtn");
+const logProxyUsage = $("logProxyUsage");
+
+// --- Global State ---
+let templateUpdateInterval = null;
 
 // Message Box
 let confirmCallback = null;
@@ -148,12 +161,14 @@ const colors = { ...basic_colors, ...premium_colors };
 const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
 const closest = color => {
     const [tr, tg, tb] = color.split(',').map(Number);
-    // only use basic_colors for closest match to keep current behavior
-    return basic_colors[Object.keys(basic_colors).reduce((closest, current) => {
-        const [cr, cg, cb] = current.split(',').map(Number);
-        const [clR, clG, clB] = closest.split(',').map(Number);
-        return Math.sqrt(Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2)) < Math.sqrt(Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2)) ? current : closest;
-    })];
+    // Search all available colors (basic and premium)
+    return Object.keys(colors).reduce((closestKey, currentKey) => {
+        const [cr, cg, cb] = currentKey.split(',').map(Number);
+        const [clR, clG, clB] = closestKey.split(',').map(Number);
+        const currentDistance = Math.pow(tr - cr, 2) + Math.pow(tg - cg, 2) + Math.pow(tb - cb, 2);
+        const closestDistance = Math.pow(tr - clR, 2) + Math.pow(tg - clG, 2) + Math.pow(tb - clB, 2);
+        return currentDistance < closestDistance ? currentKey : closestKey;
+    });
 };
 
 const drawTemplate = (template, canvas) => {
@@ -167,6 +182,13 @@ const drawTemplate = (template, canvas) => {
             const color = template.data[x][y];
             if (color === 0) continue;
             const i = (y * template.width + x) * 4;
+            if (color === -1) {
+                imageData.data[i] = 158;
+                imageData.data[i + 1] = 189;
+                imageData.data[i + 2] = 255;
+                imageData.data[i + 3] = 255;
+                continue;
+            };
             const [r, g, b] = colorById(color).split(',').map(Number);
             imageData.data[i] = r;
             imageData.data[i + 1] = g;
@@ -252,12 +274,14 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
         ctx.fillStyle = 'rgba(255,0,0,0.8)';
         ctx.fillRect(canvasX, canvasY, 1, 1);
     }
+    previewCanvas.style.display = 'block';
 };
 
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
     let ink = 0;
+    let hasPremium = false;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -266,15 +290,20 @@ const nearestimgdecoder = (imageData, width, height) => {
             if (a === 255) {
                 const r = d[i], g = d[i + 1], b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                const id = colors[rgb] && usePaidColors.checked ? colors[rgb] : closest(rgb);
-                matrix[x][y] = id;
+                if (rgb == "158,189,255") {
+                    matrix[x][y] = -1;
+                } else {
+                    const id = colors[rgb] || colors[closest(rgb)];
+                    matrix[x][y] = id;
+                    if (id >= 32) hasPremium = true;
+                }
                 ink++;
             } else {
                 matrix[x][y] = 0;
             }
         }
     }
-    return { matrix, ink };
+    return { matrix, ink, hasPremium };
 };
 
 let currentTemplate = { width: 0, height: 0, data: [] };
@@ -293,13 +322,14 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink, hasPremium } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
-                data: matrix
+                data: matrix,
+                hasPremium
             };
 
             canvas.remove();
@@ -314,6 +344,14 @@ const displayTemplateCanvas = (template) => {
     drawTemplate(template, templateCanvas);
     size.innerHTML = `${template.width}x${template.height}px`;
     ink.innerHTML = template.ink;
+    if (template.hasPremium) {
+        premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
+        premiumWarning.style.display = "block";
+    } else {
+        premiumWarning.style.display = "none";
+    }
+    templateCanvas.style.display = 'block';
+    previewCanvas.style.display = 'none';
     details.style.display = "block";
 };
 
@@ -328,7 +366,6 @@ const processEvent = () => {
 };
 
 convertInput.addEventListener('change', processEvent);
-usePaidColors.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
@@ -360,6 +397,8 @@ const resetTemplateForm = () => {
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = "none";
+    premiumWarning.style.display = "none";
+    previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
 };
 
@@ -432,6 +471,10 @@ stopAll.addEventListener('click', async () => {
 // tabs
 let currentTab = main;
 const changeTab = (el) => {
+    if (templateUpdateInterval) {
+        clearInterval(templateUpdateInterval);
+        templateUpdateInterval = null;
+    }
     currentTab.style.display = "none";
     el.style.display = "block";
     currentTab = el;
@@ -469,7 +512,7 @@ openManageUsers.addEventListener("click", () => {
             user.querySelector('.delete-btn').addEventListener("click", () => {
                 showConfirmation(
                     "Delete User",
-                    `Are you sure you want to delete ${users[id].name} (#${id})?`,
+                    `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
                     async () => {
                         try {
                             await axios.delete(`/user/${id}`);
@@ -512,68 +555,65 @@ openManageUsers.addEventListener("click", () => {
     changeTab(manageUsers);
 });
 
-async function processInParallel(tasks, concurrency) {
-    const queue = [...tasks];
-    const workers = [];
-
-    const runTask = async () => {
-        while (queue.length > 0) {
-            const task = queue.shift();
-            if (task) await task();
-        }
-    };
-
-    for (let i = 0; i < concurrency; i++) {
-        workers.push(runTask());
-    }
-
-    await Promise.all(workers);
-}
-
 checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.disabled = true;
     checkUserStatus.innerHTML = "Checking...";
     const userElements = Array.from(document.querySelectorAll('.user'));
 
+    // Set all users to "checking" state
+    userElements.forEach(userEl => {
+        const infoSpans = userEl.querySelectorAll('.user-info > span');
+        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+    });
+
     let totalCurrent = 0;
     let totalMax = 0;
 
-    const tasks = userElements.map(userEl => async () => {
-        const id = userEl.id.split('-')[1];
-        const infoSpans = userEl.querySelectorAll('.user-info > span');
-        const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
-        const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
-        const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
-        const levelProgressEl = userEl.querySelector('.level-progress');
+    try {
+        const response = await axios.post('/users/status');
+        const statuses = response.data;
 
-        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
-        try {
-            const response = await axios.get(`/user/status/${id}`);
-            const userInfo = response.data;
+        for (const userEl of userElements) {
+            const id = userEl.id.split('-')[1];
+            const status = statuses[id];
 
-            const charges = Math.floor(userInfo.charges.count);
-            const max = userInfo.charges.max;
-            const level = Math.floor(userInfo.level);
-            const progress = Math.round((userInfo.level % 1) * 100);
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
+            const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
+            const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
+            const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const levelProgressEl = userEl.querySelector('.level-progress');
 
-            currentChargesEl.textContent = charges;
-            maxChargesEl.textContent = max;
-            currentLevelEl.textContent = level;
-            levelProgressEl.textContent = `(${progress}%)`;
-            totalCurrent += charges;
-            totalMax += max;
+            if (status && status.success) {
+                const userInfo = status.data;
+                const charges = Math.floor(userInfo.charges.count);
+                const max = userInfo.charges.max;
+                const level = Math.floor(userInfo.level);
+                const progress = Math.round((userInfo.level % 1) * 100);
 
-            infoSpans.forEach(span => span.style.color = 'var(--success-color)');
-        } catch (error) {
-            currentChargesEl.textContent = "ERR";
-            maxChargesEl.textContent = "ERR";
-            currentLevelEl.textContent = "?";
-            levelProgressEl.textContent = "(?%)";
-            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                currentChargesEl.textContent = charges;
+                maxChargesEl.textContent = max;
+                currentLevelEl.textContent = level;
+                levelProgressEl.textContent = `(${progress}%)`;
+                totalCurrent += charges;
+                totalMax += max;
+
+                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+            } else {
+                currentChargesEl.textContent = "ERR";
+                maxChargesEl.textContent = "ERR";
+                currentLevelEl.textContent = "?";
+                levelProgressEl.textContent = "(?%)";
+                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+            }
         }
-    });
-
-    await processInParallel(tasks, 5);
+    } catch (error) {
+        handleError(error);
+        // On general error, mark all as failed
+        userElements.forEach(userEl => {
+            const infoSpans = userEl.querySelectorAll('.user-info > span');
+            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+        });
+    }
 
     totalCharges.textContent = totalCurrent;
     totalMaxCharges.textContent = totalMax;
@@ -618,7 +658,7 @@ selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
 
-const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
+const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
     const button = document.createElement('button');
     const isRunning = template.running;
 
@@ -629,9 +669,13 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
         try {
             await axios.put(`/template/${id}`, { running: !isRunning });
             template.running = !isRunning;
-            const newButton = createToggleButton(template, id, buttonsContainer, statusSpan);
+            const newStatus = !isRunning ? 'Started' : 'Stopped';
+            const newButton = createToggleButton(template, id, buttonsContainer, progressBarText, currentPercent);
             button.replaceWith(newButton);
-            statusSpan.textContent = `Status: ${!isRunning ? 'Started' : 'Stopped'}`;
+            progressBarText.textContent = `${currentPercent}% | ${newStatus}`;
+            const progressBar = progressBarText.previousElementSibling;
+            progressBar.classList.toggle('stopped', !isRunning);
+
         } catch (error) {
             handleError(error);
         }
@@ -639,8 +683,46 @@ const createToggleButton = (template, id, buttonsContainer, statusSpan) => {
     return button;
 };
 
+const updateTemplateStatus = async () => {
+    try {
+        const { data: templates } = await axios.get("/templates");
+        for (const id in templates) {
+            const t = templates[id];
+            const templateElement = $(id);
+            if (!templateElement) continue;
+
+            const total = t.totalPixels || 1;
+            const remaining = t.pixelsRemaining !== null ? t.pixelsRemaining : total;
+            const completed = total - remaining;
+            const percent = Math.floor((completed / total) * 100);
+
+            const progressBar = templateElement.querySelector('.progress-bar');
+            const progressBarText = templateElement.querySelector('.progress-bar-text');
+            const pixelCount = templateElement.querySelector('.pixel-count');
+
+            if (progressBar) progressBar.style.width = `${percent}%`;
+            if (progressBarText) progressBarText.textContent = `${percent}% | ${t.status}`;
+            if (pixelCount) pixelCount.textContent = `${completed} / ${total}`;
+
+            if (t.status === "Finished.") {
+                progressBar.classList.add('finished');
+                progressBar.classList.remove('stopped');
+            } else if (!t.running) {
+                progressBar.classList.add('stopped');
+                progressBar.classList.remove('finished');
+            } else {
+                progressBar.classList.remove('stopped', 'finished');
+            }
+        }
+    } catch (error) {
+        console.error("Failed to update template statuses:", error);
+    }
+};
+
 openManageTemplates.addEventListener("click", () => {
     templateList.innerHTML = "";
+    if (templateUpdateInterval) clearInterval(templateUpdateInterval);
+
     loadUsers(users => {
         loadTemplates(templates => {
             for (const id of Object.keys(templates)) {
@@ -653,16 +735,43 @@ openManageTemplates.addEventListener("click", () => {
                 const template = document.createElement('div');
                 template.id = id;
                 template.className = "template";
+
+                const total = t.totalPixels || 1;
+                const remaining = t.pixelsRemaining !== null ? t.pixelsRemaining : total;
+                const completed = total - remaining;
+                const percent = Math.floor((completed / total) * 100);
+
                 const infoSpan = document.createElement('span');
-                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Buy Max Charge Upgrades:</b> ${t.canBuyMaxCharges ? "Yes" : "No"}<br><b>Buy Extra Charges:</b> ${t.canBuyCharges ? "Yes" : "No"}<br><b>Anti-Grief Mode:</b> ${t.antiGriefMode ? "Yes" : "No"}<br><b class="status-text">Status:</b> ${t.status}`;
+                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Pixels:</b> <span class="pixel-count">${completed} / ${total}</span>`;
                 template.appendChild(infoSpan);
+
+                const progressBarContainer = document.createElement('div');
+                progressBarContainer.className = 'progress-bar-container';
+
+                const progressBar = document.createElement('div');
+                progressBar.className = 'progress-bar';
+                progressBar.style.width = `${percent}%`;
+
+                const progressBarText = document.createElement('span');
+                progressBarText.className = 'progress-bar-text';
+                progressBarText.textContent = `${percent}% | ${t.status}`;
+
+                if (t.status === "Finished.") {
+                    progressBar.classList.add('finished');
+                } else if (!t.running) {
+                    progressBar.classList.add('stopped');
+                }
+
+                progressBarContainer.appendChild(progressBar);
+                progressBarContainer.appendChild(progressBarText);
+                template.appendChild(progressBarContainer);
 
                 const canvas = document.createElement("canvas");
                 drawTemplate(t.template, canvas);
                 const buttons = document.createElement('div');
                 buttons.className = "template-actions";
 
-                const toggleButton = createToggleButton(t, id, buttons, infoSpan.querySelector('.status-text'));
+                const toggleButton = createToggleButton(t, id, buttons, progressBarText, percent);
                 buttons.appendChild(toggleButton);
 
                 const editButton = document.createElement('button');
@@ -705,6 +814,7 @@ openManageTemplates.addEventListener("click", () => {
                 template.append(buttons);
                 templateList.append(template);
             };
+            templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
         });
     });
     changeTab(manageTemplates);
@@ -713,11 +823,22 @@ openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
-        drawingModeSelect.value = currentSettings.drawingMethod;
+        drawingDirectionSelect.value = currentSettings.drawingDirection;
+        drawingOrderSelect.value = currentSettings.drawingOrder;
         turnstileNotifications.checked = currentSettings.turnstileNotifications;
         outlineMode.checked = currentSettings.outlineMode;
+        interleavedMode.checked = currentSettings.interleavedMode;
+        skipPaintedPixels.checked = currentSettings.skipPaintedPixels;
+
+        proxyEnabled.checked = currentSettings.proxyEnabled;
+        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
+        logProxyUsage.checked = currentSettings.logProxyUsage;
+        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
+        proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
+
         accountCooldown.value = currentSettings.accountCooldown / 1000;
         purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
+        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
         dropletReserve.value = currentSettings.dropletReserve;
         antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
         chargeThreshold.value = currentSettings.chargeThreshold * 100;
@@ -737,9 +858,37 @@ const saveSetting = async (setting) => {
     }
 };
 
-drawingModeSelect.addEventListener('change', () => saveSetting({ drawingMethod: drawingModeSelect.value }));
+drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
+drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
+interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
+skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
+
+proxyEnabled.addEventListener('change', () => {
+    proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
+    saveSetting({ proxyEnabled: proxyEnabled.checked });
+});
+
+logProxyUsage.addEventListener('change', () => {
+    saveSetting({ logProxyUsage: logProxyUsage.checked });
+});
+
+proxyRotationMode.addEventListener('change', () => {
+    saveSetting({ proxyRotationMode: proxyRotationMode.value });
+});
+
+reloadProxiesBtn.addEventListener('click', async () => {
+    try {
+        const response = await axios.post('/reload-proxies');
+        if (response.data.success) {
+            proxyCount.textContent = `${response.data.count} proxies reloaded from file.`;
+            showMessage("Success", "Proxies reloaded successfully!");
+        }
+    } catch (error) {
+        handleError(error);
+    }
+});
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;
@@ -757,6 +906,15 @@ purchaseCooldown.addEventListener('change', () => {
         return;
     }
     saveSetting({ purchaseCooldown: value });
+});
+
+accountCheckCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage("Error", "Please enter a valid non-negative number.");
+        return;
+    }
+    saveSetting({ accountCheckCooldown: value });
 });
 
 dropletReserve.addEventListener('change', () => {

@@ -1,70 +1,48 @@
-console.log("✅ wplacer: Content script loaded. Listening for Turnstile tokens.");
-const sentInPage = new Set();
+// --- Constants ---
+const RELOAD_FLAG = 'wplacer_reload_in_progress';
 
-const postToken = (token, from) => {
-    if (!token || typeof token !== 'string' || token.length < 20 || sentInPage.has(token)) return;
-    sentInPage.add(token);
-    console.log(`✅ wplacer: CAPTCHA Token Captured (${from})`);
+// --- Main Logic ---
+console.log("✅ wplacer: Content script loaded.");
+
+// Check if this load was triggered by our extension
+if (sessionStorage.getItem(RELOAD_FLAG)) {
+    sessionStorage.removeItem(RELOAD_FLAG);
+    console.log("wplacer: Page reloaded to capture a new token.");
+}
+
+const sentTokens = new Set();
+
+const postToken = (token) => {
+    if (!token || typeof token !== 'string' || sentTokens.has(token)) {
+        return;
+    }
+    sentTokens.add(token);
+    console.log(`✅ wplacer: CAPTCHA Token Captured. Sending to server.`);
     chrome.runtime.sendMessage({ type: "SEND_TOKEN", token: token });
 };
 
-// --- Primary Method: Listen for messages from the Cloudflare Turnstile iframe ---
-window.addEventListener('message', (e) => {
+// --- Event Listeners ---
+
+// 1. Listen for messages from the Cloudflare Turnstile iframe (primary method)
+window.addEventListener('message', (event) => {
+    if (event.origin !== "https://challenges.cloudflare.com" || !event.data) {
+        return;
+    }
     try {
-        if (e.origin !== "https://challenges.cloudflare.com") return;
-        const data = e.data;
-        let token = null;
-        if (data && typeof data === 'object') {
-            token = data.token || data.response || data['cf-turnstile-response'];
-        }
+        const token = event.data.token || event.data.response || event.data['cf-turnstile-response'];
         if (token) {
-            postToken(token, 'postMessage');
+            postToken(token);
         }
-    } catch { /* ignore */ }
+    } catch {
+        // Ignore errors from parsing message data
+    }
 }, true);
 
-// --- Secondary Method: Server-Sent Events (SSE) to trigger a refresh on demand ---
-try {
-    const es = new EventSource(`http://127.0.0.1:80/events`);
-    es.addEventListener("request-token", () => {
-        console.log("wplacer: Received token request from server.");
-
-        // --- Leader Election
-        const REFRESH_LOCK_KEY = 'wplacer_refresh_lock';
-        const ELECTION_CANDIDATE_KEY = 'wplacer_election_candidate';
-        const LOCK_DURATION_MS = 20000;
-        const ELECTION_WAIT_MS = 250;
-
-        const now = Date.now();
-        const lock = localStorage.getItem(REFRESH_LOCK_KEY);
-
-        if (lock && (now - parseInt(lock, 10)) < LOCK_DURATION_MS) {
-            console.log("wplacer: A refresh is already in progress. Standing by.");
-            return;
-        }
-
-        const myCandidateId = Math.random();
-        localStorage.setItem(ELECTION_CANDIDATE_KEY, JSON.stringify({ id: myCandidateId, ts: now }));
-
-        setTimeout(() => {
-            try {
-                const winnerData = localStorage.getItem(ELECTION_CANDIDATE_KEY);
-                if (!winnerData) return;
-
-                const winner = JSON.parse(winnerData);
-
-                if (winner.id === myCandidateId) {
-                    console.log("wplacer: This tab won the election and is handling the refresh.");
-                    localStorage.setItem(REFRESH_LOCK_KEY, Date.now().toString());
-                    location.reload();
-                } else {
-                    console.log("wplacer: Another tab won the election. Standing by.");
-                }
-            } catch (e) {
-                console.error("wplacer: Error during leader election.", e);
-            }
-        }, ELECTION_WAIT_MS);
-    });
-} catch (e) { 
-    console.error("wplacer: Failed to connect to event source. On-demand token refresh will not work.", e);
-}
+// 2. Listen for commands from the background script
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === "reloadForToken") {
+        console.log("wplacer: Received reload command from background script. Reloading now...");
+        sessionStorage.setItem(RELOAD_FLAG, 'true');
+        location.reload();
+    }
+});

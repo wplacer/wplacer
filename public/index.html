@@ -46,29 +46,26 @@
 
         <div id="addTemplate" style="display: none;">
             <h2 id="templateFormTitle">Add Template</h2>
+            <div class="info-box">
+                <b>Tip:</b> For best results, process your image through the <a href="https://pepoafonso.github.io/color_converter_wplace/" target="_blank" rel="noopener noreferrer">wplace color converter</a> first!
+            </div>
             <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg">Convert Image</button>
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
+                <div id="premiumWarning" class="warning-box" style="display: none;"></div>
                 <canvas id="templateCanvas"></canvas>
                 <div class="preview-controls">
                     <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
                     <label for="previewBorder">Preview Border:</label>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" id="previewBorder" value="0">
                 </div>
-                <canvas id="previewCanvas"></canvas>
+                <canvas id="previewCanvas" style="display: none;"></canvas>
             </div>
             <form id="templateForm">
                 <input type="file" style="display: none;" accept="image/png" id="convertInput">
                 <label for="templateName">Template Name</label>
                 <input type="text" id="templateName" placeholder="Insert a catchy name here" required>
                 <label>Coordinates</label>
-                <div class="setting-toggle">
-                    <label for="usePaidColors">Use paid colors when exact</label>
-                    <label class="switch">
-                        <input id="usePaidColors" name="usePaidColors" type="checkbox">
-                        <span class="slider"></span>
-                    </label>
-                </div>
                 <div class="coordinate-grid">
                     <input type="text" inputmode="numeric" pattern="[0-9]*" id="tx" placeholder="Tile X" required>
                     <input type="text" inputmode="numeric" pattern="[0-9]*" id="ty" placeholder="Tile Y" required>
@@ -119,20 +116,40 @@
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
 
-            <label for="drawingModeSelect">Drawing Mode</label>
-            <select id="drawingModeSelect">
-                <option value="linear">Top to Bottom</option>
-                <option value="linear-reversed">Bottom to Top</option>
-                <option value="linear-ltr">Left to Right</option>
-                <option value="linear-rtl">Right to Left</option>
-                <option value="singleColorRandom">Random Color</option>
-                <option value="colorByColor">Color by Color</option>
+            <label for="drawingDirectionSelect">Drawing Direction</label>
+            <select id="drawingDirectionSelect">
+                <option value="ttb">Top to Bottom</option>
+                <option value="btt">Bottom to Top</option>
+                <option value="ltr">Left to Right</option>
+                <option value="rtl">Right to Left</option>
+            </select>
+
+            <label for="drawingOrderSelect">Drawing Order</label>
+            <select id="drawingOrderSelect">
+                <option value="linear">Linear</option>
+                <option value="random">Random Pixels</option>
+                <option value="randomColor">Random Color</option>
+                <option value="color">Color by Color</option>
             </select>
 
             <div class="setting-toggle">
                 <label for="outlineMode">Enable outline mode</label>
                 <label class="switch">
                     <input id="outlineMode" name="outlineMode" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-toggle">
+                <label for="interleavedMode">Enable interleaved mode</label>
+                <label class="switch">
+                    <input id="interleavedMode" name="interleavedMode" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div class="setting-toggle">
+                <label for="skipPaintedPixels">Skip other's painted pixels</label>
+                <label class="switch">
+                    <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>
@@ -148,12 +165,40 @@
             <input type="number" id="accountCooldown" min="0" value="20">
             <label for="purchaseCooldown">Purchase Cooldown (seconds)</label>
             <input type="number" id="purchaseCooldown" min="0" value="5">
+            <label for="accountCheckCooldown">Account Check Cooldown (seconds)</label>
+            <input type="number" id="accountCheckCooldown" min="0" value="0">
             <label for="dropletReserve">Minimum Droplets Before Buying</label>
             <input type="number" id="dropletReserve" min="0" value="0">
             <label for="antiGriefStandby">Anti-Grief Standby Time (minutes)</label>
             <input type="number" id="antiGriefStandby" min="1" value="10">
             <label for="chargeThreshold">Charge Threshold (%)</label>
             <input type="number" id="chargeThreshold" min="0" max="100" value="50">
+            
+            <h2 class="section-title">Proxy Settings</h2>
+            <div class="setting-toggle">
+                <label for="proxyEnabled">Enable Rotating Proxies</label>
+                <label class="switch">
+                    <input id="proxyEnabled" name="proxyEnabled" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="proxyFormContainer" style="display: none;">
+                <p class="info-box" style="text-align: left;">Proxies are loaded from the <code>proxies.txt</code> file in your <code>/data</code> folder. Add one proxy per line in the format <code>protocol://user:pass@host:port</code>. You can get high quality proxies at <a href="https://dataimpulse.com/?aff=199137" target="_blank" rel="noopener noreferrer">DataImpulse</a>.</p>
+                <div class="setting-toggle">
+                    <label for="logProxyUsage">Log Proxy Connections</label>
+                    <label class="switch">
+                        <input id="logProxyUsage" name="logProxyUsage" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <label for="proxyRotationMode">Rotation Mode</label>
+                <select id="proxyRotationMode">
+                    <option value="sequential">Sequential</option>
+                    <option value="random">Random</option>
+                </select>
+                <div id="proxyCount" class="info-box" style="text-align: center; margin-top: 10px;"></div>
+                <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
+            </div>
 
             <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>

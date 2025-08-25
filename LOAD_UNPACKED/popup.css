@@ -9,7 +9,7 @@
 }
 
 body {
-    width: 250px;
+    width: 280px;
     margin: 0;
     font-family: var(--font-family);
     background-color: var(--background-secondary);
@@ -59,10 +59,19 @@ button {
     border: none;
     background-color: var(--accent-primary);
     color: white;
+    margin-top: 5px;
 }
 
 button:hover {
     background-color: var(--accent-hover);
+}
+
+button.destructive {
+    background-color: hsl(0, 65%, 51%);
+}
+
+button.destructive:hover {
+    background-color: hsl(0, 65%, 45%);
 }
 
 .settings {
@@ -75,11 +84,10 @@ button:hover {
 .settings label {
     font-size: 14px;
     color: var(--text-secondary);
+    white-space: nowrap;
 }
 
 .settings input {
-    flex-grow: 1;
-    width: 50px;
     padding: 6px;
     background-color: #121212;
     border: 1px solid var(--border-color);
@@ -88,8 +96,10 @@ button:hover {
     font-family: var(--font-family);
 }
 
-.settings button {
-    font-size: 12px;
-    padding: 7px 12px;
-    width: auto;
+#host {
+    flex-grow: 1;
+}
+
+#port {
+    width: 60px;
 }

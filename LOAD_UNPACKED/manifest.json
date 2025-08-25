@@ -1,19 +1,19 @@
 {
   "manifest_version": 3,
   "name": "wplacer",
-  "version": "3.0",
-  "description": "Automatically sends session and Turnstile tokens from wplace.live to wplacer.",
+  "version": "4.2",
+  "description": "Automatically sends session and Turnstile tokens from wplace.live to a wplacer server.",
   "permissions": [
+    "storage",
     "cookies",
     "tabs",
-    "scripting",
     "alarms",
-    "storage"
+    "browsingData"
   ],
   "host_permissions": [
     "https://wplace.live/",
     "https://backend.wplace.live/",
-    "http://127.0.0.1:*/"
+    "http://127.0.0.1/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -27,8 +27,12 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://wplace.live/*"],
-      "js": ["content.js"],
+      "matches": [
+        "https://wplace.live/*"
+      ],
+      "js": [
+        "content.js"
+      ],
       "run_at": "document_start"
     }
   ]
