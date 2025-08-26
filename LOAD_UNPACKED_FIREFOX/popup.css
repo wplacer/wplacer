@@ -1,0 +1,105 @@
+:root {
+    --background-secondary: #1A1A1A;
+    --accent-primary: hsl(25, 95%, 55%);
+    --accent-hover: hsl(25, 95%, 48%);
+    --text-primary: #E0E0E0;
+    --text-secondary: #B3B3B3;
+    --border-color: #282828;
+    --font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body {
+    width: 280px;
+    margin: 0;
+    font-family: var(--font-family);
+    background-color: var(--background-secondary);
+    color: var(--text-primary);
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.logo {
+    width: 24px;
+    height: 24px;
+}
+
+h3 {
+    margin: 0;
+    font-weight: 500;
+}
+
+.content {
+    padding: 15px;
+    text-align: center;
+}
+
+p {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin: 10px 0 15px 0;
+    min-height: 2em;
+}
+
+button {
+    font-family: var(--font-family);
+    font-weight: 500;
+    font-size: 14px;
+    width: 100%;
+    padding: 10px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    background-color: var(--accent-primary);
+    color: white;
+    margin-top: 5px;
+}
+
+button:hover {
+    background-color: var(--accent-hover);
+}
+
+button.destructive {
+    background-color: hsl(0, 65%, 51%);
+}
+
+button.destructive:hover {
+    background-color: hsl(0, 65%, 45%);
+}
+
+.settings {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.settings label {
+    font-size: 14px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+}
+
+.settings input {
+    padding: 6px;
+    background-color: #121212;
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 6px;
+    font-family: var(--font-family);
+}
+
+#host {
+    flex-grow: 1;
+}
+
+#port {
+    width: 60px;
+}
