@@ -487,8 +487,6 @@ openManageUsers.addEventListener("click", () => {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
-            const expirationDate = users[id].expirationDate;
-            const expirationStr = expirationDate ? new Date(expirationDate * 1000).toLocaleString() : 'N/A';
 
             user.innerHTML = `
                 <div class="user-info">
@@ -496,7 +494,7 @@ openManageUsers.addEventListener("click", () => {
                     <span>(#${id})</span>
                     <div class="user-stats">
                         Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Expires: <b>${expirationStr}</b>
+                        Droplets: <b>?</b>
                     </div>
                 </div>
                 <div class="user-actions">
@@ -576,6 +574,7 @@ checkUserStatus.addEventListener("click", async () => {
             const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
             const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
             const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const dropletsEl = userEl.querySelector('.user-stats b:nth-of-type(4)');
             const levelProgressEl = userEl.querySelector('.level-progress');
 
             if (status && status.success) {
@@ -588,6 +587,7 @@ checkUserStatus.addEventListener("click", async () => {
                 currentChargesEl.textContent = charges;
                 maxChargesEl.textContent = max;
                 currentLevelEl.textContent = level;
+                dropletsEl.textContent = userInfo.droplets;
                 levelProgressEl.textContent = `(${progress}%)`;
                 totalCurrent += charges;
                 totalMax += max;
@@ -597,6 +597,7 @@ checkUserStatus.addEventListener("click", async () => {
                 currentChargesEl.textContent = "ERR";
                 maxChargesEl.textContent = "ERR";
                 currentLevelEl.textContent = "?";
+                dropletsEl.textContent = "ERR";
                 levelProgressEl.textContent = "(?%)";
                 infoSpans.forEach(span => span.style.color = 'var(--error-color)');
             }
