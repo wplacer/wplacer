@@ -439,7 +439,7 @@ const saveTemplates = () => {
         templatesToSave[id] = {
             name: t.name, template: t.template, coords: t.coords,
             canBuyCharges: t.canBuyCharges, canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode, userIds: t.userIds
+            antiGriefMode: t.antiGriefMode, enableAutostart: t.enableAutostart, userIds: t.userIds
         };
     }
     saveJSON("templates.json", templatesToSave);
@@ -534,13 +534,14 @@ function logUserError(error, id, name, context) {
 
 // --- Template Management ---
 class TemplateManager {
-    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds) {
+    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, userIds) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.canBuyMaxCharges = canBuyMaxCharges;
         this.antiGriefMode = antiGriefMode;
+        this.enableAutostart = enableAutostart;
         this.userIds = userIds;
         this.running = false;
         this.status = "Waiting to be started.";
@@ -771,6 +772,9 @@ app.use(cors());
 app.use(express.static("public"));
 app.use(express.json({ limit: Infinity }));
 
+// --- Autostartup Templates Array ---
+const autostartedTemplates = [];
+
 // --- API Endpoints ---
 app.get("/token-needed", (req, res) => {
     res.json({ needed: TokenManager.isTokenNeeded });
@@ -896,6 +900,7 @@ app.get("/templates", (_, res) => {
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
+            enableAutostart: t.enableAutostart,
             userIds: t.userIds,
             running: t.running,
             status: t.status,
@@ -907,13 +912,13 @@ app.get("/templates", (_, res) => {
 });
 
 app.post("/template", async (req, res) => {
-    const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode } = req.body;
+    const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart } = req.body;
     if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
     if (Object.values(templates).some(t => t.name === templateName)) {
         return res.status(409).json({ error: "A template with this name already exists." });
     }
     const templateId = Date.now().toString();
-    templates[templateId] = new TemplateManager(templateName, template, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, userIds);
+    templates[templateId] = new TemplateManager(templateName, template, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, userIds);
     saveTemplates();
     res.status(200).json({ id: templateId });
 });
@@ -930,13 +935,15 @@ app.put("/template/edit/:id", async (req, res) => {
     const { id } = req.params;
     if (!templates[id]) return res.sendStatus(404);
     const manager = templates[id];
-    const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, template } = req.body;
+    const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, template } = req.body;
     manager.name = templateName;
     manager.coords = coords;
     manager.userIds = userIds;
     manager.canBuyCharges = canBuyCharges;
     manager.canBuyMaxCharges = canBuyMaxCharges;
     manager.antiGriefMode = antiGriefMode;
+    manager.enableAutostart = enableAutostart;
+
     if (template) {
         manager.template = template;
         manager.totalPixels = manager.template.data.flat().filter(p => p > 0).length;
@@ -994,6 +1001,11 @@ app.get("/canvas", async (req, res) => {
     }
 });
 
+// --- Autostart endpoint
+app.get("/api/autostarted", (req, res) => {
+    res.json(autostartedTemplates);
+});
+
 // --- Background Status Polling ---
 const updateUserStatuses = async () => {
     const userIds = Object.keys(users);
@@ -1030,16 +1042,28 @@ const updateUserStatuses = async () => {
     const version = JSON.parse(readFileSync("package.json", "utf8")).version;
     console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
 
+    // Load Templates from templates.json
     const loadedTemplates = loadJSON("templates.json");
+
+    // Loop through loaded templates and check validity
     for (const id in loadedTemplates) {
         const t = loadedTemplates[id];
         if (t.userIds.every(uid => users[uid])) {
-            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.userIds);
+            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds );
+
+            // Check autostart flag
+            if (t.enableAutostart) {
+                templates[id].start().catch(error =>
+                    log(id, templates[id].masterName, "Error starting autostarted template", error)
+                );
+                autostartedTemplates.push({ id, name: t.name });
+            }
         } else {
             console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
         }
     }
-    
+
+    // Load proxies 
     loadProxies();
 
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
@@ -1049,7 +1073,7 @@ const updateUserStatuses = async () => {
     app.listen(port, host, () => {
         console.log(`✅ Server listening on http://localhost:${port}`);
         console.log(`   Open the web UI in your browser to start!`);
-        
+
         // Initial status check, then set interval
         updateUserStatuses();
         setInterval(updateUserStatuses, 5 * 60 * 1000); // Run every 5 minutes
