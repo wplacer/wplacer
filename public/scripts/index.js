@@ -495,6 +495,7 @@ openManageUsers.addEventListener("click", () => {
                     <span>(#${id})</span>
                     <div class="user-stats">
                         Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
+                        Droplets: <b>?</b><br>
                         Expires: <b>${expirationStr}</b>
                     </div>
                 </div>
@@ -575,6 +576,7 @@ checkUserStatus.addEventListener("click", async () => {
             const currentChargesEl = userEl.querySelector('.user-stats b:nth-of-type(1)');
             const maxChargesEl = userEl.querySelector('.user-stats b:nth-of-type(2)');
             const currentLevelEl = userEl.querySelector('.user-stats b:nth-of-type(3)');
+            const dropletsEl = userEl.querySelector('.user-stats b:nth-of-type(4)');
             const levelProgressEl = userEl.querySelector('.level-progress');
 
             if (status && status.success) {
@@ -583,11 +585,13 @@ checkUserStatus.addEventListener("click", async () => {
                 const max = userInfo.charges.max;
                 const level = Math.floor(userInfo.level);
                 const progress = Math.round((userInfo.level % 1) * 100);
+                const droplets = userInfo.droplets;
 
                 currentChargesEl.textContent = charges;
                 maxChargesEl.textContent = max;
                 currentLevelEl.textContent = level;
                 levelProgressEl.textContent = `(${progress}%)`;
+                dropletsEl.textContent = droplets;
                 totalCurrent += charges;
                 totalMax += max;
 
