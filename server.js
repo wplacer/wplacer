@@ -328,7 +328,7 @@ class WPlacer {
         // 2. Base Directional Sort
         switch (this.settings.drawingDirection) {
             case 'btt': // Bottom to Top
-                pixelsToProcess.sort((a, b) => a.localY - b.localY);
+                pixelsToProcess.sort((a, b) => b.localY - a.localY);
                 break;
             case 'ltr': // Left to Right
                 pixelsToProcess.sort((a, b) => a.localX - b.localX);
@@ -345,7 +345,7 @@ class WPlacer {
             }
             case 'ttb': // Top to Bottom
             default:
-                pixelsToProcess.sort((a, b) => b.localY - a.localY);
+                pixelsToProcess.sort((a, b) => a.localY - b.localY);
                 break;
         }
 
@@ -544,8 +544,7 @@ class TemplateManager {
         this.status = "Waiting to be started.";
         this.masterId = this.userIds[0];
         this.masterName = users[this.masterId]?.name || 'Unknown';
-        this.isFirstRun = true;
-        this.sleepResolve = null;
+        this.sleepAbortController = null;
         this.totalPixels = this.template.data.flat().filter(p => p > 0).length;
         this.pixelsRemaining = this.totalPixels;
         this.currentPixelSkip = currentSettings.pixelSkip;
@@ -557,22 +556,30 @@ class TemplateManager {
     }
 
     sleep(ms) {
-        return new Promise(resolve => {
-            this.sleepResolve = resolve;
-            setTimeout(() => {
-                if (this.sleepResolve) {
-                    this.sleepResolve = null;
-                    resolve();
-                }
+        return new Promise((resolve) => {
+            if (this.sleepAbortController) {
+                this.sleepAbortController.abort();
+            }
+            this.sleepAbortController = new AbortController();
+            const signal = this.sleepAbortController.signal;
+
+            const timeout = setTimeout(() => {
+                this.sleepAbortController = null;
+                resolve();
             }, ms);
+
+            signal.addEventListener('abort', () => {
+                clearTimeout(timeout);
+                this.sleepAbortController = null;
+                resolve(); // Resolve on abort so the await continues
+            });
         });
     }
 
     interruptSleep() {
-        if (this.sleepResolve) {
+        if (this.sleepAbortController) {
             log('SYSTEM', 'wplacer', `[${this.name}] ⚙️ Settings changed, waking up.`);
-            this.sleepResolve();
-            this.sleepResolve = null;
+            this.sleepAbortController.abort();
         }
     }
 
