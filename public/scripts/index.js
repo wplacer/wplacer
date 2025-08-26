@@ -67,6 +67,7 @@ const proxyRotationMode = $("proxyRotationMode");
 const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
+const enableAutostart = $("enableAutostart");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -423,7 +424,8 @@ templateForm.addEventListener('submit', async (e) => {
         userIds: selectedUsers,
         canBuyCharges: canBuyCharges.checked,
         canBuyMaxCharges: canBuyMaxCharges.checked,
-        antiGriefMode: antiGriefMode.checked
+        antiGriefMode: antiGriefMode.checked,
+        enableAutostart: enableAutostart.checked
     };
 
     if (currentTemplate && currentTemplate.width > 0) {
@@ -683,6 +685,16 @@ const createToggleButton = (template, id, buttonsContainer, progressBarText, cur
     return button;
 };
 
+// Autostart Popup
+window.addEventListener("DOMContentLoaded", async () => {
+    const res = await fetch("/api/autostarted");
+    const autostarted = await res.json();
+
+    if (autostarted.length > 0) {
+        showMessage("Autostarted Templates", `The following templates were set to autostart and have been started:<br><br>${autostarted.map(t => `<b>${t.name}</b>`).join("<br>")}`);
+    }
+});
+
 const updateTemplateStatus = async () => {
     try {
         const { data: templates } = await axios.get("/templates");
@@ -789,6 +801,7 @@ openManageTemplates.addEventListener("click", () => {
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
+                    enableAutostart.checked = t.enableAutostart;
                 });
 
                 const delButton = document.createElement('button');
