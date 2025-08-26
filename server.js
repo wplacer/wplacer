@@ -1050,8 +1050,11 @@ app.get("/canvas", async (req, res) => {
 
     const port = Number(process.env.PORT) || 80;
     const host = "0.0.0.0";
-    app.listen(port, host, () => {
+    app.listen(port, host, (error) => {
         console.log(`✅ Server listening on http://localhost:${port}`);
         console.log(`   Open the web UI in your browser to start!`);
+        if (error) {
+            console.error("\n" + error);
+        }
     });
 })();
