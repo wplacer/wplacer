@@ -129,6 +129,7 @@
                 <option value="btt">Bottom to Top</option>
                 <option value="ltr">Left to Right</option>
                 <option value="rtl">Right to Left</option>
+                <option value="center_out">Center Out</option>
             </select>
 
             <label for="drawingOrderSelect">Drawing Order</label>
@@ -139,6 +140,18 @@
                 <option value="color">Color by Color</option>
             </select>
 
+            <label for="pixelSkipSelect">Drawing Density</label>
+            <select id="pixelSkipSelect">
+                <option value="1">1/1 (Every Pixel)</option>
+                <option value="2">1/2</option>
+                <option value="4">1/4</option>
+                <option value="8">1/8</option>
+                <option value="16">1/16</option>
+                <option value="32">1/32</option>
+                <option value="64">1/64</option>
+                <option value="128">1/128</option>
+            </select>
+
             <div class="setting-toggle">
                 <label for="outlineMode">Enable outline mode</label>
                 <label class="switch">
@@ -147,23 +160,9 @@
                 </label>
             </div>
             <div class="setting-toggle">
-                <label for="interleavedMode">Enable interleaved mode</label>
-                <label class="switch">
-                    <input id="interleavedMode" name="interleavedMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
                 <label for="skipPaintedPixels">Skip other's painted pixels</label>
                 <label class="switch">
                     <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
-                <label for="turnstileNotifications">Enable desktop notifications for Turnstile</label>
-                <label class="switch">
-                    <input id="turnstileNotifications" name="turnstileNotifications" type="checkbox">
                     <span class="slider"></span>
                 </label>
             </div>

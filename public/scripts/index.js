@@ -36,6 +36,7 @@ const selectAllUsers = $("selectAllUsers");
 const canBuyMaxCharges = $("canBuyMaxCharges");
 const canBuyCharges = $("canBuyCharges");
 const antiGriefMode = $("antiGriefMode");
+const enableAutostart = $("enableAutostart");
 const submitTemplate = $("submitTemplate");
 const manageTemplates = $("manageTemplates");
 const templateList = $("templateList");
@@ -44,10 +45,9 @@ const stopAll = $("stopAll");
 const settings = $("settings");
 const drawingDirectionSelect = $("drawingDirectionSelect");
 const drawingOrderSelect = $("drawingOrderSelect");
+const pixelSkipSelect = $("pixelSkipSelect");
 const outlineMode = $("outlineMode");
-const interleavedMode = $("interleavedMode");
 const skipPaintedPixels = $("skipPaintedPixels");
-const turnstileNotifications = $("turnstileNotifications");
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
 const accountCheckCooldown = $("accountCheckCooldown");
@@ -67,7 +67,6 @@ const proxyRotationMode = $("proxyRotationMode");
 const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
-const enableAutostart = $("enableAutostart");
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -339,33 +338,27 @@ const processImageFile = (file, callback) => {
     };
     reader.readAsDataURL(file);
 };
-
-const displayTemplateCanvas = (template) => {
-    currentTemplate = template;
-    drawTemplate(template, templateCanvas);
-    size.innerHTML = `${template.width}x${template.height}px`;
-    ink.innerHTML = template.ink;
-    if (template.hasPremium) {
-        premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
-        premiumWarning.style.display = "block";
-    } else {
-        premiumWarning.style.display = "none";
-    }
-    templateCanvas.style.display = 'block';
-    previewCanvas.style.display = 'none';
-    details.style.display = "block";
-};
-
 const processEvent = () => {
     const file = convertInput.files[0];
     if (file) {
         templateName.value = file.name.replace(/\.[^/.]+$/, "");
         processImageFile(file, (template) => {
-            displayTemplateCanvas(template);
+            currentTemplate = template;
+            drawTemplate(template, templateCanvas);
+            size.innerHTML = `${template.width}x${template.height}px`;
+            ink.innerHTML = template.ink;
+            if (template.hasPremium) {
+                premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
+                premiumWarning.style.display = "block";
+            } else {
+                premiumWarning.style.display = "none";
+            }
+            templateCanvas.style.display = 'block';
+            previewCanvas.style.display = 'none';
+            details.style.display = "block";
         });
     };
 };
-
 convertInput.addEventListener('change', processEvent);
 
 previewCanvasButton.addEventListener('click', async () => {
@@ -624,7 +617,7 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
 
-const initializeTemplateForm = (userIds = null) => {
+openAddTemplate.addEventListener("click", () => {
     resetTemplateForm();
     userSelectList.innerHTML = "";
     loadUsers(users => {
@@ -640,7 +633,6 @@ const initializeTemplateForm = (userIds = null) => {
             checkbox.id = `user_${id}`;
             checkbox.name = 'user_checkbox';
             checkbox.value = id;
-            checkbox.checked = userIds && userIds.map(String).includes(id);
             const label = document.createElement('label');
             label.htmlFor = `user_${id}`;
             label.textContent = `${users[id].name} (#${id})`;
@@ -650,12 +642,7 @@ const initializeTemplateForm = (userIds = null) => {
         }
     });
     changeTab(addTemplate);
-}
-
-openAddTemplate.addEventListener("click", () => {
-    initializeTemplateForm();
 });
-
 selectAllUsers.addEventListener('click', () => {
     document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
 });
@@ -684,16 +671,6 @@ const createToggleButton = (template, id, buttonsContainer, progressBarText, cur
     });
     return button;
 };
-
-// Autostart Popup
-window.addEventListener("DOMContentLoaded", async () => {
-    const res = await fetch("/api/autostarted");
-    const autostarted = await res.json();
-
-    if (autostarted.length > 0) {
-        showMessage("Autostarted Templates", `The following templates were set to autostart and have been started:<br><br>${autostarted.map(t => `<b>${t.name}</b>`).join("<br>")}`);
-    }
-});
 
 const updateTemplateStatus = async () => {
     try {
@@ -790,18 +767,23 @@ openManageTemplates.addEventListener("click", () => {
                 editButton.className = 'secondary-button';
                 editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
                 editButton.addEventListener('click', () => {
-                    initializeTemplateForm(t.userIds);
+                    openAddTemplate.click();
                     templateFormTitle.textContent = `Edit Template: ${t.name}`;
                     submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
                     templateForm.dataset.editId = id;
 
                     templateName.value = t.name;
-                    displayTemplateCanvas(t.template);
                     [tx.value, ty.value, px.value, py.value] = t.coords;
                     canBuyCharges.checked = t.canBuyCharges;
                     canBuyMaxCharges.checked = t.canBuyMaxCharges;
                     antiGriefMode.checked = t.antiGriefMode;
                     enableAutostart.checked = t.enableAutostart;
+
+                    document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
+                        if (t.userIds.includes(cb.value)) {
+                            cb.checked = true;
+                        }
+                    });
                 });
 
                 const delButton = document.createElement('button');
@@ -838,9 +820,8 @@ openSettings.addEventListener("click", async () => {
         const currentSettings = response.data;
         drawingDirectionSelect.value = currentSettings.drawingDirection;
         drawingOrderSelect.value = currentSettings.drawingOrder;
-        turnstileNotifications.checked = currentSettings.turnstileNotifications;
+        pixelSkipSelect.value = currentSettings.pixelSkip;
         outlineMode.checked = currentSettings.outlineMode;
-        interleavedMode.checked = currentSettings.interleavedMode;
         skipPaintedPixels.checked = currentSettings.skipPaintedPixels;
 
         proxyEnabled.checked = currentSettings.proxyEnabled;
@@ -873,9 +854,8 @@ const saveSetting = async (setting) => {
 
 drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
-turnstileNotifications.addEventListener('change', () => saveSetting({ turnstileNotifications: turnstileNotifications.checked }));
+pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
 outlineMode.addEventListener('change', () => saveSetting({ outlineMode: outlineMode.checked }));
-interleavedMode.addEventListener('change', () => saveSetting({ interleavedMode: interleavedMode.checked }));
 skipPaintedPixels.addEventListener('change', () => saveSetting({ skipPaintedPixels: skipPaintedPixels.checked }));
 
 proxyEnabled.addEventListener('change', () => {
