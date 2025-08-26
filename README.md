@@ -30,6 +30,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - [git](https://git-scm.com/downloads) (optional, but recommended)
 ### Installation:
 1. Install the extension on each browser window with an account you want to be used by wplacer and to automatically solve Turnstiles (CAPTCHAs) by going to the extensions page of your browser, turning on developer mode, pressing load unpacked, and then selecting the LOAD_UNPACKED folder included with wplacer.
+- For firefox replace the `LOAD_UNPACKED/manifest.json` with the `manifest_v2` and load it under about:debugging.
 2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
 3. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
 - If you'd like, you can change the host and port of the local server by creating a `.env` file.
