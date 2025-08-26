@@ -138,7 +138,7 @@ class WPlacer {
         for (const cookie of Object.keys(this.cookies)) {
             jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
         }
-        
+
         const impitOptions = {
             cookieJar: jar,
             browser: "chrome",
@@ -304,7 +304,7 @@ class WPlacer {
                     ? tileColor === 0 // If skip mode is on, only paint if the tile is blank
                     : templateColor !== tileColor; // Otherwise, paint if the color is wrong
 
-                if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
+                if (templateColor > 0 && shouldPaint) {
                     const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
                     const isEdge = neighbors.some(n => n === 0 || n === undefined);
                     mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge, localX: x, localY: y });
@@ -321,6 +321,7 @@ class WPlacer {
 
         let mismatchedPixels = this._getMismatchedPixels(currentSkip);
         if (mismatchedPixels.length === 0) return 0;
+        mismatchedPixels = mismatchedPixels.filter(p => this.hasColor(p.color));
 
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 
@@ -516,11 +517,11 @@ const TokenManager = {
         this.isTokenNeeded = false;
         const newToken = { token: t, receivedAt: Date.now() };
         this.tokenQueue.push(newToken);
-        
+
         if (this.resolvePromise) {
-             this.resolvePromise(newToken.token); // Resolve with the new token
-             this.tokenPromise = null;
-             this.resolvePromise = null;
+            this.resolvePromise(newToken.token); // Resolve with the new token
+            this.tokenPromise = null;
+            this.resolvePromise = null;
         }
     },
 
@@ -649,7 +650,7 @@ class TemplateManager {
                 for (this.currentPixelSkip = currentSettings.pixelSkip; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                     if (!this.running) break;
                     log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
-                    
+
                     let passComplete = false;
                     while (this.running && !passComplete) {
                         let pixelsChecked = false;
@@ -688,7 +689,7 @@ class TemplateManager {
 
                         const localUserStates = [];
                         const availableUsers = this.userIds.filter(id => !(users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) && !activeBrowserUsers.has(id));
-                        
+
                         log('SYSTEM', 'wplacer', `[${this.name}] Checking status for ${availableUsers.length} available users...`);
                         for (const userId of availableUsers) {
                             if (activeBrowserUsers.has(userId)) continue;
@@ -719,10 +720,10 @@ class TemplateManager {
                                 const userInfo = await wplacer.login(users[userToRun.userId].cookies);
                                 this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
                                 log(userInfo.id, userInfo.name, `[${this.name}] 🔋 User has ${Math.floor(userInfo.charges.count)} charges. Starting turn...`);
-                                
+
                                 await this._performPaintTurn(wplacer);
                                 paintedInTurn = true;
-                                
+
                                 await this.handleUpgrades(wplacer);
                                 this.currentRetryDelay = this.initialRetryDelay;
 
@@ -739,7 +740,7 @@ class TemplateManager {
                             } finally {
                                 activeBrowserUsers.delete(userToRun.userId);
                             }
-                            
+
                             if (paintedInTurn && this.running && this.userIds.length > 1) {
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
                                 await this.sleep(currentSettings.accountCooldown);
@@ -771,7 +772,7 @@ class TemplateManager {
                             const cooldowns = localUserStates
                                 .map(state => state.charges)
                                 .map(c => Math.max(0, (Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold)) - Math.floor(c.count)) * c.cooldownMs));
-                            
+
                             const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
                             this.status = `Waiting for charges.`;
                             log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready to paint. Waiting for charges to replenish (est. ${duration(waitTime)}).`);
@@ -1048,7 +1049,7 @@ app.get("/canvas", async (req, res) => {
     for (const id in loadedTemplates) {
         const t = loadedTemplates[id];
         if (t.userIds.every(uid => users[uid])) {
-            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds );
+            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds);
 
             // Check autostart flag
             if (t.enableAutostart) {
