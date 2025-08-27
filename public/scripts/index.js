@@ -373,6 +373,31 @@ previewCanvasButton.addEventListener('click', async () => {
     await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
 });
 
+function pastePinCoordinates(text) {
+    const patterns = [
+        /Tl X:\s*(\d+),\s*Tl Y:\s*(\d+),\s*Px X:\s*(\d+),\s*Px Y:\s*(\d+)/,
+        /^\s*(\d+)[\s,;]+(\d+)[\s,;]+(\d+)[\s,;]+(\d+)\s*$/
+    ];
+    for (const p of patterns) {
+        match = p.exec(text);
+        if (match) {
+            $("tx").value = match[1];
+            $("ty").value = match[2];
+            $("px").value = match[3];
+            $("py").value = match[4];
+            return true;
+        }
+    }
+    return false;
+}
+
+document.addEventListener("paste", (e) => {
+    const text = e.clipboardData?.getData("text");
+    if (text && pastePinCoordinates(text)) {
+        e.preventDefault();
+    }
+});
+
 canBuyMaxCharges.addEventListener('change', () => {
     if (canBuyMaxCharges.checked) {
         canBuyCharges.checked = false;
