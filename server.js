@@ -204,46 +204,65 @@ class WPlacer {
         return { status: request.status, data: data };
     };
 
-    async loadTiles() {
-        this.tiles.clear();
-        const [tx, ty, px, py] = this.coords;
-        const endPx = px + this.template.width;
-        const endPy = py + this.template.height;
-        const endTx = tx + Math.floor(endPx / 1000);
-        const endTy = ty + Math.floor(endPy / 1000);
+async loadTiles() {
+    this.tiles.clear();
+    const [tx, ty, px, py] = this.coords;
+    const endPx = px + this.template.width - 1;   
+    const endPy = py + this.template.height - 1;  
+    const endTx = tx + Math.floor(endPx / 1000);
+    const endTy = ty + Math.floor(endPy / 1000);
 
-        const tilePromises = [];
-        for (let currentTx = tx; currentTx <= endTx; currentTx++) {
-            for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = new Promise((resolve) => {
+    const tilePromises = [];
+    for (let currentTx = tx; currentTx <= endTx; currentTx++) {
+        for (let currentTy = ty; currentTy <= endTy; currentTy++) {
+            const promise = (async () => {
+                const url = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
+                try {
+                    const response = await fetch(url, {
+                        headers: {
+                            Accept: "image/png,image/*;q=0.8,*/*;q=0.5",
+                        },
+                    });
+                    if (!response.ok) {
+                        //treat failure to fetch as mismatch
+                        return;
+                    }
+                    const buffer = Buffer.from(await response.arrayBuffer());
+
                     const image = new Image();
-                    image.crossOrigin = "Anonymous";
-                    image.onload = () => {
-                        const canvas = createCanvas(image.width, image.height);
-                        const ctx = canvas.getContext("2d");
-                        ctx.drawImage(image, 0, 0);
-                        const tileData = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
-                        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        for (let x = 0; x < canvas.width; x++) {
-                            for (let y = 0; y < canvas.height; y++) {
-                                const i = (y * canvas.width + x) * 4;
-                                const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                                tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
-                            }
-                        }
-                        resolve(tileData);
+                    image.src = buffer;
+
+                    const canvas = createCanvas(image.width, image.height);
+                    const ctx = canvas.getContext("2d");
+                    ctx.drawImage(image, 0, 0);
+
+                    const tileData = {
+                        width: canvas.width,
+                        height: canvas.height,
+                        data: Array.from({ length: canvas.width }, () => []),
                     };
-                    image.onerror = () => resolve(null);
-                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-                }).then(tileData => {
-                    if (tileData) this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                });
-                tilePromises.push(promise);
-            }
+                    const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    for (let x = 0; x < canvas.width; x++) {
+                        for (let y = 0; y < canvas.height; y++) {
+                            const i = (y * canvas.width + x) * 4;
+                            const r = d.data[i];
+                            const g = d.data[i + 1];
+                            const b = d.data[i + 2];
+                            const a = d.data[i + 3];
+                            tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
+                        }
+                    }
+                    this.tiles.set(`${currentTx}_${currentTy}`, tileData);
+                } catch (e) {
+                    await log('SYSTEM', 'wplacer', `Tile decode failed for ${currentTx},${currentTy}. Treating as unknown.`, e);
+                }
+            })();
+            tilePromises.push(promise);
         }
-        await Promise.all(tilePromises);
-        return true;
     }
+    await Promise.all(tilePromises);
+    return true;
+}
 
     hasColor(id) {
         if (id < colorBitmapShift) return true;
@@ -278,41 +297,63 @@ class WPlacer {
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
-    _getMismatchedPixels(currentSkip = 1) {
-        const [startX, startY, startPx, startPy] = this.coords;
-        const mismatched = [];
-        for (let y = 0; y < this.template.height; y++) {
-            for (let x = 0; x < this.template.width; x++) {
-                if ((x + y) % currentSkip !== 0) continue;
+  _getMismatchedPixels(currentSkip = 1) {
+    const [startX, startY, startPx, startPy] = this.coords;
+    const mismatched = [];
 
-                const templateColor = this.template.data[x][y];
-                if (templateColor === 0) continue;
+    for (let y = 0; y < this.template.height; y++) {
+        for (let x = 0; x < this.template.width; x++) {
+            if ((x + y) % currentSkip !== 0) continue;
 
-                const globalPx = startPx + x;
-                const globalPy = startPy + y;
-                const targetTx = startX + Math.floor(globalPx / 1000);
-                const targetTy = startY + Math.floor(globalPy / 1000);
-                const localPx = globalPx % 1000;
-                const localPy = globalPy % 1000;
+            const templateColor = this.template.data[x][y];
+            if (templateColor === 0) continue;
 
-                const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile || !tile.data[localPx]) continue;
+            const globalPx = startPx + x;
+            const globalPy = startPy + y;
 
-                const tileColor = tile.data[localPx][localPy];
+            const targetTx = startX + Math.floor(globalPx / 1000);
+            const targetTy = startY + Math.floor(globalPy / 1000);
 
-                const shouldPaint = this.settings.skipPaintedPixels
-                    ? tileColor === 0 // If skip mode is on, only paint if the tile is blank
-                    : templateColor !== tileColor; // Otherwise, paint if the color is wrong
+            const localPx = globalPx % 1000;
+            const localPy = globalPy % 1000;
 
-                if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
-                    const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
-                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge, localX: x, localY: y });
-                }
+            const tile = this.tiles.get(`${targetTx}_${targetTy}`);
+            //force a mismatch 
+            const tileColor =
+                tile && tile.data[localPx] !== undefined
+                    ? tile.data[localPx][localPy]
+                    : -1; 
+
+
+            const shouldPaint = this.settings.skipPaintedPixels
+                ? (tileColor === 0 || tileColor === -1) // in skip mode, paint only if blank or unknown
+                : (tileColor === -1 || templateColor !== tileColor); // otherwise paint if unknown or wrong color
+
+            if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
+                const neighbors = [
+                    this.template.data[x - 1]?.[y],
+                    this.template.data[x + 1]?.[y],
+                    this.template.data[x]?.[y - 1],
+                    this.template.data[x]?.[y + 1],
+                ];
+                const isEdge = neighbors.some(n => n === 0 || n === undefined);
+
+                mismatched.push({
+                    tx: targetTx,
+                    ty: targetTy,
+                    px: localPx,
+                    py: localPy,
+                    color: templateColor,
+                    isEdge,
+                    localX: x,
+                    localY: y,
+                });
             }
         }
-        return mismatched;
     }
+
+    return mismatched;
+}
 
     async paint(currentSkip = 1) {
         await this.loadUserInfo();
@@ -1074,3 +1115,4 @@ app.get("/canvas", async (req, res) => {
         console.log(`   Open the web UI in your browser to start!`);
     });
 })();
+
