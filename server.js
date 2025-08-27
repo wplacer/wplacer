@@ -304,7 +304,12 @@ class WPlacer {
                     ? tileColor === 0 // If skip mode is on, only paint if the tile is blank
                     : templateColor !== tileColor; // Otherwise, paint if the color is wrong
 
-                if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
+                if(templateColor===-1 && tileColor!==0){
+                    const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
+                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
+                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: 0, isEdge, localX: x, localY: y })
+                }
+                else if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
                     const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
                     const isEdge = neighbors.some(n => n === 0 || n === undefined);
                     mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge, localX: x, localY: y });
@@ -556,7 +561,7 @@ class TemplateManager {
         this.masterId = this.userIds[0];
         this.masterName = users[this.masterId]?.name || 'Unknown';
         this.sleepAbortController = null;
-        this.totalPixels = this.template.data.flat().filter(p => p > 0).length;
+        this.totalPixels = this.template.data.flat().filter(p => p != 0).length;
         this.pixelsRemaining = this.totalPixels;
         this.currentPixelSkip = currentSettings.pixelSkip;
 
