@@ -62,7 +62,7 @@ export const log = (id, name, data, error) => { // No longer needs to be async
     // Push to queue and trigger processing
     logQueue.push({ targetStream, content });
     
-    // Use setImmediate to batch multiple log calls in the same event loop tick
+    // Use setImmediate to batch multiple log calls in the same event loop tick.
     setImmediate(processQueue);
 };
 
