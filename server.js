@@ -297,6 +297,9 @@ async loadTiles() {
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
+
+
+
 _getMismatchedPixels(currentSkip = 1) {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
@@ -306,6 +309,45 @@ _getMismatchedPixels(currentSkip = 1) {
             if ((x + y) % currentSkip !== 0) continue;
 
             const templateColor = this.template.data[x][y];
+
+            if (templateColor === -1) {
+                const globalPx = startPx + x;
+                const globalPy = startPy + y;
+
+                const targetTx = startX + Math.floor(globalPx / 1000);
+                const targetTy = startY + Math.floor(globalPy / 1000);
+
+                const localPx = globalPx % 1000;
+                const localPy = globalPy % 1000;
+
+                const tile = this.tiles.get(`${targetTx}_${targetTy}`);
+                const tileColor =
+                    tile && tile.data[localPx] !== undefined
+                        ? tile.data[localPx][localPy]
+                        : -1;
+
+                if (tileColor !== 0) {
+                    const neighbors = [
+                        this.template.data[x - 1]?.[y],
+                        this.template.data[x + 1]?.[y],
+                        this.template.data[x]?.[y - 1],
+                        this.template.data[x]?.[y + 1],
+                    ];
+                    const isEdge = neighbors.some(n => n === 0 || n === undefined || n === -1);
+                    mismatched.push({
+                        tx: targetTx,
+                        ty: targetTy,
+                        px: localPx,
+                        py: localPy,
+                        color: 0, 
+                        isEdge,
+                        localX: x,
+                        localY: y,
+                    });
+                }
+                continue;
+            }
+
             if (templateColor === 0) continue;
 
             const globalPx = startPx + x;
@@ -318,11 +360,12 @@ _getMismatchedPixels(currentSkip = 1) {
             const localPy = globalPy % 1000;
 
             const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-            //force a mismatch 
+
+            // force a mismatch 
             const tileColor =
                 tile && tile.data[localPx] !== undefined
                     ? tile.data[localPx][localPy]
-                    : -1; 
+                    : -1;
 
             const shouldPaint = this.settings.skipPaintedPixels
                 ? (tileColor === 0 || tileColor === -1) // in skip mode, paint only if blank or unknown
@@ -336,7 +379,6 @@ _getMismatchedPixels(currentSkip = 1) {
                     this.template.data[x]?.[y + 1],
                 ];
                 const isEdge = neighbors.some(n => n === 0 || n === undefined);
-
                 mismatched.push({
                     tx: targetTx,
                     ty: targetTy,
@@ -579,7 +621,6 @@ function logUserError(error, id, name, context) {
         log(id, name, `❌ Failed to ${context}`, error);
     }
 }
-
 // --- Template Management ---
 class TemplateManager {
     constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, userIds) {
@@ -596,7 +637,7 @@ class TemplateManager {
         this.masterId = this.userIds[0];
         this.masterName = users[this.masterId]?.name || 'Unknown';
         this.sleepAbortController = null;
-        this.totalPixels = this.template.data.flat().filter(p => p > 0).length;
+        this.totalPixels = this.template.data.flat().filter(p => p != 0).length;
         this.pixelsRemaining = this.totalPixels;
         this.currentPixelSkip = currentSettings.pixelSkip;
 
