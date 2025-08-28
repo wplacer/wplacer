@@ -23,18 +23,26 @@ logStream.on('error', (err) => console.error('Log Stream Error:', err));
 errorStream.on('error', (err) => console.error('Error Stream Error:', err));
 
 // --- Logging and Utility Functions ---
+// --- Logging and Utility Functions ---
 const logQueue = [];
-let isProcessing = false; 
+let isProcessing = false;
 
-const processQueue = () => {
+const processQueue = async () => {
     if (isProcessing || logQueue.length === 0) return;
     isProcessing = true;
 
-    // Process all items currently in the queue in one go
+    // Process one item at a time to avoid overwhelming the streams
     while (logQueue.length > 0) {
         const { targetStream, content } = logQueue.shift();
         try {
-            targetStream.write(content);
+            // Use writeAsync pattern to handle backpressure
+            const writeSuccessful = targetStream.write(content);
+            if (!writeSuccessful) {
+                // If write buffer is full, wait for drain event
+                await new Promise((resolve) => {
+                    targetStream.once('drain', resolve);
+                });
+            }
         } catch (err) {
             console.error("Failed to write to log stream:", err);
         }
@@ -43,7 +51,7 @@ const processQueue = () => {
     isProcessing = false;
 };
 
-export const log = (id, name, data, error) => { 
+export const log = (id, name, data, error) => {
     const timestamp = new Date().toLocaleString();
     const identifier = `(${name}#${id})`;
 
@@ -63,7 +71,20 @@ export const log = (id, name, data, error) => {
     logQueue.push({ targetStream, content });
     
     // Use setImmediate to batch multiple log calls in the same event loop tick
-    setImmediate(processQueue);
+    setImmediate(() => processQueue().catch(console.error));
+};
+
+const duration = (durationMs) => {
+    if (durationMs <= 0) return "0s";
+    const totalSeconds = Math.floor(durationMs / 1000);
+    const seconds = totalSeconds % 60;
+    const minutes = Math.floor(totalSeconds / 60) % 60;
+    const hours = Math.floor(totalSeconds / 3600);
+    const parts = [];
+    if (hours) parts.push(`${hours}h`);
+    if (minutes) parts.push(`${minutes}m`);
+    if (seconds || parts.length === 0) parts.push(`${seconds}s`);
+    return parts.join(' ');
 };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
