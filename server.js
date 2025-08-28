@@ -5,6 +5,7 @@ import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
 import { Image, createCanvas } from "canvas";
+import { exec } from "node:child_process";
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -24,6 +25,14 @@ const log = async (id, name, data, error) => {
         appendFileSync(path.join(dataDir, `logs.log`), `[${timestamp}] ${identifier} ${data}\n`);
     };
 };
+
+function openBrowser(url) {
+  const start =
+    process.platform === "darwin" ? "open" :
+    process.platform === "win32" ? "start" :
+    "xdg-open";
+  exec(`${start} ${url}`);
+}
 
 const duration = (durationMs) => {
     if (durationMs <= 0) return "0s";
@@ -1132,43 +1141,73 @@ app.get("/canvas", async (req, res) => {
 
 // --- Server Startup ---
 (async () => {
-    console.clear();
-    const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-    console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
+  console.clear();
+  const version = JSON.parse(readFileSync("package.json", "utf8")).version;
+  console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
 
-    // Load Templates from templates.json
-    const loadedTemplates = loadJSON("templates.json");
+  // Load templates
+  const loadedTemplates = loadJSON("templates.json");
+  for (const id in loadedTemplates) {
+    const t = loadedTemplates[id];
+    if (t.userIds.every(uid => users[uid])) {
+      templates[id] = new TemplateManager(
+        t.name, t.template, t.coords,
+        t.canBuyCharges, t.canBuyMaxCharges,
+        t.antiGriefMode, t.enableAutostart, t.userIds
+      );
+      if (t.enableAutostart) {
+        templates[id].start().catch(err =>
+          log(id, templates[id].masterName, "Error starting autostarted template", err)
+        );
+        autostartedTemplates.push({ id, name: t.name });
+      }
+    } else {
+      console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
+    }
+  }
 
-    // Loop through loaded templates and check validity
-    for (const id in loadedTemplates) {
-        const t = loadedTemplates[id];
-        if (t.userIds.every(uid => users[uid])) {
-            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds );
+  // Load proxies
+  loadProxies();
+  console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
 
-            // Check autostart flag
-            if (t.enableAutostart) {
-                templates[id].start().catch(error =>
-                    log(id, templates[id].masterName, "Error starting autostarted template", error)
-                );
-                autostartedTemplates.push({ id, name: t.name });
-            }
-        } else {
-            console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
-        }
+  // Server port selection
+  const host = "0.0.0.0";
+  const initial = Number(process.env.PORT) || 80;
+  const common = [3000, 5173, 8080, 8000, 5000, 7000, 4200, 5500];
+
+  const probe = Array.from(new Set([initial, ...common]));
+  for (let p = 3001; p <= 3050; p++) probe.push(p);
+
+  function tryListen(idx = 0) {
+    if (idx >= probe.length) {
+      console.error("No available port found.");
+      process.exit(1);
     }
 
-    // Load proxies 
-    loadProxies();
+    const port = probe[idx];
+    const server = app.listen(port, host);
 
-    console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
-
-    const port = Number(process.env.PORT) || 80;
-    const host = "0.0.0.0";
-    app.listen(port, host, (error) => {
-        console.log(`✅ Server listening on http://localhost:${port}`);
-        console.log(`   Open the web UI in your browser to start!`);
-        if (error) {
-            console.error("\n" + error);
-        }
+    server.on("listening", () => {
+        const url = `http://localhost:${port}`;
+        console.log(`✅ Server listening on ${url}`);
+        console.log("   Open the web UI in your browser to start.");
+        openBrowser(url);
     });
+
+    server.on("error", (err) => {
+      if (err.code === "EADDRINUSE") {
+        console.error(`Port ${port} in use. Trying ${probe[idx + 1]}...`);
+        tryListen(idx + 1);
+      } else if (err.code === "EACCES") {
+        const nextIdx = Math.max(idx + 1, probe.indexOf(common[0]));
+        console.error(`Permission denied on ${port}. Trying ${probe[nextIdx]}...`);
+        tryListen(nextIdx);
+      } else {
+        console.error("Server error:", err);
+        process.exit(1);
+      }
+    });
+  }
+
+  tryListen(0);
 })();
