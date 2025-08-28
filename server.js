@@ -65,35 +65,125 @@ const colorBitmapShift = Object.keys(basic_colors).length + 1;
 
 let loadedProxies = [];
 const loadProxies = () => {
-    const proxyPath = path.join(dataDir, "proxies.txt");
-    if (!existsSync(proxyPath)) {
-        writeFileSync(proxyPath, ""); // Create empty file if it doesn't exist
-        console.log('[SYSTEM] `data/proxies.txt` not found, created an empty one.');
-        loadedProxies = [];
-        return;
+  const proxyPath = path.join(dataDir, "proxies.txt");
+  if (!existsSync(proxyPath)) {
+    writeFileSync(proxyPath, "");
+    console.log("[SYSTEM] `data/proxies.txt` not found, created an empty one.");
+    loadedProxies = [];
+    return;
+  }
+
+  const raw = readFileSync(proxyPath, "utf8");
+
+  // one per line, strip comments
+  const lines = raw
+    .split(/\r?\n/)
+    .map(l => l.replace(/\s+#.*$|\s+\/\/.*$|^\s*#.*$|^\s*\/\/.*$/g, "").trim())
+    .filter(Boolean);
+
+  const protoMap = new Map([
+    ["http", "http"],
+    ["https", "https"],
+    ["socks4", "socks4"],
+    ["socks5", "socks5"],
+  ]);
+
+  const inRange = p => Number.isInteger(p) && p >= 1 && p <= 65535;
+  const looksHostname = h => !!h && /^[a-z0-9-._[\]]+$/i.test(h); // allows IPv4, IPv6 [::], domains
+
+  const parseOne = (line) => {
+    // Case A: scheme://user:pass@host:port  OR  scheme://host:port
+    const urlLike = line.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/(.+)$/);
+    if (urlLike) {
+      const scheme = urlLike[1].toLowerCase();
+      const protocol = protoMap.get(scheme);
+      if (!protocol) return null;
+
+      try {
+        const u = new URL(line);
+        const host = u.hostname;
+        const port = u.port ? parseInt(u.port, 10) : NaN;
+        const username = decodeURIComponent(u.username || "");
+        const password = decodeURIComponent(u.password || "");
+        if (!looksHostname(host) || !inRange(port)) return null;
+
+        return { protocol, host, port, username, password };
+      } catch {
+        return null;
+      }
     }
 
-    const lines = readFileSync(proxyPath, "utf8").split('\n').filter(line => line.trim() !== '');
-    const proxies = [];
-    const proxyRegex = /^(http|https|socks4|socks5):\/\/(?:([^:]+):([^@]+)@)?([^:]+):(\d+)$/;
+    // Case B: user:pass@host:port
+    const authHost = line.match(/^([^:@\s]+):([^@\s]+)@(.+)$/);
+    if (authHost) {
+      const username = authHost[1];
+      const password = authHost[2];
+      const rest = authHost[3];
 
-    for (const line of lines) {
-        const match = line.trim().match(proxyRegex);
-        if (match) {
-            proxies.push({
-                protocol: match[1],
-                username: match[2] || '',
-                password: match[3] || '',
-                host: match[4],
-                port: parseInt(match[5], 10)
-            });
-        } else {
-            console.log(`[SYSTEM] WARNING: Invalid proxy format skipped: "${line}"`);
-        }
+      const m6 = rest.match(/^\[([^\]]+)\]:(\d+)$/);
+      const m4 = rest.match(/^([^:\s]+):(\d+)$/);
+
+      let host = "", port = NaN;
+      if (m6) { host = m6[1]; port = parseInt(m6[2], 10); }
+      else if (m4) { host = m4[1]; port = parseInt(m4[2], 10); }
+      else return null;
+
+      if (!looksHostname(host) || !inRange(port)) return null;
+
+      return { protocol: "http", host, port, username, password };
     }
-    loadedProxies = proxies;
+
+    // Case C: [ipv6]:port
+    const bare6 = line.match(/^\[([^\]]+)\]:(\d+)$/);
+    if (bare6) {
+      const host = bare6[1];
+      const port = parseInt(bare6[2], 10);
+      if (!inRange(port)) return null;
+      return { protocol: "http", host, port, username: "", password: "" };
+    }
+
+    // Case D: host:port
+    const bare = line.match(/^([^:\s]+):(\d+)$/);
+    if (bare) {
+      const host = bare[1];
+      const port = parseInt(bare[2], 10);
+      if (!looksHostname(host) || !inRange(port)) return null;
+      return { protocol: "http", host, port, username: "", password: "" };
+    }
+
+    // Case E: Bright Data style user:pass:host:port
+    const uphp = line.split(":");
+    if (uphp.length === 4 && /^\d+$/.test(uphp[3])) {
+      const [username, password, host, portStr] = uphp;
+      const port = parseInt(portStr, 10);
+      if (looksHostname(host) && inRange(port)) {
+        return { protocol: "http", host, port, username, password };
+      }
+    }
+
+    return null;
+  };
+
+  const seen = new Set();
+  const proxies = [];
+
+  for (const line of lines) {
+    const p = parseOne(line);
+    if (!p) {
+      console.log(`[SYSTEM] WARNING: Invalid proxy skipped: "${line}"`);
+      continue;
+    }
+
+    const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    proxies.push(p);
+  }
+
+  loadedProxies = proxies;
+  console.log(`[SYSTEM] Loaded ${loadedProxies.length} proxies (major formats supported).`);
 };
-
 
 let nextProxyIndex = 0;
 const getNextProxy = () => {
