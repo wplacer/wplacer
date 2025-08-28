@@ -4,7 +4,7 @@ import express from "express";
 import cors from "cors";
 import { CookieJar } from "tough-cookie";
 import { Impit } from "impit";
-import { Image, createCanvas } from "canvas";
+import { createCanvas, loadImage } from "canvas";
 
 // --- Setup Data Directory ---
 const dataDir = "./data";
@@ -204,6 +204,45 @@ class WPlacer {
         return { status: request.status, data: data };
     };
 
+    async loadTile(tx,ty)
+    {
+        const url = `https://backend.wplace.live/files/s0/tiles/${tx}/${ty}.png?t=${Date.now()}`;
+        const response = await this.browser.fetch(url, {
+            method: "GET",
+            headers: {
+                "Accept": "image/*",
+                "Referer": "https://wplace.live/"
+            }
+        });
+
+        if(!response.ok)
+        {
+            throw new NetworkError(`Failed to load tile ${tx},${ty}`);
+        }
+        
+        const arrayBuffer = await response.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        const image = await loadImage(buffer);
+        const canvas = createCanvas(image.width, image.height);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(image, 0, 0, image.width, image.height);
+        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        const tileData = {
+            width: canvas.width,
+            height: canvas.height,
+            data: Array.from({ length: canvas.width }, () => [])
+        };
+        for (let x = 0; x < canvas.width; x++) {
+            for (let y = 0; y < canvas.height; y++) {
+                const i = (y * canvas.width + x) * 4;
+                const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
+                tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
+            }
+        }
+        this.tiles.set(`${tx}_${ty}`, tileData);
+    }
+
     async loadTiles() {
         this.tiles.clear();
         const [tx, ty, px, py] = this.coords;
@@ -215,29 +254,7 @@ class WPlacer {
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
-                const promise = new Promise((resolve) => {
-                    const image = new Image();
-                    image.crossOrigin = "Anonymous";
-                    image.onload = () => {
-                        const canvas = createCanvas(image.width, image.height);
-                        const ctx = canvas.getContext("2d");
-                        ctx.drawImage(image, 0, 0);
-                        const tileData = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
-                        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        for (let x = 0; x < canvas.width; x++) {
-                            for (let y = 0; y < canvas.height; y++) {
-                                const i = (y * canvas.width + x) * 4;
-                                const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                                tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
-                            }
-                        }
-                        resolve(tileData);
-                    };
-                    image.onerror = () => resolve(null);
-                    image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-                }).then(tileData => {
-                    if (tileData) this.tiles.set(`${currentTx}_${currentTy}`, tileData);
-                });
+                const promise = this.loadTile(currentTx,currentTy);
                 tilePromises.push(promise);
             }
         }
@@ -523,9 +540,9 @@ const TokenManager = {
         this.tokenQueue.push(newToken);
         
         if (this.resolvePromise) {
-             this.resolvePromise(newToken.token); // Resolve with the new token
-             this.tokenPromise = null;
-             this.resolvePromise = null;
+            this.resolvePromise(newToken.token); // Resolve with the new token
+            this.tokenPromise = null;
+            this.resolvePromise = null;
         }
     },
 
@@ -1053,7 +1070,7 @@ app.get("/canvas", async (req, res) => {
     for (const id in loadedTemplates) {
         const t = loadedTemplates[id];
         if (t.userIds.every(uid => users[uid])) {
-            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds );
+            templates[id] = new TemplateManager(t.name, t.template, t.coords, t.canBuyCharges, t.canBuyMaxCharges, t.antiGriefMode, t.enableAutostart, t.userIds);
 
             // Check autostart flag
             if (t.enableAutostart) {
