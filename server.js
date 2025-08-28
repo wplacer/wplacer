@@ -297,7 +297,7 @@ async loadTiles() {
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
-  _getMismatchedPixels(currentSkip = 1) {
+_getMismatchedPixels(currentSkip = 1) {
     const [startX, startY, startPx, startPy] = this.coords;
     const mismatched = [];
 
@@ -323,7 +323,6 @@ async loadTiles() {
                 tile && tile.data[localPx] !== undefined
                     ? tile.data[localPx][localPy]
                     : -1; 
-
 
             const shouldPaint = this.settings.skipPaintedPixels
                 ? (tileColor === 0 || tileColor === -1) // in skip mode, paint only if blank or unknown
@@ -1110,9 +1109,11 @@ app.get("/canvas", async (req, res) => {
 
     const port = Number(process.env.PORT) || 80;
     const host = "0.0.0.0";
-    app.listen(port, host, () => {
+    app.listen(port, host, (error) => {
         console.log(`✅ Server listening on http://localhost:${port}`);
         console.log(`   Open the web UI in your browser to start!`);
+        if (error) {
+            console.error("\n" + error);
+        }
     });
 })();
-
