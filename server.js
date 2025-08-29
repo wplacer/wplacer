@@ -66,7 +66,9 @@ class NetworkError extends Error {
     }
 }
 
-const pallete = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31, "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
+const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = 32;
 
 const ChargeCache = {
@@ -450,8 +452,10 @@ class WPlacer {
         throw Error(`Unexpected purchase response: ${JSON.stringify(response)}`);
     };
 
-    async pixelsLeft(currentSkip = 1) {
-        await this.loadTiles();
+    async pixelsLeft(currentSkip = 1, useCachedTiles = false) {
+        if (!useCachedTiles) {
+            await this.loadTiles();
+        }
         return this._getMismatchedPixels(currentSkip).length;
     };
 }
@@ -579,18 +583,18 @@ class TemplateManager {
         this.userQueue = [...this.userIds];
     }
 
-    sleepCancellable(ms) {
+    cancellableSleep(ms) {
         return new Promise((resolve) => {
-            if (this.sleepAbortController) this.sleepAbortController.abort();
-            this.sleepAbortController = new AbortController();
-            const signal = this.sleepAbortController.signal;
+            const controller = new AbortController();
+            this.sleepAbortController = controller;
+            const signal = controller.signal;
             const timeout = setTimeout(() => {
-                this.sleepAbortController = null;
+                if (this.sleepAbortController === controller) this.sleepAbortController = null;
                 resolve();
             }, ms);
             signal.addEventListener('abort', () => {
                 clearTimeout(timeout);
-                this.sleepAbortController = null;
+                if (this.sleepAbortController === controller) this.sleepAbortController = null;
                 resolve();
             });
         });
@@ -663,9 +667,10 @@ class TemplateManager {
                     let passComplete = false;
                     while (this.running && !passComplete) {
                         let pixelsChecked = false;
+                        let passPixelsRemaining = -1;
                         const initialQueueSizeForCheck = this.userQueue.length;
                         if (initialQueueSizeForCheck === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] No users in queue to check canvas. Waiting...`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] No valid users in queue to check canvas. Waiting...`);
                             await sleep(5000);
                             this.userQueue = [...this.userIds];
                             continue;
@@ -679,7 +684,8 @@ class TemplateManager {
                             const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, templateSettings, this.name);
                             try {
                                 await checkWplacer.login(users[checkUserId].cookies);
-                                this.pixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip);
+                                this.pixelsRemaining = await checkWplacer.pixelsLeft(1, false);
+                                passPixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip, true);
                                 this.currentRetryDelay = this.initialRetryDelay;
                                 pixelsChecked = true;
                                 this.userQueue.push(checkUserId);
@@ -700,13 +706,19 @@ class TemplateManager {
                             continue;
                         }
                         if (this.pixelsRemaining === 0) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
+                            this.status = "Finished.";
+                            this.running = false;
+                            break;
+                        }
+                        if (passPixelsRemaining === 0) {
                             log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
                             passComplete = true;
                             continue;
                         }
                         if (!this.running) break;
                         if (this.userQueue.length === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users in queue. Waiting...`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
                             await sleep(5000);
                             this.userQueue = [...this.userIds];
                             continue;
@@ -768,7 +780,7 @@ class TemplateManager {
                         if (foundUserForTurn) {
                             if (this.running && this.userIds.length > 1) {
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
-                                await this.sleepCancellable(currentSettings.accountCooldown);
+                                await sleep(currentSettings.accountCooldown);
                             }
                         } else {
                             const now = Date.now();
@@ -781,7 +793,7 @@ class TemplateManager {
                             const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
                             this.status = "Waiting for charges.";
                             log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
-                            await this.sleepCancellable(waitTime);
+                            await this.cancellableSleep(waitTime);
                         }
                     }
                 }
@@ -789,7 +801,7 @@ class TemplateManager {
                 if (this.antiGriefMode) {
                     this.status = "Monitoring for changes.";
                     log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(currentSettings.antiGriefStandby)}.`);
-                    await this.sleepCancellable(currentSettings.antiGriefStandby);
+                    await this.cancellableSleep(currentSettings.antiGriefStandby);
                     continue;
                 } else {
                     log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete! Template finished!`);
