@@ -377,7 +377,7 @@ class WPlacer {
     }
 
     async paint(currentSkip = 1) {
-        await this.loadTiles();
+        if (this.tiles.size === 0) await this.loadTiles();
         if (!this.token) throw new Error("Token not provided.");
         let mismatchedPixels = this._getMismatchedPixels(currentSkip);
         if (mismatchedPixels.length === 0) return 0;
@@ -452,8 +452,8 @@ class WPlacer {
         throw Error(`Unexpected purchase response: ${JSON.stringify(response)}`);
     };
 
-    async pixelsLeft(currentSkip = 1, useCachedTiles = false) {
-        if (!useCachedTiles) {
+    async pixelsLeft(currentSkip = 1) {
+        if (this.tiles.size === 0) {
             await this.loadTiles();
         }
         return this._getMismatchedPixels(currentSkip).length;
@@ -581,6 +581,8 @@ class TemplateManager {
         this.maxRetryDelay = 5 * 60 * 1000;
         this.currentRetryDelay = this.initialRetryDelay;
         this.userQueue = [...this.userIds];
+        this.checkingWplacer = null;
+        this.lastCanvasCheckTimestamp = 0;
     }
 
     cancellableSleep(ms) {
@@ -666,39 +668,50 @@ class TemplateManager {
                     log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
                     let passComplete = false;
                     while (this.running && !passComplete) {
-                        let pixelsChecked = false;
                         let passPixelsRemaining = -1;
-                        const initialQueueSizeForCheck = this.userQueue.length;
-                        if (initialQueueSizeForCheck === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] No valid users in queue to check canvas. Waiting...`);
-                            await sleep(5000);
-                            this.userQueue = [...this.userIds];
-                            continue;
-                        }
-                        for (let i = 0; i < initialQueueSizeForCheck; i++) {
-                            const checkUserId = this.userQueue.shift();
-                            if (!users[checkUserId] || (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)) {
+                        const now = Date.now();
+                        if (!this.checkingWplacer || (now - this.lastCanvasCheckTimestamp) > 60000) {
+                            let checkerLoggedIn = false;
+                            const queueSize = this.userQueue.length;
+                            if (queueSize === 0) {
+                                log('SYSTEM', 'wplacer', `[${this.name}] No valid users in queue to check canvas. Waiting...`);
+                                await sleep(5000);
+                                this.userQueue = [...this.userIds];
                                 continue;
                             }
-                            const templateSettings = { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels };
-                            const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, templateSettings, this.name);
-                            try {
-                                await checkWplacer.login(users[checkUserId].cookies);
-                                this.pixelsRemaining = await checkWplacer.pixelsLeft(1, false);
-                                passPixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip, true);
-                                this.currentRetryDelay = this.initialRetryDelay;
-                                pixelsChecked = true;
+                            for (let i = 0; i < queueSize; i++) {
+                                const checkUserId = this.userQueue.shift();
+                                if (!users[checkUserId] || (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)) {
+                                    continue;
+                                }
                                 this.userQueue.push(checkUserId);
-                                break;
-                            } catch (error) {
-                                logUserError(error, checkUserId, users[checkUserId].name, "check pixels left");
-                                this.userQueue.push(checkUserId);
+                                const tempChecker = new WPlacer(this.template, this.coords, currentSettings, { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels }, this.name);
+                                try {
+                                    await tempChecker.login(users[checkUserId].cookies);
+                                    await tempChecker.loadTiles();
+                                    this.checkingWplacer = tempChecker;
+                                    this.lastCanvasCheckTimestamp = now;
+                                    checkerLoggedIn = true;
+                                    break;
+                                } catch (error) {
+                                    logUserError(error, checkUserId, users[checkUserId]?.name || 'Unknown', "create canvas checker");
+                                    this.checkingWplacer = null;
+                                }
+                            }
+                            if (!checkerLoggedIn) {
+                                log('SYSTEM', 'wplacer', `[${this.name}] All users failed to create a canvas checker. Retrying in ${duration(this.currentRetryDelay)}.`);
+                                await sleep(this.currentRetryDelay);
+                                this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                                continue;
                             }
                         }
-                        if (!pixelsChecked) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] All users failed to check canvas. Retrying in ${duration(this.currentRetryDelay)}.`);
-                            await sleep(this.currentRetryDelay);
-                            this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                        try {
+                            this.pixelsRemaining = await this.checkingWplacer.pixelsLeft(1);
+                            passPixelsRemaining = await this.checkingWplacer.pixelsLeft(this.currentPixelSkip);
+                        } catch (error) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] Error using cached checker. Invalidating cache.`, error);
+                            this.checkingWplacer = null;
+                            this.lastCanvasCheckTimestamp = 0;
                             continue;
                         }
                         if (this.pixelsRemaining === 0) {
@@ -723,7 +736,6 @@ class TemplateManager {
                         const queueSize = this.userQueue.length;
                         for (let i = 0; i < queueSize; i++) {
                             const userId = this.userQueue.shift();
-                            let shouldRequeue = true;
                             const now = Date.now();
                             if (!users[userId] || (users[userId].suspendedUntil && now < users[userId].suspendedUntil)) {
                                 continue;
@@ -747,21 +759,25 @@ class TemplateManager {
                                 const wplacer = new WPlacer(this.template, this.coords, currentSettings, { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels }, this.name);
                                 try {
                                     const userInfo = await wplacer.login(users[userId].cookies);
+                                    wplacer.tiles = this.checkingWplacer.tiles;
                                     this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
                                     log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
                                     const paintedNow = await this._performPaintTurn(wplacer);
-                                    if (paintedNow > 0) foundUserForTurn = true;
+                                    if (paintedNow > 0) {
+                                        foundUserForTurn = true;
+                                        this.checkingWplacer = null;
+                                    }
                                     await this.handleUpgrades(wplacer);
                                     this.currentRetryDelay = this.initialRetryDelay;
                                 } catch (error) {
                                     if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, "perform paint turn");
                                 } finally {
                                     activeBrowserUsers.delete(userId);
-                                    if (shouldRequeue) this.userQueue.push(userId);
+                                    this.userQueue.push(userId);
                                 }
                                 if (foundUserForTurn) break;
                             } else {
-                                if (shouldRequeue) this.userQueue.push(userId);
+                                this.userQueue.push(userId);
                             }
                         }
                         if (foundUserForTurn) {
@@ -780,7 +796,13 @@ class TemplateManager {
                             const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
                             this.status = "Waiting for charges.";
                             log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
-                            await this.cancellableSleep(waitTime);
+                            let elapsed = 0;
+                            const interval = 5000;
+                            while (this.running && elapsed < waitTime) {
+                                const sleepTime = Math.min(interval, waitTime - elapsed);
+                                await this.cancellableSleep(sleepTime);
+                                elapsed += sleepTime;
+                            }
                         }
                     }
                 }
