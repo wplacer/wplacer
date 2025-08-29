@@ -50,28 +50,16 @@ const duration = (durationMs) => {
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 // START: ADVANCED STEALTH MODE HELPER FUNCTIONS
-/**
- * Trả về một giá trị ngẫu nhiên có xu hướng tập trung quanh giá trị gốc (giống phân phối hình chuông).
- * @param {number} baseValue - Giá trị gốc.
- * @param {number} min - Giá trị tối thiểu.
- * @param {number} max - Giá trị tối đa.
- * @param {number} fluctuation - Mức độ dao động (ví dụ: 0.15 cho ±15%).
- */
-const getBellRandomizedValue = (baseValue, min, max, fluctuation) => {
+const getBellRandomizedValue = (base, min, max, fluctuation) => {
     const range = fluctuation * 2;
-    // Lấy trung bình của hai số ngẫu nhiên để tạo phân phối gần giống hình chuông
-    const randomFactor = (Math.random() + Math.random()) / 2; 
-    const value = baseValue - fluctuation + (randomFactor * range);
+    const randomFactor = (Math.random() + Math.random()) / 2;
+    const value = base - fluctuation + (randomFactor * range);
     return Math.max(min, Math.min(max, value));
 };
 
-/**
- * Trả về một giá trị cooldown ngẫu nhiên trong khoảng 75% - 135% của giá trị cơ bản.
- * @param {number} baseCooldown - Thời gian chờ cơ bản (ms).
- */
-const getRandomizedCooldown = (baseCooldown) => {
-    const min = baseCooldown * 0.75;
-    const max = baseCooldown * 1.35;
+const getRandomizedCooldown = (baseCooldown, minPercent, maxPercent) => {
+    const min = baseCooldown * (minPercent / 100);
+    const max = baseCooldown * (maxPercent / 100);
     return Math.floor(Math.random() * (max - min + 1) + min);
 };
 // END: ADVANCED STEALTH MODE HELPER FUNCTIONS
@@ -449,15 +437,14 @@ class WPlacer {
             case 'linear': default: break;
         }
         
-        // MODIFIED: Stealth Mode "Burst" Painting
         const chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
         let paintCount = chargesNow;
-        if(this.globalSettings.stealthMode) {
-            // Use a random fraction of available charges, from 60% to 100%
-            const burstFactor = getBellRandomizedValue(0.8, 0.6, 1.0, 0.2);
+        if (this.globalSettings.stealthMode) {
+            const { stealthBurstMinPercent, stealthBurstMaxPercent } = this.globalSettings;
+            const burstFactor = (Math.random() * (stealthBurstMaxPercent - stealthBurstMinPercent) + stealthBurstMinPercent) / 100;
             paintCount = Math.floor(chargesNow * burstFactor);
             if (paintCount < chargesNow) {
-                 log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🥷 Stealth Burst: Using ${paintCount}/${chargesNow} charges.`);
+                log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🥷 Stealth Burst: Using ${paintCount}/${chargesNow} charges.`);
             }
         }
         
@@ -472,9 +459,9 @@ class WPlacer {
 
         let totalPainted = 0;
         for (const tileKey in bodiesByTile) {
-            // MODIFIED: Stealth Mode "Micro-delay"
-            if(this.globalSettings.stealthMode && totalPainted > 0) {
-                await sleep(Math.random() * 200 + 50); // wait 50-250ms between tiles
+            if (this.globalSettings.stealthMode && totalPainted > 0) {
+                const { stealthTileDelayMinMs, stealthTileDelayMaxMs } = this.globalSettings;
+                await sleep(Math.random() * (stealthTileDelayMaxMs - stealthTileDelayMinMs) + stealthTileDelayMinMs);
             }
             const [tx, ty] = tileKey.split(',').map(Number);
             const body = { ...bodiesByTile[tileKey], t: this.token };
@@ -533,7 +520,17 @@ let currentSettings = {
     keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
     drawingDirection: 'ttb', drawingOrder: 'linear', chargeThreshold: 0.5,
     pixelSkip: 1,
-    stealthMode: false, // ADDED: Stealth Mode default
+    stealthMode: false,
+    stealthChargeThresholdFluctuation: 10,
+    stealthCooldownMinPercent: 75,
+    stealthCooldownMaxPercent: 125,
+    stealthBurstMinPercent: 85,
+    stealthBurstMaxPercent: 100,
+    stealthBreakChancePercent: 5,
+    stealthBreakMinMinutes: 1,
+    stealthBreakMaxMinutes: 4,
+    stealthTileDelayMinMs: 50,
+    stealthTileDelayMaxMs: 150,
     proxyEnabled: false,
     proxyRotationMode: 'sequential',
     logProxyUsage: false
@@ -662,9 +659,8 @@ class TemplateManager {
             log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
             try {
                 await wplacer.buyProduct(70, amountToBuy);
-                // MODIFIED: Use randomized cooldown for stealth
                 const cooldown = currentSettings.stealthMode 
-                    ? getRandomizedCooldown(currentSettings.purchaseCooldown) 
+                    ? getRandomizedCooldown(currentSettings.purchaseCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
                     : currentSettings.purchaseCooldown;
                 await sleep(cooldown);
                 await wplacer.loadUserInfo();
@@ -792,9 +788,8 @@ class TemplateManager {
                                 }
                             }
                             const predicted = ChargeCache.predict(userId, now);
-                            // MODIFIED: Use bell-curve randomized threshold for Stealth Mode
                             const threshold = currentSettings.stealthMode 
-                                ? getBellRandomizedValue(currentSettings.chargeThreshold, 0.1, 1.0, 0.15)
+                                ? getBellRandomizedValue(currentSettings.chargeThreshold, 0.1, 1.0, currentSettings.stealthChargeThresholdFluctuation / 100)
                                 : currentSettings.chargeThreshold;
 
                             if (predicted && Math.floor(predicted.count) >= Math.max(1, Math.floor(predicted.max * threshold))) {
@@ -821,16 +816,16 @@ class TemplateManager {
                         }
                         if (foundUserForTurn) {
                             if (this.running && this.userIds.length > 1) {
-                                // MODIFIED: Use randomized cooldown for Stealth Mode
                                 const cooldown = currentSettings.stealthMode 
-                                    ? getRandomizedCooldown(currentSettings.accountCooldown) 
+                                    ? getRandomizedCooldown(currentSettings.accountCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
                                     : currentSettings.accountCooldown;
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (est. ${duration(cooldown)}).`);
                                 await sleep(cooldown);
 
-                                // ADDED: Stealth Mode "long pause"
-                                if (currentSettings.stealthMode && Math.random() < 0.05) { // 5% chance
-                                    const longPause = getRandomizedCooldown(2 * 60 * 1000); // ~2 minutes
+                                if (currentSettings.stealthMode && Math.random() < (currentSettings.stealthBreakChancePercent / 100)) {
+                                    const minBreak = currentSettings.stealthBreakMinMinutes * 60 * 1000;
+                                    const maxBreak = currentSettings.stealthBreakMaxMinutes * 60 * 1000;
+                                    const longPause = getRandomizedCooldown( (minBreak + maxBreak) / 2, 75, 125 );
                                     log('SYSTEM', 'wplacer', `[${this.name}] 🥷 Stealth pause: Taking a longer break for ${duration(longPause)}.`);
                                     await this.cancellableSleep(longPause);
                                 }
@@ -847,9 +842,8 @@ class TemplateManager {
                                         if (amountToBuy > 0) {
                                             log(this.masterId, this.masterName, `[${this.name}] 💰 Attempting to buy pixel charges...`);
                                             await chargeBuyer.buyProduct(80, amountToBuy);
-                                            // MODIFIED: Use randomized cooldown for stealth
                                             const cooldown = currentSettings.stealthMode 
-                                                ? getRandomizedCooldown(currentSettings.purchaseCooldown) 
+                                                ? getRandomizedCooldown(currentSettings.purchaseCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent)
                                                 : currentSettings.purchaseCooldown;
                                             await this.sleep(cooldown);
                                             continue;
@@ -871,7 +865,7 @@ class TemplateManager {
                             });
                             
                             const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
-                            this.status = `Waiting for charges.`;
+                            this.status = "Waiting for charges.";
                             log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                             await this.cancellableSleep(waitTime);
                         }
@@ -880,9 +874,8 @@ class TemplateManager {
                 if (!this.running) break;
                 if (this.antiGriefMode) {
                     this.status = "Monitoring for changes.";
-                    // MODIFIED: Use randomized cooldown for Stealth Mode
                     const standbyTime = currentSettings.stealthMode 
-                        ? getRandomizedCooldown(currentSettings.antiGriefStandby) 
+                        ? getRandomizedCooldown(currentSettings.antiGriefStandby, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
                         : currentSettings.antiGriefStandby;
                     log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(standbyTime)}.`);
                     await this.cancellableSleep(standbyTime);
