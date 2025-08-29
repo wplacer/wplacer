@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "4.2.1",
+  "version": "5.0.0",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -21,3 +21,4 @@
     "prettier": "^3.6.2"
   }
 }
+

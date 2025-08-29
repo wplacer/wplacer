@@ -31,7 +31,7 @@ body {
 
 .container {
     width: 100%;
-    max-width: 1360px; /* Increased width */
+    max-width: 1360px;
     background: var(--background-secondary);
     border-radius: 12px;
     border: 1px solid var(--border-color);

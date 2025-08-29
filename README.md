@@ -58,8 +58,8 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
 ### Credits 🙏
 
--   [luluwaffless](https://github.com/luluwaffless)
--   [Jinx](https://github.com/JinxTheCatto)
+-   [Jinx](https://github.com/JinxTheCatto) [(Donate here to help us develop the project :3)](https://ko-fi.com/jinxthecat)
+-   [luluwaffless](https://github.com/luluwaffless) [(Donate here to help us develop the project)](https://ko-fi.com/luluwaffless)
 
 And to our amazing contributors!
 <p align="center"><img src="https://contrib.rocks/image?repo=luluwaffless/wplacer"></p>
