@@ -17,8 +17,7 @@
         <div id="main">
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
             <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
-                Templates</button>
+            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage Templates</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
         </div>
 
@@ -29,19 +28,19 @@
                 <input type="password" id="jcookie" required>
                 <label for="scookie">Session Cookie (s) [optional]</label>
                 <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
-                    User</button>
+                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add User</button>
             </form>
 
             <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
             <div id="chargeSummary">
-                <b>Total Available Charges:</b> <span id="totalCharges">?</span> |
-                <b>Total Max Charges:</b> <span id="totalMaxCharges">?</span>
+                <b>Total Charges:</b> <span id="totalCharges">?</span>/<span id="totalMaxCharges">?</span> |
+                <b>Total Droplets:</b> <span id="totalDroplets">?</span> |
+                <b>Est. PPH:</b> <span id="totalPPH">?</span>
             </div>
             <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
             <div id="userList"></div>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <div id="addTemplate" style="display: none;">
@@ -77,23 +76,44 @@
                 <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
 
                 <div class="setting-toggle">
-                    <label for="canBuyMaxCharges">Buy max charge upgrades</label>
+                    <label for="canBuyMaxCharges">Buy Max Charge Upgrades</label>
                     <label class="switch">
                         <input id="canBuyMaxCharges" name="canBuyMaxCharges" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="setting-toggle">
-                    <label for="canBuyCharges">Buy paint charges when running out</label>
+                    <label for="canBuyCharges">Buy Paint Charges</label>
                     <label class="switch">
                         <input id="canBuyCharges" name="canBuyCharges" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
                 <div class="setting-toggle">
-                    <label for="antiGriefMode">Enable Anti Grief mode</label>
+                    <label for="antiGriefMode">Enable Anti-Grief Mode</label>
                     <label class="switch">
                         <input id="antiGriefMode" name="antiGriefMode" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-toggle">
+                    <label for="eraseMode">Erase Unknown Pixels</label>
+                    <label class="switch">
+                        <input id="eraseMode" name="eraseMode" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-toggle">
+                    <label for="templateOutlineMode">Enable Outline Mode</label>
+                    <label class="switch">
+                        <input id="templateOutlineMode" name="templateOutlineMode" type="checkbox">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <div class="setting-toggle">
+                    <label for="templateSkipPaintedPixels">Skip Others' Painted Pixels</label>
+                    <label class="switch">
+                        <input id="templateSkipPaintedPixels" name="templateSkipPaintedPixels" type="checkbox">
                         <span class="slider"></span>
                     </label>
                 </div>
@@ -107,7 +127,7 @@
 
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>
-            <button onclick="changeTab(main); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
@@ -117,7 +137,7 @@
                 <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
             </div>
             <div id="templateList"></div>
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <div id="settings" style="display: none;">
@@ -151,21 +171,6 @@
                 <option value="64">1/64</option>
                 <option value="128">1/128</option>
             </select>
-
-            <div class="setting-toggle">
-                <label for="outlineMode">Enable outline mode</label>
-                <label class="switch">
-                    <input id="outlineMode" name="outlineMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div class="setting-toggle">
-                <label for="skipPaintedPixels">Skip other's painted pixels</label>
-                <label class="switch">
-                    <input id="skipPaintedPixels" name="skipPaintedPixels" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
 
             <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
             <input type="number" id="accountCooldown" min="0" value="20">
@@ -206,7 +211,7 @@
                 <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
             </div>
 
-            <button onclick="changeTab(main);" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
         </div>
 
         <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
