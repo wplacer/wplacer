@@ -747,11 +747,29 @@ class TemplateManager {
                             this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
                             continue;
                         }
+
                         if (this.pixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
-                            this.status = "Finished.";
-                            this.running = false;
-                            break;
+                            // The template is complete. Now, check if anti-grief is needed.
+                            if (this.antiGriefMode) {
+                                // If anti-grief is ON, switch to monitoring mode.
+                                this.status = "Monitoring for changes.";
+                                const standbyTime = currentSettings.stealthMode 
+                                    ? getRandomizedCooldown(currentSettings.antiGriefStandby, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
+                                    : currentSettings.antiGriefStandby;
+                                log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(standbyTime)}.`);
+                                await this.cancellableSleep(standbyTime);
+                                
+                                // Use 'continue' to start a new loop iteration and re-check the template.
+                                continue; 
+                            } else {
+                                // If anti-grief is OFF, finish completely.
+                                log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
+                                this.status = "Finished.";
+                                this.running = false;
+                                
+                                // Now we use 'break' to exit the loop.
+                                break;
+                            }
                         }
                         if (passPixelsRemaining === 0) {
                             log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
@@ -1199,7 +1217,7 @@ app.get("/canvas", async (req, res) => {
                                 manager.status = "Queued";
                             }
                         } else {
-                            manager.userIds.forEach(uid => activeTemplateUsers.add(uid));
+                            manager.userIds.forEach(uid => activeTemplateUsers.add(id));
                             manager.start().catch(error => log(id, manager.masterName, "Error autostarting template", error));
                         }
                     }
