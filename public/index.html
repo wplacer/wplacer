@@ -171,6 +171,20 @@
                 <option value="64">1/64</option>
                 <option value="128">1/128</option>
             </select>
+            
+            <!-- START: ADDED STEALTH MODE SECTION -->
+            <h2 class="section-title">Stealth Settings</h2>
+            <div class="info-box" style="text-align: left;">
+                <b>Advanced Stealth Mode:</b> When enabled, this mode randomizes various timings and thresholds to make bot activity appear more human-like and less predictable in logs. This helps reduce the risk of detection.
+            </div>
+            <div class="setting-toggle">
+                <label for="stealthMode">Enable Stealth Mode</label>
+                <label class="switch">
+                    <input id="stealthMode" name="stealthMode" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <!-- END: ADDED STEALTH MODE SECTION -->
 
             <label for="accountCooldown">Account Turn Cooldown (seconds)</label>
             <input type="number" id="accountCooldown" min="0" value="20">
