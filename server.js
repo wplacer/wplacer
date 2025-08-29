@@ -72,6 +72,43 @@ const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, 
 const pallete = { ...basic_colors, ...premium_colors };
 const colorBitmapShift = Object.keys(basic_colors).length + 1;
 
+// --- Charge prediction cache (minimal O(1) math, rare sync) ---
+const ChargeCache = {
+  _m: new Map(),
+  REGEN_MS: 30_000,
+  SYNC_MS: 8 * 60_000,
+  _key(id) { return String(id); },
+
+  has(id) { return this._m.has(this._key(id)); },
+  stale(id, now = Date.now()) {
+    const u = this._m.get(this._key(id)); if (!u) return true;
+    return (now - u.lastSync) > this.SYNC_MS;
+  },
+  markFromUserInfo(userInfo, now = Date.now()) {
+    if (!userInfo?.id || !userInfo?.charges) return;
+    const k = this._key(userInfo.id);
+    const base = Math.floor(userInfo.charges.count ?? 0);
+    const max  = Math.floor(userInfo.charges.max ?? 0);
+    this._m.set(k, { base, max, lastSync: now });
+  },
+  predict(id, now = Date.now()) {
+    const u = this._m.get(this._key(id)); if (!u) return null;
+    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+    const count = Math.min(u.max, u.base + Math.max(0, grown));
+    return { count, max: u.max, cooldownMs: this.REGEN_MS };
+  },
+  consume(id, n = 1, now = Date.now()) {
+    const k = this._key(id);
+    const u = this._m.get(k); if (!u) return;
+    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+    const avail = Math.min(u.max, u.base + Math.max(0, grown));
+    const newCount = Math.max(0, avail - n);
+    u.base = newCount;
+    u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+    this._m.set(k, u);
+  }
+};
+
 let loadedProxies = [];
 const loadProxies = () => {
   const proxyPath = path.join(dataDir, "proxies.txt");
@@ -281,17 +318,18 @@ class WPlacer {
             if (userInfo.error === "Unauthorized") throw new NetworkError(`(401) Unauthorized. This is likely a rate-limit.`);
             if (userInfo.error) throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
             if (userInfo.id && userInfo.name) {
-                this.userInfo = userInfo;
-                return true;
+            this.userInfo = userInfo;
+            ChargeCache.markFromUserInfo(userInfo);
+            return true;
             }
             throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
         } catch (e) {
-            if (e instanceof NetworkError) throw e; // Re-throw our custom error
+            if (e instanceof NetworkError) throw e;
             if (bodyText.includes('Error 1015')) throw new NetworkError("(1015) You are being rate-limited by the server.");
             if (bodyText.includes('502') && bodyText.includes('gateway')) throw new NetworkError(`(502) Bad Gateway: The server is temporarily unavailable.`);
             throw new Error(`Failed to parse server response. Response: "${bodyText.substring(0, 150)}..."`);
         }
-    };
+    }
 
     async post(url, body) {
         const request = await this.browser.fetch(url, {
@@ -419,7 +457,6 @@ class WPlacer {
     }
 
     async paint(currentSkip = 1) {
-        await this.loadUserInfo();
         await this.loadTiles();
         if (!this.token) throw new Error("Token not provided to paint method.");
 
@@ -429,74 +466,53 @@ class WPlacer {
         log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
 
         let pixelsToProcess = mismatchedPixels;
-        let isOutlineTurn = false;
 
-        // 1. Prioritize Outline Mode
         if (this.settings.outlineMode) {
             const edgePixels = mismatchedPixels.filter(p => p.isEdge);
-            if (edgePixels.length > 0) {
-                pixelsToProcess = edgePixels;
-                isOutlineTurn = true;
-            }
+            if (edgePixels.length > 0) pixelsToProcess = edgePixels;
         }
 
-        // 2. Base Directional Sort
         switch (this.settings.drawingDirection) {
-            case 'btt': // Bottom to Top
-                pixelsToProcess.sort((a, b) => b.localY - a.localY);
-                break;
-            case 'ltr': // Left to Right
-                pixelsToProcess.sort((a, b) => a.localX - b.localX);
-                break;
-            case 'rtl': // Right to Left
-                pixelsToProcess.sort((a, b) => b.localX - a.localX);
-                break;
+            case 'btt': pixelsToProcess.sort((a, b) => b.localY - a.localY); break;
+            case 'ltr': pixelsToProcess.sort((a, b) => a.localX - b.localX); break;
+            case 'rtl': pixelsToProcess.sort((a, b) => b.localX - a.localX); break;
             case 'center_out': {
-                const centerX = this.template.width / 2;
-                const centerY = this.template.height / 2;
-                const distSq = (p) => Math.pow(p.localX - centerX, 2) + Math.pow(p.localY - centerY, 2);
-                pixelsToProcess.sort((a, b) => distSq(a) - distSq(b));
-                break;
+            const cx = this.template.width / 2, cy = this.template.height / 2;
+            const d2 = p => (p.localX - cx) ** 2 + (p.localY - cy) ** 2;
+            pixelsToProcess.sort((a, b) => d2(a) - d2(b));
+            break;
             }
-            case 'ttb': // Top to Bottom
-            default:
-                pixelsToProcess.sort((a, b) => a.localY - b.localY);
-                break;
+            case 'ttb':
+            default: pixelsToProcess.sort((a, b) => a.localY - b.localY); break;
         }
 
-        // 3. Apply Order Modification
         switch (this.settings.drawingOrder) {
             case 'random':
-                for (let i = pixelsToProcess.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [pixelsToProcess[i], pixelsToProcess[j]] = [pixelsToProcess[j], pixelsToProcess[i]];
+            for (let i = pixelsToProcess.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [pixelsToProcess[i], pixelsToProcess[j]] = [pixelsToProcess[j], pixelsToProcess[i]];
+            }
+            break;
+        case 'color':
+        case 'randomColor': {
+            const buckets = pixelsToProcess.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
+            const colors = Object.keys(buckets);
+            if (this.settings.drawingOrder === 'randomColor') {
+                for (let i = colors.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [colors[i], colors[j]] = [colors[j], colors[i]];
                 }
-                break;
-            case 'color':
-            case 'randomColor': {
-                const pixelsByColor = pixelsToProcess.reduce((acc, p) => {
-                    if (!acc[p.color]) acc[p.color] = [];
-                    acc[p.color].push(p);
-                    return acc;
-                }, {});
-                const colors = Object.keys(pixelsByColor);
-                if (this.settings.drawingOrder === 'randomColor') {
-                    for (let i = colors.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [colors[i], colors[j]] = [colors[j], colors[i]];
-                    }
-                }
-                pixelsToProcess = colors.flatMap(color => pixelsByColor[color]);
-                break;
+            }
+            pixelsToProcess = colors.flatMap(c => buckets[c]);
+            break;
             }
             case 'linear':
-            default:
-                // Do nothing, keep the directional sort
-                break;
+            default: break;
         }
 
-        // 4. Prepare and execute the paint job
-        const pixelsToPaint = pixelsToProcess.slice(0, Math.floor(this.userInfo.charges.count));
+        const chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
+        const pixelsToPaint = pixelsToProcess.slice(0, chargesNow);
+
         const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
             const key = `${p.tx},${p.ty}`;
             if (!acc[key]) acc[key] = { colors: [], coords: [] };
@@ -514,6 +530,7 @@ class WPlacer {
         }
         return totalPainted;
     }
+
 
     async buyProduct(productId, amount) {
         const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: productId, amount: amount } });
@@ -715,32 +732,51 @@ class TemplateManager {
         }
     }
 
+    _getEligibleUsers() {
+        if (!this.running) return [];
+        const now = Date.now();
+        return this.userIds.filter(id =>
+            users[id] &&
+            users[id].cookies &&
+            !(users[id].suspendedUntil && now < users[id].suspendedUntil) &&
+            !activeBrowserUsers.has(id)
+        );
+    }
+
     async _performPaintTurn(wplacer) {
-        let paintingComplete = false;
-        while (!paintingComplete && this.running) {
+        let paintedTotal = 0;
+        let done = false;
+
+        while (!done && this.running) {
             try {
-                wplacer.token = await TokenManager.getToken();
-                await wplacer.paint(this.currentPixelSkip);
-                paintingComplete = true;
+            wplacer.token = await TokenManager.getToken();
+            const painted = await wplacer.paint(this.currentPixelSkip);
+            paintedTotal += painted;
+            done = true;
             } catch (error) {
-                if (error.name === "SuspensionError") {
-                    const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended from painting until ${suspendedUntilDate}.`);
-                    users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
-                    saveUsers();
-                    throw error; // RE-THROW THE ERROR to be caught by the main loop
-                }
-                if (error.message === 'REFRESH_TOKEN') {
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token...`);
-                    TokenManager.invalidateToken();
-                    await this.sleep(1000);
-                } else {
-                    // Re-throw other errors to be handled by the main loop
-                    throw error;
-                }
+            if (error.name === "SuspensionError") {
+                const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended from painting until ${suspendedUntilDate}.`);
+                users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
+                saveUsers();
+                throw error;
+            }
+            if (error.message === 'REFRESH_TOKEN') {
+                log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token...`);
+                TokenManager.invalidateToken();
+                await this.sleep(1000);
+            } else {
+                throw error;
+            }
             }
         }
+
+        if (wplacer?.userInfo?.id && paintedTotal > 0) {
+            ChargeCache.consume(wplacer.userInfo.id, paintedTotal);
+        }
+        return paintedTotal;
     }
+
 
     async start() {
         this.running = true;
@@ -750,160 +786,168 @@ class TemplateManager {
 
         try {
             while (this.running) {
-                for (this.currentPixelSkip = currentSettings.pixelSkip; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
-                    if (!this.running) break;
-                    log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
-                    
-                    let passComplete = false;
-                    while (this.running && !passComplete) {
-                        let pixelsChecked = false;
-                        const availableCheckUsers = this.userIds.filter(id => !activeBrowserUsers.has(id));
-                        if (availableCheckUsers.length === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ All users are busy. Waiting...`);
-                            await this.sleep(5000);
-                            continue;
-                        }
+            for (this.currentPixelSkip = currentSettings.pixelSkip; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
+                if (!this.running) break;
+                log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
 
-                        for (const userId of availableCheckUsers) {
-                            const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                            try {
-                                await checkWplacer.login(users[userId].cookies);
-                                this.pixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip);
-                                this.currentRetryDelay = this.initialRetryDelay;
-                                pixelsChecked = true;
-                                break;
-                            } catch (error) {
-                                logUserError(error, userId, users[userId].name, "check pixels left");
-                            }
-                        }
+                let passComplete = false;
+                while (this.running && !passComplete) {
+                let pixelsChecked = false;
 
-                        if (!pixelsChecked) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] All available users failed to check canvas. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
-                            await this.sleep(this.currentRetryDelay);
-                            this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                            continue;
-                        }
+                // pick checker respecting started/stopped
+                const availableCheckUsers = this._getEligibleUsers();
+                if (!this.running) break;
+                if (availableCheckUsers.length === 0) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No eligible accounts. Waiting...`);
+                    await this.sleep(5000);
+                    continue;
+                }
 
-                        if (this.pixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                            passComplete = true;
-                            continue;
-                        }
-
-                        const localUserStates = [];
-                        const availableUsers = this.userIds.filter(id => !(users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) && !activeBrowserUsers.has(id));
-                        
-                        log('SYSTEM', 'wplacer', `[${this.name}] Checking status for ${availableUsers.length} available users...`);
-                        for (const userId of availableUsers) {
-                            if (activeBrowserUsers.has(userId)) continue;
-                            activeBrowserUsers.add(userId);
-                            const wplacer = new WPlacer();
-                            try {
-                                const userInfo = await wplacer.login(users[userId].cookies);
-                                localUserStates.push({ userId, charges: userInfo.charges });
-                            } catch (error) {
-                                logUserError(error, userId, users[userId].name, "check user status");
-                            } finally {
-                                activeBrowserUsers.delete(userId);
-                            }
-                            await this.sleep(currentSettings.accountCheckCooldown);
-                        }
-
-                        const readyUsers = localUserStates
-                            .filter(state => Math.floor(state.charges.count) >= Math.max(1, Math.floor(state.charges.max * currentSettings.chargeThreshold)))
-                            .sort((a, b) => b.charges.count - a.charges.count);
-
-                        const userToRun = readyUsers.length > 0 ? readyUsers[0] : null;
-
-                        if (userToRun) {
-                            activeBrowserUsers.add(userToRun.userId);
-                            const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                            let paintedInTurn = false;
-                            try {
-                                const userInfo = await wplacer.login(users[userToRun.userId].cookies);
-                                this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
-                                log(userInfo.id, userInfo.name, `[${this.name}] 🔋 User has ${Math.floor(userInfo.charges.count)} charges. Starting turn...`);
-                                
-                                await this._performPaintTurn(wplacer);
-                                paintedInTurn = true;
-                                
-                                await this.handleUpgrades(wplacer);
-                                this.currentRetryDelay = this.initialRetryDelay;
-
-                            } catch (error) {
-                                // SuspensionError is re-thrown and caught here
-                                if (error.name !== 'SuspensionError') {
-                                    logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
-                                }
-                                if (error.name === 'NetworkError') {
-                                    log('SYSTEM', 'wplacer', `[${this.name}] Network issue during paint turn. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
-                                    await this.sleep(this.currentRetryDelay);
-                                    this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                                }
-                            } finally {
-                                activeBrowserUsers.delete(userToRun.userId);
-                            }
-                            
-                            if (paintedInTurn && this.running && this.userIds.length > 1) {
-                                log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
-                                await this.sleep(currentSettings.accountCooldown);
-                            }
-
-                        } else {
-                            if (this.canBuyCharges && !activeBrowserUsers.has(this.masterId)) {
-                                activeBrowserUsers.add(this.masterId);
-                                const chargeBuyer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                                try {
-                                    await chargeBuyer.login(users[this.masterId].cookies);
-                                    const affordableDroplets = chargeBuyer.userInfo.droplets - currentSettings.dropletReserve;
-                                    if (affordableDroplets >= 500) {
-                                        const amountToBuy = Math.min(Math.ceil(this.pixelsRemaining / 30), Math.floor(affordableDroplets / 500));
-                                        if (amountToBuy > 0) {
-                                            log(this.masterId, this.masterName, `[${this.name}] 💰 Attempting to buy pixel charges...`);
-                                            await chargeBuyer.buyProduct(80, amountToBuy);
-                                            await this.sleep(currentSettings.purchaseCooldown);
-                                            continue;
-                                        }
-                                    }
-                                } catch (error) {
-                                    logUserError(error, this.masterId, this.masterName, "attempt to buy pixel charges");
-                                } finally {
-                                    activeBrowserUsers.delete(this.masterId);
-                                }
-                            }
-
-                            const cooldowns = localUserStates
-                                .map(state => state.charges)
-                                .map(c => Math.max(0, (Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold)) - Math.floor(c.count)) * c.cooldownMs));
-                            
-                            const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
-                            this.status = `Waiting for charges.`;
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready to paint. Waiting for charges to replenish (est. ${duration(waitTime)}).`);
-                            await this.sleep(waitTime);
-                        }
+                for (const userId of availableCheckUsers) {
+                    const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
+                    try {
+                    await checkWplacer.login(users[userId].cookies);
+                    this.pixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip);
+                    this.currentRetryDelay = this.initialRetryDelay;
+                    pixelsChecked = true;
+                    break;
+                    } catch (error) {
+                    logUserError(error, userId, users[userId].name, "check pixels left");
                     }
                 }
 
-                if (!this.running) break;
-
-                if (this.antiGriefMode) {
-                    this.status = "Monitoring for changes.";
-                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(currentSettings.antiGriefStandby)}.`);
-                    await this.sleep(currentSettings.antiGriefStandby);
-                    continue; // Restart the main while loop to re-run all passes
-                } else {
-                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete! Template finished!`);
-                    this.status = "Finished.";
-                    this.running = false; // This will cause the while loop to terminate
+                if (!pixelsChecked) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] All available users failed to check canvas. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
+                    await this.sleep(this.currentRetryDelay);
+                    this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                    continue;
                 }
+
+                if (this.pixelsRemaining === 0) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
+                    passComplete = true;
+                    continue;
+                }
+
+                const availableUsers = this._getEligibleUsers();
+                if (!this.running) break;
+                if (availableUsers.length === 0) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No eligible accounts. Waiting...`);
+                    await this.sleep(5000);
+                    continue;
+                }
+
+                // ==== prediction + seed/trickle resync ====
+                const now = Date.now();
+
+                let localUserStates = [];
+                for (const id of availableUsers) {
+                    const p = ChargeCache.predict(id, now);
+                    if (p) localUserStates.push({ userId: String(id), charges: p });
+                }
+
+                const seedCount = localUserStates.length === 0 ? Math.min(10, availableUsers.length) : 3;
+                const toResync = availableUsers
+                    .filter(id => !ChargeCache.has(id) || ChargeCache.stale(id, now))
+                    .slice(0, seedCount);
+
+                for (const userId of toResync) {
+                    if (activeBrowserUsers.has(userId)) continue;
+                    activeBrowserUsers.add(userId);
+                    const w = new WPlacer();
+                    try {
+                    const info = await w.login(users[userId].cookies); // updates cache
+                    const pred = ChargeCache.predict(info.id, Date.now());
+                    if (pred) localUserStates.push({ userId: String(info.id), charges: pred });
+                    } catch (e) {
+                    logUserError(e, userId, users[userId].name, "resync user status");
+                    } finally {
+                    activeBrowserUsers.delete(userId);
+                    }
+                    await this.sleep(currentSettings.accountCheckCooldown);
+                }
+
+                // dedupe by userId
+                const byId = new Map();
+                for (const s of localUserStates) byId.set(s.userId, s);
+                localUserStates = Array.from(byId.values());
+
+                const threshold = (c) => Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold));
+                const readyUsers = localUserStates
+                    .filter(s => Math.floor(s.charges.count) >= threshold(s.charges))
+                    .sort((a, b) => b.charges.count - a.charges.count);
+
+                const userToRun = readyUsers[0];
+
+                if (userToRun) {
+                    activeBrowserUsers.add(userToRun.userId);
+                    const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
+                    let paintedInTurn = false;
+
+                    try {
+                    const userInfo = await wplacer.login(users[userToRun.userId].cookies);
+                    const predicted = ChargeCache.predict(userInfo.id) ?? { count: userInfo.charges.count, max: userInfo.charges.max };
+                    this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
+                    log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
+
+                    const paintedNow = await this._performPaintTurn(wplacer);
+                    paintedInTurn = paintedNow > 0;
+
+                    await this.handleUpgrades(wplacer);
+                    this.currentRetryDelay = this.initialRetryDelay;
+
+                    } catch (error) {
+                    if (error.name !== 'SuspensionError') {
+                        logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
+                    }
+                    if (error.name === 'NetworkError') {
+                        log('SYSTEM', 'wplacer', `[${this.name}] Network issue during paint turn. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
+                        await this.sleep(this.currentRetryDelay);
+                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                    }
+                    } finally {
+                    activeBrowserUsers.delete(userToRun.userId);
+                    }
+
+                    if (paintedInTurn && this.running && this.userIds.length > 1) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
+                    await this.sleep(currentSettings.accountCooldown);
+                    }
+
+                } else {
+                    const cooldowns = localUserStates
+                    .map(s => s.charges)
+                    .map(c => Math.max(0, (Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold)) - Math.floor(c.count)) * (c.cooldownMs ?? 30_000)));
+
+                    const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
+                    this.status = `Waiting for charges.`;
+                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
+                    await this.sleep(waitTime);
+                }
+                }
+            }
+
+            if (!this.running) break;
+
+            if (this.antiGriefMode) {
+                this.status = "Monitoring for changes.";
+                log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(currentSettings.antiGriefStandby)}.`);
+                await this.sleep(currentSettings.antiGriefStandby);
+                continue;
+            } else {
+                log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete! Template finished!`);
+                this.status = "Finished.";
+                this.running = false;
+            }
             }
         } finally {
             activePaintingTasks--;
-            if (this.status !== "Finished.") {
-                this.status = "Stopped.";
-            }
+            if (this.status !== "Finished.") this.status = "Stopped.";
         }
     }
+
+
+
 }
 
 // --- Express App Setup ---
@@ -1013,15 +1057,29 @@ app.post("/users/status", async (req, res) => {
         }
     };
 
+    const USER_TIMEOUT_MS = 30_000;
+    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+    const withTimeout = (p, ms, label) => Promise.race([
+    p,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms))
+    ]);
+
     const queue = [...userIds];
-    const workers = Array(concurrencyLimit).fill(null).map(async () => {
-        while (queue.length > 0) {
-            const userId = queue.shift();
-            if (userId) {
-                await checkUser(userId);
+    const workers = Array.from({ length: Math.max(1, concurrencyLimit) }, async () => {
+    while (true) {
+        const userId = queue.shift();
+        if (!userId) break;
+            try {
+                await withTimeout(checkUser(userId), USER_TIMEOUT_MS, `user ${userId}`);
+            } catch (err) {
+                console.error("users/status worker:", userId, err.message);
+                // optional: record failure
+                results[userId] = { success: false, error: err.message };
             }
+            await sleep(10); // yield to event loop
         }
     });
+
 
     await Promise.all(workers);
     res.json(results);
