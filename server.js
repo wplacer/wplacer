@@ -1,14 +1,14 @@
-import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from "node:fs";
-import path from "node:path";
-import express from "express";
-import cors from "cors";
-import { CookieJar } from "tough-cookie";
-import { Impit } from "impit";
-import { Image, createCanvas } from "canvas";
-import { exec } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
+import path from 'node:path';
+import express from 'express';
+import cors from 'cors';
+import { CookieJar } from 'tough-cookie';
+import { Impit } from 'impit';
+import { Image, createCanvas } from 'canvas';
+import { exec } from 'node:child_process';
 
 // --- Setup Data Directory ---
-const dataDir = "./data";
+const dataDir = './data';
 if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
 }
@@ -19,23 +19,23 @@ const log = async (id, name, data, error) => {
     const identifier = `(${name}#${id})`;
     if (error) {
         console.error(`[${timestamp}] ${identifier} ${data}:`, error);
-        appendFileSync(path.join(dataDir, `errors.log`), `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`);
+        appendFileSync(
+            path.join(dataDir, `errors.log`),
+            `[${timestamp}] ${identifier} ${data}: ${error.stack || error.message}\n`
+        );
     } else {
         console.log(`[${timestamp}] ${identifier} ${data}`);
         appendFileSync(path.join(dataDir, `logs.log`), `[${timestamp}] ${identifier} ${data}\n`);
-    };
+    }
 };
 
 function openBrowser(url) {
-  const start =
-    process.platform === "darwin" ? "open" :
-    process.platform === "win32" ? "start" :
-    "xdg-open";
-  exec(`${start} ${url}`);
+    const start = process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'start' : 'xdg-open';
+    exec(`${start} ${url}`);
 }
 
 const duration = (durationMs) => {
-    if (durationMs <= 0) return "0s";
+    if (durationMs <= 0) return '0s';
     const totalSeconds = Math.floor(durationMs / 1000);
     const seconds = totalSeconds % 60;
     const minutes = Math.floor(totalSeconds / 60) % 60;
@@ -53,200 +53,244 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 class SuspensionError extends Error {
     constructor(message, durationMs) {
         super(message);
-        this.name = "SuspensionError";
+        this.name = 'SuspensionError';
         this.durationMs = durationMs;
         this.suspendedUntil = Date.now() + durationMs;
     }
 }
 
-// Custom error for network/Cloudflare issues
 class NetworkError extends Error {
     constructor(message) {
         super(message);
-        this.name = "NetworkError";
+        this.name = 'NetworkError';
     }
 }
 
-const basic_colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31 };
-const premium_colors = { "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const basic_colors = {
+    '0,0,0': 1,
+    '60,60,60': 2,
+    '120,120,120': 3,
+    '210,210,210': 4,
+    '255,255,255': 5,
+    '96,0,24': 6,
+    '237,28,36': 7,
+    '255,127,39': 8,
+    '246,170,9': 9,
+    '249,221,59': 10,
+    '255,250,188': 11,
+    '14,185,104': 12,
+    '19,230,123': 13,
+    '135,255,94': 14,
+    '12,129,110': 15,
+    '16,174,166': 16,
+    '19,225,190': 17,
+    '40,80,158': 18,
+    '64,147,228': 19,
+    '96,247,242': 20,
+    '107,80,246': 21,
+    '153,177,251': 22,
+    '120,12,153': 23,
+    '170,56,185': 24,
+    '224,159,249': 25,
+    '203,0,122': 26,
+    '236,31,128': 27,
+    '243,141,169': 28,
+    '104,70,52': 29,
+    '149,104,42': 30,
+    '248,178,119': 31,
+};
+const premium_colors = {
+    '170,170,170': 32,
+    '165,14,30': 33,
+    '250,128,114': 34,
+    '228,92,26': 35,
+    '214,181,148': 36,
+    '156,132,49': 37,
+    '197,173,49': 38,
+    '232,212,95': 39,
+    '74,107,58': 40,
+    '90,148,74': 41,
+    '132,197,115': 42,
+    '15,121,159': 43,
+    '187,250,242': 44,
+    '125,199,255': 45,
+    '77,49,184': 46,
+    '74,66,132': 47,
+    '122,113,196': 48,
+    '181,174,241': 49,
+    '219,164,99': 50,
+    '209,128,81': 51,
+    '255,197,165': 52,
+    '155,82,73': 53,
+    '209,128,120': 54,
+    '250,182,164': 55,
+    '123,99,82': 56,
+    '156,132,107': 57,
+    '51,57,65': 58,
+    '109,117,141': 59,
+    '179,185,209': 60,
+    '109,100,63': 61,
+    '148,140,107': 62,
+    '205,197,158': 63,
+};
 const pallete = { ...basic_colors, ...premium_colors };
-const colorBitmapShift = Object.keys(basic_colors).length + 1;
+const colorBitmapShift = 32;
 
-// --- Charge prediction cache (minimal O(1) math, rare sync) ---
 const ChargeCache = {
-  _m: new Map(),
-  REGEN_MS: 30_000,
-  SYNC_MS: 8 * 60_000,
-  _key(id) { return String(id); },
+    _m: new Map(),
+    REGEN_MS: 30_000,
+    SYNC_MS: 8 * 60_000,
+    _key(id) {
+        return String(id);
+    },
 
-  has(id) { return this._m.has(this._key(id)); },
-  stale(id, now = Date.now()) {
-    const u = this._m.get(this._key(id)); if (!u) return true;
-    return (now - u.lastSync) > this.SYNC_MS;
-  },
-  markFromUserInfo(userInfo, now = Date.now()) {
-    if (!userInfo?.id || !userInfo?.charges) return;
-    const k = this._key(userInfo.id);
-    const base = Math.floor(userInfo.charges.count ?? 0);
-    const max  = Math.floor(userInfo.charges.max ?? 0);
-    this._m.set(k, { base, max, lastSync: now });
-  },
-  predict(id, now = Date.now()) {
-    const u = this._m.get(this._key(id)); if (!u) return null;
-    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
-    const count = Math.min(u.max, u.base + Math.max(0, grown));
-    return { count, max: u.max, cooldownMs: this.REGEN_MS };
-  },
-  consume(id, n = 1, now = Date.now()) {
-    const k = this._key(id);
-    const u = this._m.get(k); if (!u) return;
-    const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
-    const avail = Math.min(u.max, u.base + Math.max(0, grown));
-    const newCount = Math.max(0, avail - n);
-    u.base = newCount;
-    u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
-    this._m.set(k, u);
-  }
+    has(id) {
+        return this._m.has(this._key(id));
+    },
+    stale(id, now = Date.now()) {
+        const u = this._m.get(this._key(id));
+        if (!u) return true;
+        return now - u.lastSync > this.SYNC_MS;
+    },
+    markFromUserInfo(userInfo, now = Date.now()) {
+        if (!userInfo?.id || !userInfo?.charges) return;
+        const k = this._key(userInfo.id);
+        const base = Math.floor(userInfo.charges.count ?? 0);
+        const max = Math.floor(userInfo.charges.max ?? 0);
+        this._m.set(k, { base, max, lastSync: now });
+    },
+    predict(id, now = Date.now()) {
+        const u = this._m.get(this._key(id));
+        if (!u) return null;
+        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        const count = Math.min(u.max, u.base + Math.max(0, grown));
+        return { count, max: u.max, cooldownMs: this.REGEN_MS };
+    },
+    consume(id, n = 1, now = Date.now()) {
+        const k = this._key(id);
+        const u = this._m.get(k);
+        if (!u) return;
+        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        const avail = Math.min(u.max, u.base + Math.max(0, grown));
+        const newCount = Math.max(0, avail - n);
+        u.base = newCount;
+        u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+        this._m.set(k, u);
+    },
 };
 
 let loadedProxies = [];
 const loadProxies = () => {
-  const proxyPath = path.join(dataDir, "proxies.txt");
-  if (!existsSync(proxyPath)) {
-    writeFileSync(proxyPath, "");
-    console.log("[SYSTEM] `data/proxies.txt` not found, created an empty one.");
-    loadedProxies = [];
-    return;
-  }
+    const proxyPath = path.join(dataDir, 'proxies.txt');
+    if (!existsSync(proxyPath)) {
+        writeFileSync(proxyPath, '');
+        console.log('[SYSTEM] `data/proxies.txt` not found, created an empty one.');
+        loadedProxies = [];
+        return;
+    }
 
-  const raw = readFileSync(proxyPath, "utf8");
+    const raw = readFileSync(proxyPath, 'utf8');
+    const lines = raw
+        .split(/\r?\n/)
+        .map((l) => l.replace(/\s+#.*$|\s+\/\/.*$|^\s*#.*$|^\s*\/\/.*$/g, '').trim())
+        .filter(Boolean);
+    const protoMap = new Map([
+        ['http', 'http'],
+        ['https', 'https'],
+        ['socks4', 'socks4'],
+        ['socks5', 'socks5'],
+    ]);
+    const inRange = (p) => Number.isInteger(p) && p >= 1 && p <= 65535;
+    const looksHostname = (h) => !!h && /^[a-z0-9-._[\]]+$/i.test(h);
 
-  // one per line, strip comments
-  const lines = raw
-    .split(/\r?\n/)
-    .map(l => l.replace(/\s+#.*$|\s+\/\/.*$|^\s*#.*$|^\s*\/\/.*$/g, "").trim())
-    .filter(Boolean);
-
-  const protoMap = new Map([
-    ["http", "http"],
-    ["https", "https"],
-    ["socks4", "socks4"],
-    ["socks5", "socks5"],
-  ]);
-
-  const inRange = p => Number.isInteger(p) && p >= 1 && p <= 65535;
-  const looksHostname = h => !!h && /^[a-z0-9-._[\]]+$/i.test(h); // allows IPv4, IPv6 [::], domains
-
-  const parseOne = (line) => {
-    // Case A: scheme://user:pass@host:port  OR  scheme://host:port
-    const urlLike = line.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/(.+)$/);
-    if (urlLike) {
-      const scheme = urlLike[1].toLowerCase();
-      const protocol = protoMap.get(scheme);
-      if (!protocol) return null;
-
-      try {
-        const u = new URL(line);
-        const host = u.hostname;
-        const port = u.port ? parseInt(u.port, 10) : NaN;
-        const username = decodeURIComponent(u.username || "");
-        const password = decodeURIComponent(u.password || "");
-        if (!looksHostname(host) || !inRange(port)) return null;
-
-        return { protocol, host, port, username, password };
-      } catch {
+    const parseOne = (line) => {
+        const urlLike = line.match(/^([a-zA-Z][a-zA-Z0-9+.-]*):\/\/(.+)$/);
+        if (urlLike) {
+            const scheme = urlLike[1].toLowerCase();
+            const protocol = protoMap.get(scheme);
+            if (!protocol) return null;
+            try {
+                const u = new URL(line);
+                const host = u.hostname;
+                const port = u.port ? parseInt(u.port, 10) : NaN;
+                const username = decodeURIComponent(u.username || '');
+                const password = decodeURIComponent(u.password || '');
+                if (!looksHostname(host) || !inRange(port)) return null;
+                return { protocol, host, port, username, password };
+            } catch {
+                return null;
+            }
+        }
+        const authHost = line.match(/^([^:@\s]+):([^@\s]+)@(.+)$/);
+        if (authHost) {
+            const username = authHost[1],
+                password = authHost[2],
+                rest = authHost[3];
+            const m6 = rest.match(/^\[([^\]]+)\]:(\d+)$/),
+                m4 = rest.match(/^([^:\s]+):(\d+)$/);
+            let host = '',
+                port = NaN;
+            if (m6) {
+                host = m6[1];
+                port = parseInt(m6[2], 10);
+            } else if (m4) {
+                host = m4[1];
+                port = parseInt(m4[2], 10);
+            } else return null;
+            if (!looksHostname(host) || !inRange(port)) return null;
+            return { protocol: 'http', host, port, username, password };
+        }
+        const bare6 = line.match(/^\[([^\]]+)\]:(\d+)$/);
+        if (bare6) {
+            const host = bare6[1],
+                port = parseInt(bare6[2], 10);
+            if (!inRange(port)) return null;
+            return { protocol: 'http', host, port, username: '', password: '' };
+        }
+        const bare = line.match(/^([^:\s]+):(\d+)$/);
+        if (bare) {
+            const host = bare[1],
+                port = parseInt(bare[2], 10);
+            if (!looksHostname(host) || !inRange(port)) return null;
+            return { protocol: 'http', host, port, username: '', password: '' };
+        }
+        const uphp = line.split(':');
+        if (uphp.length === 4 && /^\d+$/.test(uphp[3])) {
+            const [username, password, host, portStr] = uphp;
+            const port = parseInt(portStr, 10);
+            if (looksHostname(host) && inRange(port)) return { protocol: 'http', host, port, username, password };
+        }
         return null;
-      }
+    };
+
+    const seen = new Set();
+    const proxies = [];
+    for (const line of lines) {
+        const p = parseOne(line);
+        if (!p) {
+            console.log(`[SYSTEM] WARNING: Invalid proxy skipped: "${line}"`);
+            continue;
+        }
+        const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        proxies.push(p);
     }
-
-    // Case B: user:pass@host:port
-    const authHost = line.match(/^([^:@\s]+):([^@\s]+)@(.+)$/);
-    if (authHost) {
-      const username = authHost[1];
-      const password = authHost[2];
-      const rest = authHost[3];
-
-      const m6 = rest.match(/^\[([^\]]+)\]:(\d+)$/);
-      const m4 = rest.match(/^([^:\s]+):(\d+)$/);
-
-      let host = "", port = NaN;
-      if (m6) { host = m6[1]; port = parseInt(m6[2], 10); }
-      else if (m4) { host = m4[1]; port = parseInt(m4[2], 10); }
-      else return null;
-
-      if (!looksHostname(host) || !inRange(port)) return null;
-
-      return { protocol: "http", host, port, username, password };
-    }
-
-    // Case C: [ipv6]:port
-    const bare6 = line.match(/^\[([^\]]+)\]:(\d+)$/);
-    if (bare6) {
-      const host = bare6[1];
-      const port = parseInt(bare6[2], 10);
-      if (!inRange(port)) return null;
-      return { protocol: "http", host, port, username: "", password: "" };
-    }
-
-    // Case D: host:port
-    const bare = line.match(/^([^:\s]+):(\d+)$/);
-    if (bare) {
-      const host = bare[1];
-      const port = parseInt(bare[2], 10);
-      if (!looksHostname(host) || !inRange(port)) return null;
-      return { protocol: "http", host, port, username: "", password: "" };
-    }
-
-    // Case E: Bright Data style user:pass:host:port
-    const uphp = line.split(":");
-    if (uphp.length === 4 && /^\d+$/.test(uphp[3])) {
-      const [username, password, host, portStr] = uphp;
-      const port = parseInt(portStr, 10);
-      if (looksHostname(host) && inRange(port)) {
-        return { protocol: "http", host, port, username, password };
-      }
-    }
-
-    return null;
-  };
-
-  const seen = new Set();
-  const proxies = [];
-
-  for (const line of lines) {
-    const p = parseOne(line);
-    if (!p) {
-      console.log(`[SYSTEM] WARNING: Invalid proxy skipped: "${line}"`);
-      continue;
-    }
-
-    const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-
-    proxies.push(p);
-  }
-
-  loadedProxies = proxies;
-  console.log(`[SYSTEM] Loaded ${loadedProxies.length} proxies (major formats supported).`);
+    loadedProxies = proxies;
 };
 
 let nextProxyIndex = 0;
 const getNextProxy = () => {
     const { proxyEnabled, proxyRotationMode } = currentSettings;
-    if (!proxyEnabled || loadedProxies.length === 0) {
-        return null;
-    }
-
+    if (!proxyEnabled || loadedProxies.length === 0) return null;
     let proxy;
     if (proxyRotationMode === 'random') {
         const randomIndex = Math.floor(Math.random() * loadedProxies.length);
         proxy = loadedProxies[randomIndex];
-    } else { // Default to sequential
+    } else {
         proxy = loadedProxies[nextProxyIndex];
         nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
     }
-
     let proxyUrl = `${proxy.protocol}://`;
     if (proxy.username && proxy.password) {
         proxyUrl += `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
@@ -256,49 +300,41 @@ const getNextProxy = () => {
 };
 
 class WPlacer {
-    constructor(template, coords, settings, templateName) {
+    constructor(template, coords, globalSettings, templateSettings, templateName) {
         this.template = template;
         this.templateName = templateName;
         this.coords = coords;
-        this.settings = settings;
+        this.globalSettings = globalSettings;
+        this.templateSettings = templateSettings || {};
         this.cookies = null;
         this.browser = null;
         this.userInfo = null;
         this.tiles = new Map();
         this.token = null;
-    };
+    }
 
     async login(cookies) {
         this.cookies = cookies;
         let jar = new CookieJar();
         for (const cookie of Object.keys(this.cookies)) {
-            jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
+            jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, 'https://backend.wplace.live');
         }
-        
-        const impitOptions = {
-            cookieJar: jar,
-            browser: "chrome",
-            ignoreTlsErrors: true
-        };
-
+        const impitOptions = { cookieJar: jar, browser: 'chrome', ignoreTlsErrors: true };
         const proxyUrl = getNextProxy();
         if (proxyUrl) {
             impitOptions.proxyUrl = proxyUrl;
-            if (currentSettings.logProxyUsage) {
-                log('SYSTEM', 'wplacer', `Using proxy: ${proxyUrl.split('@').pop()}`);
-            }
+            if (currentSettings.logProxyUsage) log('SYSTEM', 'wplacer', `Using proxy: ${proxyUrl.split('@').pop()}`);
         }
-
         this.browser = new Impit(impitOptions);
         await this.loadUserInfo();
         return this.userInfo;
-    };
+    }
 
     async switchUser(cookies) {
         this.cookies = cookies;
         let jar = new CookieJar();
         for (const cookie of Object.keys(this.cookies)) {
-            jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, "https://backend.wplace.live");
+            jar.setCookieSync(`${cookie}=${this.cookies[cookie]}; Path=/`, 'https://backend.wplace.live');
         }
         this.browser.cookieJar = jar;
         await this.loadUserInfo();
@@ -306,40 +342,36 @@ class WPlacer {
     }
 
     async loadUserInfo() {
-        const me = await this.browser.fetch("https://backend.wplace.live/me");
+        const me = await this.browser.fetch('https://backend.wplace.live/me');
         const bodyText = await me.text();
-
-        if (bodyText.trim().startsWith("<!DOCTYPE html>")) {
-            throw new NetworkError("Cloudflare interruption detected. The server may be down or rate limiting.");
-        }
-
+        if (bodyText.trim().startsWith('<!DOCTYPE html>')) throw new NetworkError('Cloudflare interruption detected.');
         try {
             const userInfo = JSON.parse(bodyText);
-            if (userInfo.error === "Unauthorized") throw new NetworkError(`(401) Unauthorized. This is likely a rate-limit.`);
-            if (userInfo.error) throw new Error(`(500) Failed to authenticate: "${userInfo.error}". The cookie is likely invalid or expired.`);
+            if (userInfo.error === 'Unauthorized') throw new NetworkError(`(401) Unauthorized.`);
+            if (userInfo.error) throw new Error(`(500) Auth failed: "${userInfo.error}".`);
             if (userInfo.id && userInfo.name) {
-            this.userInfo = userInfo;
-            ChargeCache.markFromUserInfo(userInfo);
-            return true;
+                this.userInfo = userInfo;
+                ChargeCache.markFromUserInfo(userInfo);
+                return true;
             }
-            throw new Error(`Unexpected response from /me endpoint: ${JSON.stringify(userInfo)}`);
+            throw new Error(`Unexpected /me response: ${JSON.stringify(userInfo)}`);
         } catch (e) {
             if (e instanceof NetworkError) throw e;
-            if (bodyText.includes('Error 1015')) throw new NetworkError("(1015) You are being rate-limited by the server.");
-            if (bodyText.includes('502') && bodyText.includes('gateway')) throw new NetworkError(`(502) Bad Gateway: The server is temporarily unavailable.`);
-            throw new Error(`Failed to parse server response. Response: "${bodyText.substring(0, 150)}..."`);
+            if (bodyText.includes('Error 1015')) throw new NetworkError('(1015) Rate-limited.');
+            if (bodyText.includes('502') && bodyText.includes('gateway')) throw new NetworkError(`(502) Bad Gateway.`);
+            throw new Error(`Failed to parse server response: "${bodyText.substring(0, 150)}..."`);
         }
     }
 
     async post(url, body) {
         const request = await this.browser.fetch(url, {
-            method: "POST",
-            headers: { "Accept": "*/*", "Content-Type": "text/plain;charset=UTF-8", "Referer": "https://wplace.live/" },
-            body: JSON.stringify(body)
+            method: 'POST',
+            headers: { Accept: '*/*', 'Content-Type': 'text/plain;charset=UTF-8', Referer: 'https://wplace.live/' },
+            body: JSON.stringify(body),
         });
         const data = await request.json();
         return { status: request.status, data: data };
-    };
+    }
 
     async loadTiles() {
         this.tiles.clear();
@@ -348,31 +380,34 @@ class WPlacer {
         const endPy = py + this.template.height;
         const endTx = tx + Math.floor(endPx / 1000);
         const endTy = ty + Math.floor(endPy / 1000);
-
         const tilePromises = [];
         for (let currentTx = tx; currentTx <= endTx; currentTx++) {
             for (let currentTy = ty; currentTy <= endTy; currentTy++) {
                 const promise = new Promise((resolve) => {
                     const image = new Image();
-                    image.crossOrigin = "Anonymous";
+                    image.crossOrigin = 'Anonymous';
                     image.onload = () => {
                         const canvas = createCanvas(image.width, image.height);
-                        const ctx = canvas.getContext("2d");
+                        const ctx = canvas.getContext('2d');
                         ctx.drawImage(image, 0, 0);
-                        const tileData = { width: canvas.width, height: canvas.height, data: Array.from({ length: canvas.width }, () => []) };
+                        const tileData = {
+                            width: canvas.width,
+                            height: canvas.height,
+                            data: Array.from({ length: canvas.width }, () => []),
+                        };
                         const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
                         for (let x = 0; x < canvas.width; x++) {
                             for (let y = 0; y < canvas.height; y++) {
                                 const i = (y * canvas.width + x) * 4;
                                 const [r, g, b, a] = [d.data[i], d.data[i + 1], d.data[i + 2], d.data[i + 3]];
-                                tileData.data[x][y] = a === 255 ? (pallete[`${r},${g},${b}`] || 0) : 0;
+                                tileData.data[x][y] = a === 255 ? pallete[`${r},${g},${b}`] || 0 : 0;
                             }
                         }
                         resolve(tileData);
                     };
                     image.onerror = () => resolve(null);
                     image.src = `https://backend.wplace.live/files/s0/tiles/${currentTx}/${currentTy}.png?t=${Date.now()}`;
-                }).then(tileData => {
+                }).then((tileData) => {
                     if (tileData) this.tiles.set(`${currentTx}_${currentTy}`, tileData);
                 });
                 tilePromises.push(promise);
@@ -390,28 +425,27 @@ class WPlacer {
     async _executePaint(tx, ty, body) {
         if (body.colors.length === 0) return { painted: 0 };
         const response = await this.post(`https://backend.wplace.live/s0/pixel/${tx}/${ty}`, body);
-
         if (response.data.painted && response.data.painted === body.colors.length) {
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`);
+            log(
+                this.userInfo.id,
+                this.userInfo.name,
+                `[${this.templateName}] 🎨 Painted ${body.colors.length} pixels on tile ${tx}, ${ty}.`
+            );
             return { painted: body.colors.length };
         }
-        if (response.status === 401 && response.data.error === "Unauthorized") {
-            throw new NetworkError(`(401) Unauthorized during paint. This is a severe rate-limit.`);
-        }
-        if (response.status === 403 && (response.data.error === "refresh" || response.data.error === "Unauthorized")) {
+        if (response.status === 401 && response.data.error === 'Unauthorized')
+            throw new NetworkError(`(401) Unauthorized during paint.`);
+        if (response.status === 403 && (response.data.error === 'refresh' || response.data.error === 'Unauthorized'))
             throw new Error('REFRESH_TOKEN');
-        }
-        if (response.status === 451 && response.data.suspension) {
+        if (response.status === 451 && response.data.suspension)
             throw new SuspensionError(`Account is suspended.`, response.data.durationMs || 0);
-        }
         if (response.status === 500) {
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Waiting 40 seconds before retrying...`);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Waiting 40s...`);
             await sleep(40000);
             return { painted: 0 };
         }
-        if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new NetworkError("(1015) You are being rate-limited.");
-        }
+        if (response.status === 429 || (response.data.error && response.data.error.includes('Error 1015')))
+            throw new NetworkError('(1015) Rate-limited.');
         throw Error(`Unexpected response for tile ${tx},${ty}: ${JSON.stringify(response)}`);
     }
 
@@ -421,35 +455,65 @@ class WPlacer {
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
                 if ((x + y) % currentSkip !== 0) continue;
-
                 const templateColor = this.template.data[x][y];
-                if (templateColor === 0) continue;
-
-                const globalPx = startPx + x;
-                const globalPy = startPy + y;
-                const targetTx = startX + Math.floor(globalPx / 1000);
-                const targetTy = startY + Math.floor(globalPy / 1000);
-                const localPx = globalPx % 1000;
-                const localPy = globalPy % 1000;
-
+                const globalPx = startPx + x,
+                    globalPy = startPy + y;
+                const targetTx = startX + Math.floor(globalPx / 1000),
+                    targetTy = startY + Math.floor(globalPy / 1000);
+                const localPx = globalPx % 1000,
+                    localPy = globalPy % 1000;
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
                 if (!tile || !tile.data[localPx]) continue;
-
                 const tileColor = tile.data[localPx][localPy];
-
-                const shouldPaint = this.settings.skipPaintedPixels
-                    ? tileColor === 0 // If skip mode is on, only paint if the tile is blank
-                    : templateColor !== tileColor; // Otherwise, paint if the color is wrong
-
-                if(templateColor===-1 && tileColor!==0){
-                    const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
-                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: 0, isEdge, localX: x, localY: y })
+                const neighbors = [
+                    this.template.data[x - 1]?.[y],
+                    this.template.data[x + 1]?.[y],
+                    this.template.data[x]?.[y - 1],
+                    this.template.data[x]?.[y + 1],
+                ];
+                const isEdge = neighbors.some((n) => n === 0 || n === undefined);
+                if (this.templateSettings.eraseMode && templateColor === 0 && tileColor !== 0) {
+                    mismatched.push({
+                        tx: targetTx,
+                        ty: targetTy,
+                        px: localPx,
+                        py: localPy,
+                        color: 0,
+                        isEdge: false,
+                        localX: x,
+                        localY: y,
+                    });
+                    continue;
                 }
-                else if (templateColor > 0 && shouldPaint && this.hasColor(templateColor)) {
-                    const neighbors = [this.template.data[x - 1]?.[y], this.template.data[x + 1]?.[y], this.template.data[x]?.[y - 1], this.template.data[x]?.[y + 1]];
-                    const isEdge = neighbors.some(n => n === 0 || n === undefined);
-                    mismatched.push({ tx: targetTx, ty: targetTy, px: localPx, py: localPy, color: templateColor, isEdge, localX: x, localY: y });
+                if (templateColor === -1 && tileColor !== 0) {
+                    mismatched.push({
+                        tx: targetTx,
+                        ty: targetTy,
+                        px: localPx,
+                        py: localPy,
+                        color: 0,
+                        isEdge,
+                        localX: x,
+                        localY: y,
+                    });
+                    continue;
+                }
+                if (templateColor > 0) {
+                    const shouldPaint = this.templateSettings.skipPaintedPixels
+                        ? tileColor === 0
+                        : templateColor !== tileColor;
+                    if (shouldPaint && this.hasColor(templateColor)) {
+                        mismatched.push({
+                            tx: targetTx,
+                            ty: targetTy,
+                            px: localPx,
+                            py: localPy,
+                            color: templateColor,
+                            isEdge,
+                            localX: x,
+                            localY: y,
+                        });
+                    }
                 }
             }
         }
@@ -458,61 +522,67 @@ class WPlacer {
 
     async paint(currentSkip = 1) {
         await this.loadTiles();
-        if (!this.token) throw new Error("Token not provided to paint method.");
-
+        if (!this.token) throw new Error('Token not provided.');
         let mismatchedPixels = this._getMismatchedPixels(currentSkip);
         if (mismatchedPixels.length === 0) return 0;
-
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`);
-
+        log(
+            this.userInfo.id,
+            this.userInfo.name,
+            `[${this.templateName}] Found ${mismatchedPixels.length} mismatched pixels.`
+        );
         let pixelsToProcess = mismatchedPixels;
-
-        if (this.settings.outlineMode) {
-            const edgePixels = mismatchedPixels.filter(p => p.isEdge);
+        if (this.templateSettings.outlineMode) {
+            const edgePixels = mismatchedPixels.filter((p) => p.isEdge);
             if (edgePixels.length > 0) pixelsToProcess = edgePixels;
         }
-
-        switch (this.settings.drawingDirection) {
-            case 'btt': pixelsToProcess.sort((a, b) => b.localY - a.localY); break;
-            case 'ltr': pixelsToProcess.sort((a, b) => a.localX - b.localX); break;
-            case 'rtl': pixelsToProcess.sort((a, b) => b.localX - a.localX); break;
+        switch (this.globalSettings.drawingDirection) {
+            case 'btt':
+                pixelsToProcess.sort((a, b) => b.localY - a.localY);
+                break;
+            case 'ltr':
+                pixelsToProcess.sort((a, b) => a.localX - b.localX);
+                break;
+            case 'rtl':
+                pixelsToProcess.sort((a, b) => b.localX - a.localX);
+                break;
             case 'center_out': {
-            const cx = this.template.width / 2, cy = this.template.height / 2;
-            const d2 = p => (p.localX - cx) ** 2 + (p.localY - cy) ** 2;
-            pixelsToProcess.sort((a, b) => d2(a) - d2(b));
-            break;
+                const cx = this.template.width / 2,
+                    cy = this.template.height / 2;
+                const d2 = (p) => (p.localX - cx) ** 2 + (p.localY - cy) ** 2;
+                pixelsToProcess.sort((a, b) => d2(a) - d2(b));
+                break;
             }
             case 'ttb':
-            default: pixelsToProcess.sort((a, b) => a.localY - b.localY); break;
+            default:
+                pixelsToProcess.sort((a, b) => a.localY - b.localY);
+                break;
         }
-
-        switch (this.settings.drawingOrder) {
+        switch (this.globalSettings.drawingOrder) {
             case 'random':
-            for (let i = pixelsToProcess.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [pixelsToProcess[i], pixelsToProcess[j]] = [pixelsToProcess[j], pixelsToProcess[i]];
-            }
-            break;
-        case 'color':
-        case 'randomColor': {
-            const buckets = pixelsToProcess.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
-            const colors = Object.keys(buckets);
-            if (this.settings.drawingOrder === 'randomColor') {
-                for (let i = colors.length - 1; i > 0; i--) {
-                const j = Math.floor(Math.random() * (i + 1));
-                [colors[i], colors[j]] = [colors[j], colors[i]];
+                for (let i = pixelsToProcess.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [pixelsToProcess[i], pixelsToProcess[j]] = [pixelsToProcess[j], pixelsToProcess[i]];
                 }
-            }
-            pixelsToProcess = colors.flatMap(c => buckets[c]);
-            break;
+                break;
+            case 'color':
+            case 'randomColor': {
+                const buckets = pixelsToProcess.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
+                const colors = Object.keys(buckets);
+                if (this.globalSettings.drawingOrder === 'randomColor') {
+                    for (let i = colors.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [colors[i], colors[j]] = [colors[j], colors[i]];
+                    }
+                }
+                pixelsToProcess = colors.flatMap((c) => buckets[c]);
+                break;
             }
             case 'linear':
-            default: break;
+            default:
+                break;
         }
-
         const chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
         const pixelsToPaint = pixelsToProcess.slice(0, chargesNow);
-
         const bodiesByTile = pixelsToPaint.reduce((acc, p) => {
             const key = `${p.tx},${p.ty}`;
             if (!acc[key]) acc[key] = { colors: [], coords: [] };
@@ -520,7 +590,6 @@ class WPlacer {
             acc[key].coords.push(p.px, p.py);
             return acc;
         }, {});
-
         let totalPainted = 0;
         for (const tileKey in bodiesByTile) {
             const [tx, ty] = tileKey.split(',').map(Number);
@@ -531,99 +600,316 @@ class WPlacer {
         return totalPainted;
     }
 
-
     async buyProduct(productId, amount) {
-        const response = await this.post(`https://backend.wplace.live/purchase`, { product: { id: productId, amount: amount } });
+        const response = await this.post(`https://backend.wplace.live/purchase`, {
+            product: { id: productId, amount: amount },
+        });
         if (response.data.success) {
             let purchaseMessage = `🛒 Purchase successful for product #${productId} (amount: ${amount})`;
             if (productId === 80) purchaseMessage = `🛒 Bought ${amount * 30} pixels for ${amount * 500} droplets`;
-            else if (productId === 70) purchaseMessage = `🛒 Bought ${amount} Max Charge Upgrade(s) for ${amount * 500} droplets`;
+            else if (productId === 70)
+                purchaseMessage = `🛒 Bought ${amount} Max Charge Upgrade(s) for ${amount * 500} droplets`;
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ${purchaseMessage}`);
             return true;
         }
-        if (response.status === 429 || (response.data.error && response.data.error.includes("Error 1015"))) {
-            throw new NetworkError("(1015) You are being rate-limited while trying to make a purchase.");
-        }
-        throw Error(`Unexpected response during purchase: ${JSON.stringify(response)}`);
-    };
+        if (response.status === 429 || (response.data.error && response.data.error.includes('Error 1015')))
+            throw new NetworkError('(1015) Rate-limited during purchase.');
+        throw Error(`Unexpected purchase response: ${JSON.stringify(response)}`);
+    }
 
-    async pixelsLeft(currentSkip = 1) {
-        await this.loadTiles();
+    async pixelsLeft(currentSkip = 1, useCachedTiles = false) {
+        if (!useCachedTiles) {
+            await this.loadTiles();
+        }
         return this._getMismatchedPixels(currentSkip).length;
-    };
+    }
 }
 
 // --- Data Persistence ---
-const loadJSON = (filename) => existsSync(path.join(dataDir, filename)) ? JSON.parse(readFileSync(path.join(dataDir, filename), "utf8")) : {};
+const loadJSON = (filename) =>
+    existsSync(path.join(dataDir, filename)) ? JSON.parse(readFileSync(path.join(dataDir, filename), 'utf8')) : {};
 const saveJSON = (filename, data) => writeFileSync(path.join(dataDir, filename), JSON.stringify(data, null, 4));
 
-const users = loadJSON("users.json");
-const saveUsers = () => saveJSON("users.json", users);
+const users = loadJSON('users.json');
+const saveUsers = () => saveJSON('users.json', users);
 
-const templates = {}; // In-memory store for active TemplateManager instances
-const saveTemplates = () => {
-    const templatesToSave = {};
-    for (const id in templates) {
-        const t = templates[id];
-        templatesToSave[id] = {
-            name: t.name, template: t.template, coords: t.coords,
-            canBuyCharges: t.canBuyCharges, canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode, enableAutostart: t.enableAutostart, userIds: t.userIds
-        };
-    }
-    saveJSON("templates.json", templatesToSave);
+let templates = {};
+
+// ---- compact template codec (ESM, defensive, -1 safe) ----
+const Base64URL = {
+    enc: (u8) => Buffer.from(u8).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, ''),
+    dec: (s) => Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64'),
 };
 
+function varintWrite(n, out) {
+    n = Number(n);
+    if (!Number.isFinite(n) || n < 0 || !Number.isInteger(n)) throw new Error('varint invalid');
+    while (n >= 0x80) {
+        out.push((n & 0x7f) | 0x80);
+        n >>>= 7;
+    }
+    out.push(n);
+}
+function varintRead(u8, i) {
+    let n = 0,
+        shift = 0,
+        b;
+    do {
+        b = u8[i++];
+        n |= (b & 0x7f) << shift;
+        shift += 7;
+    } while (b & 0x80);
+    return [n >>> 0, i];
+}
+
+function rleEncode(a) {
+    if (!a?.length) return [];
+    const o = [];
+    let p = a[0],
+        c = 1;
+    for (let i = 1; i < a.length; i++) {
+        const v = a[i];
+        if (v === p) c++;
+        else {
+            o.push([p, c]);
+            p = v;
+            c = 1;
+        }
+    }
+    o.push([p, c]);
+    return o;
+}
+
+function normPix(v) {
+    const n = Number(v);
+    if (!Number.isFinite(n) || !Number.isInteger(n)) throw new Error('pixel invalid');
+    if (n === -1) return -1; // preserve sentinel
+    if (n < 0 || n > 255) throw new Error('pixel out of range');
+    return n >>> 0;
+}
+
+function flatten2D_XMajor(cols /* data[x][y] */) {
+    const w = cols.length,
+        h = cols[0]?.length ?? 0;
+    const flat = new Array(w * h);
+    let k = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) flat[k++] = cols[x][y];
+    return { flat, w, h };
+}
+function reshape_XMajor(flat, w, h) {
+    const cols = Array.from({ length: w }, () => Array(h));
+    let k = 0;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) cols[x][y] = flat[k++];
+    return cols;
+}
+
+function buildShareBytes(width, height, data2D) {
+    let w = Number(width) >>> 0,
+        h = Number(height) >>> 0;
+    if (!w || !h) throw new Error('zero dimension');
+    // normalize orientation to x-major
+    const xmaj = ensureXMajor(data2D, w, h).map((col) => col.map(normPix));
+    const { flat } = flatten2D_XMajor(xmaj);
+    const runs = rleEncode(flat);
+    const bytes = [];
+    bytes.push(0x57, 0x54, 0x01);
+    varintWrite(w, bytes);
+    varintWrite(h, bytes);
+    varintWrite(runs.length, bytes);
+    for (const [val, cnt] of runs) {
+        const vb = val === -1 ? 255 : val;
+        bytes.push(vb & 0xff);
+        varintWrite(cnt, bytes);
+    }
+    return Uint8Array.from(bytes);
+}
+
+function parseShareBytes(u8) {
+    if (u8.length < 3 || u8[0] !== 0x57 || u8[1] !== 0x54 || u8[2] !== 0x01) throw new Error('bad magic/version');
+    let i = 3;
+    let w;
+    [w, i] = varintRead(u8, i);
+    let h;
+    [h, i] = varintRead(u8, i);
+    let rc;
+    [rc, i] = varintRead(u8, i);
+    const flat = [];
+    for (let r = 0; r < rc; r++) {
+        const raw = u8[i++];
+        let cnt;
+        [cnt, i] = varintRead(u8, i);
+        const v = raw === 255 ? -1 : raw;
+        while (cnt--) flat.push(v);
+    }
+    if (flat.length !== w * h) throw new Error(`size mismatch ${flat.length} != ${w * h}`);
+    const data = reshape_XMajor(flat, w, h); // return x-major
+    sanitizePalette2D(data);
+    return { width: w, height: h, data };
+}
+
+const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
+
+// --- orientation helpers: always return data[x][y] ---
+function transposeToXMajor(mat /* [y][x] */) {
+    const h = mat.length,
+        w = mat[0]?.length ?? 0;
+    const out = Array.from({ length: w }, () => Array(h));
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) out[x][y] = mat[y][x];
+    return out;
+}
+function ensureXMajor(data, w, h) {
+    if (!Array.isArray(data) || !Array.isArray(data[0])) throw new Error('bad matrix');
+    // already x-major?
+    if (data.length === w && data[0].length === h) return data;
+    // y-major?
+    if (data.length === h && data[0].length === w) return transposeToXMajor(data);
+    throw new Error(`matrix dims mismatch: got ${data.length}x${data[0].length}, want ${w}x${h}`);
+}
+
+// sanitize in x-major
+function sanitizePalette2D(matrix) {
+    for (let x = 0; x < matrix.length; x++) {
+        const col = matrix[x];
+        if (!Array.isArray(col)) continue;
+        for (let y = 0; y < col.length; y++) if (!VALID_COLOR_IDS.has(col[y])) col[y] = 0;
+    }
+}
+function shareCodeFromTemplate(t) {
+    return Base64URL.enc(buildShareBytes(t.width, t.height, t.data));
+}
+
+function templateFromShareCode(code) {
+    const decoded = parseShareBytes(new Uint8Array(Base64URL.dec(code)));
+    sanitizePalette2D(decoded.data); // ensure only {-1,0,1..63}
+    return decoded;
+}
+
+// ---- disk path (reuse your named fs imports) ----
+import { fileURLToPath } from 'node:url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMPLATES_PATH = path.join(__dirname, 'templates.json');
+
+// ---- load: normalize memory to always have data; keep shareCode for compact resave ----
+function loadTemplatesFromDisk() {
+    if (!existsSync(TEMPLATES_PATH)) {
+        templates = {};
+        return;
+    }
+    const raw = JSON.parse(readFileSync(TEMPLATES_PATH, 'utf8'));
+    const out = {};
+    for (const id in raw) {
+        const e = raw[id] || {};
+        const te = e.template || {};
+        let width = te.width,
+            height = te.height,
+            data = te.data,
+            shareCode = te.shareCode;
+
+        try {
+            if (!data && shareCode) {
+                const dec = templateFromShareCode(shareCode);
+                width = dec.width;
+                height = dec.height;
+                data = dec.data;
+            }
+            // if still missing, reject this template
+            if (!width || !height || !Array.isArray(data)) throw new Error('missing data');
+
+            // store both: data for runtime, shareCode for compact re-save
+            out[id] = {
+                ...e,
+                template: {
+                    width,
+                    height,
+                    data,
+                    shareCode: shareCode || shareCodeFromTemplate({ width, height, data }),
+                },
+            };
+        } catch (err) {
+            console.error(`[templates] skip ${id}: ${err.message}`);
+        }
+    }
+    templates = out;
+}
+loadTemplatesFromDisk();
+
+// ---- save: write shareCode instead of data; skip invalid entries ----
+function saveTemplatesCompressed() {
+    const toSave = {};
+    for (const id in templates) {
+        try {
+            const t = templates[id];
+            const { width, height, data } = t.template;
+            const shareCode = t.template.shareCode || shareCodeFromTemplate({ width, height, data });
+            toSave[id] = {
+                name: t.name,
+                coords: t.coords,
+                canBuyCharges: t.canBuyCharges,
+                canBuyMaxCharges: t.canBuyMaxCharges,
+                antiGriefMode: t.antiGriefMode,
+                eraseMode: t.eraseMode,
+                outlineMode: t.outlineMode,
+                skipPaintedPixels: t.skipPaintedPixels,
+                enableAutostart: t.enableAutostart,
+                userIds: t.userIds,
+                template: { width, height, shareCode },
+            };
+        } catch (e) {
+            console.error(`[templates] skip ${id}: ${e.message}`);
+        }
+    }
+    writeFileSync(TEMPLATES_PATH, JSON.stringify(toSave));
+}
+
+// drop-in replacement for your current saver
+const saveTemplates = saveTemplatesCompressed;
+
 let currentSettings = {
-    accountCooldown: 20000, purchaseCooldown: 5000,
-    keepAliveCooldown: 5000, dropletReserve: 0, antiGriefStandby: 600000,
-    drawingDirection: 'ttb', drawingOrder: 'linear', chargeThreshold: 0.5,
-    outlineMode: false, skipPaintedPixels: false, accountCheckCooldown: 1000,
+    accountCooldown: 20000,
+    purchaseCooldown: 5000,
+    keepAliveCooldown: 5000,
+    dropletReserve: 0,
+    antiGriefStandby: 600000,
+    drawingDirection: 'ttb',
+    drawingOrder: 'linear',
+    chargeThreshold: 0.5,
     pixelSkip: 1,
     proxyEnabled: false,
     proxyRotationMode: 'sequential',
-    logProxyUsage: false
+    logProxyUsage: false,
 };
-if (existsSync(path.join(dataDir, "settings.json"))) {
-    currentSettings = { ...currentSettings, ...loadJSON("settings.json") };
+if (existsSync(path.join(dataDir, 'settings.json'))) {
+    currentSettings = { ...currentSettings, ...loadJSON('settings.json') };
 }
-const saveSettings = () => {
-    saveJSON("settings.json", currentSettings);
-};
+const saveSettings = () => saveJSON('settings.json', currentSettings);
 
 // --- Server State ---
 const activeBrowserUsers = new Set();
+const activeTemplateUsers = new Set();
+const templateQueue = [];
 let activePaintingTasks = 0;
 
 // --- Token Management ---
 const TokenManager = {
-    tokenQueue: [], // Now stores objects: { token: string, receivedAt: number }
+    tokenQueue: [],
     tokenPromise: null,
     resolvePromise: null,
     isTokenNeeded: false,
-    TOKEN_EXPIRATION_MS: 2 * 60 * 1000, // 2 minutes
+    TOKEN_EXPIRATION_MS: 2 * 60 * 1000,
 
     _purgeExpiredTokens() {
         const now = Date.now();
         const initialSize = this.tokenQueue.length;
-        this.tokenQueue = this.tokenQueue.filter(
-            item => now - item.receivedAt < this.TOKEN_EXPIRATION_MS
-        );
+        this.tokenQueue = this.tokenQueue.filter((item) => now - item.receivedAt < this.TOKEN_EXPIRATION_MS);
         const removedCount = initialSize - this.tokenQueue.length;
-        if (removedCount > 0) {
-            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Discarded ${removedCount} expired token(s).`);
-        }
+        if (removedCount > 0) log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Discarded ${removedCount} expired token(s).`);
     },
-
     getToken() {
         this._purgeExpiredTokens();
-
-        if (this.tokenQueue.length > 0) {
-            return Promise.resolve(this.tokenQueue[0].token);
-        }
-
+        if (this.tokenQueue.length > 0) return Promise.resolve(this.tokenQueue[0].token);
         if (!this.tokenPromise) {
-            log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: A task is waiting for a token. Flagging for clients.');
+            log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: A task is waiting for a token.');
             this.isTokenNeeded = true;
             this.tokenPromise = new Promise((resolve) => {
                 this.resolvePromise = resolve;
@@ -631,30 +917,33 @@ const TokenManager = {
         }
         return this.tokenPromise;
     },
-
     setToken(t) {
         log('SYSTEM', 'wplacer', `✅ TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
         this.isTokenNeeded = false;
         const newToken = { token: t, receivedAt: Date.now() };
         this.tokenQueue.push(newToken);
-        
         if (this.resolvePromise) {
-             this.resolvePromise(newToken.token); // Resolve with the new token
-             this.tokenPromise = null;
-             this.resolvePromise = null;
+            this.resolvePromise(newToken.token);
+            this.tokenPromise = null;
+            this.resolvePromise = null;
         }
     },
-
     invalidateToken() {
         this.tokenQueue.shift();
         log('SYSTEM', 'wplacer', `🔄 TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} tokens remaining.`);
-    }
+    },
 };
 
 // --- Error Handling ---
 function logUserError(error, id, name, context) {
-    const message = error.message || "An unknown error occurred.";
-    if (error.name === 'NetworkError' || message.includes("(500)") || message.includes("(1015)") || message.includes("(502)") || error.name === "SuspensionError") {
+    const message = error.message || 'An unknown error occurred.';
+    if (
+        error.name === 'NetworkError' ||
+        message.includes('(500)') ||
+        message.includes('(1015)') ||
+        message.includes('(502)') ||
+        error.name === 'SuspensionError'
+    ) {
         log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
         log(id, name, `❌ Failed to ${context}`, error);
@@ -663,47 +952,57 @@ function logUserError(error, id, name, context) {
 
 // --- Template Management ---
 class TemplateManager {
-    constructor(name, templateData, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, userIds) {
+    constructor(
+        name,
+        templateData,
+        coords,
+        canBuyCharges,
+        canBuyMaxCharges,
+        antiGriefMode,
+        eraseMode,
+        outlineMode,
+        skipPaintedPixels,
+        enableAutostart,
+        userIds
+    ) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
         this.canBuyCharges = canBuyCharges;
         this.canBuyMaxCharges = canBuyMaxCharges;
         this.antiGriefMode = antiGriefMode;
+        this.eraseMode = eraseMode;
+        this.outlineMode = outlineMode;
+        this.skipPaintedPixels = skipPaintedPixels;
         this.enableAutostart = enableAutostart;
         this.userIds = userIds;
         this.running = false;
-        this.status = "Waiting to be started.";
+        this.status = 'Waiting to be started.';
         this.masterId = this.userIds[0];
         this.masterName = users[this.masterId]?.name || 'Unknown';
         this.sleepAbortController = null;
-        this.totalPixels = this.template.data.flat().filter(p => p != 0).length;
+        this.totalPixels = this.template.data.flat().filter((p) => p != 0).length;
         this.pixelsRemaining = this.totalPixels;
         this.currentPixelSkip = currentSettings.pixelSkip;
-
-        // Exponential backoff state
-        this.initialRetryDelay = 30 * 1000; // 30 seconds
-        this.maxRetryDelay = 5 * 60 * 1000; // 5 minutes
+        this.initialRetryDelay = 30 * 1000;
+        this.maxRetryDelay = 5 * 60 * 1000;
         this.currentRetryDelay = this.initialRetryDelay;
+        this.userQueue = [...this.userIds];
     }
 
-    sleep(ms) {
+    cancellableSleep(ms) {
         return new Promise((resolve) => {
-            if (this.sleepAbortController) {
-                this.sleepAbortController.abort();
-            }
-            this.sleepAbortController = new AbortController();
-            const signal = this.sleepAbortController.signal;
-
+            const controller = new AbortController();
+            this.sleepAbortController = controller;
+            const signal = controller.signal;
             const timeout = setTimeout(() => {
-                this.sleepAbortController = null;
+                if (this.sleepAbortController === controller) this.sleepAbortController = null;
                 resolve();
             }, ms);
-
             signal.addEventListener('abort', () => {
                 clearTimeout(timeout);
-                this.sleepAbortController = null;
-                resolve(); // Resolve on abort so the await continues
+                if (this.sleepAbortController === controller) this.sleepAbortController = null;
+                resolve();
             });
         });
     }
@@ -721,263 +1020,318 @@ class TemplateManager {
         const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
         const amountToBuy = Math.floor(affordableDroplets / 500);
         if (amountToBuy > 0) {
-            log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+            log(
+                wplacer.userInfo.id,
+                wplacer.userInfo.name,
+                `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`
+            );
             try {
                 await wplacer.buyProduct(70, amountToBuy);
-                await this.sleep(currentSettings.purchaseCooldown);
+                await sleep(currentSettings.purchaseCooldown);
                 await wplacer.loadUserInfo();
             } catch (error) {
-                logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, "purchase max charge upgrades");
+                logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, 'purchase max charge upgrades');
             }
         }
-    }
-
-    _getEligibleUsers() {
-        if (!this.running) return [];
-        const now = Date.now();
-        return this.userIds.filter(id =>
-            users[id] &&
-            users[id].cookies &&
-            !(users[id].suspendedUntil && now < users[id].suspendedUntil) &&
-            !activeBrowserUsers.has(id)
-        );
     }
 
     async _performPaintTurn(wplacer) {
         let paintedTotal = 0;
         let done = false;
-
         while (!done && this.running) {
             try {
-            wplacer.token = await TokenManager.getToken();
-            const painted = await wplacer.paint(this.currentPixelSkip);
-            paintedTotal += painted;
-            done = true;
+                wplacer.token = await TokenManager.getToken();
+                const painted = await wplacer.paint(this.currentPixelSkip);
+                paintedTotal += painted;
+                done = true;
             } catch (error) {
-            if (error.name === "SuspensionError") {
-                const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended from painting until ${suspendedUntilDate}.`);
-                users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
-                saveUsers();
-                throw error;
-            }
-            if (error.message === 'REFRESH_TOKEN') {
-                log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired or invalid. Trying next token...`);
-                TokenManager.invalidateToken();
-                await this.sleep(1000);
-            } else {
-                throw error;
-            }
+                if (error.name === 'SuspensionError') {
+                    const suspendedUntilDate = new Date(error.suspendedUntil).toLocaleString();
+                    log(
+                        wplacer.userInfo.id,
+                        wplacer.userInfo.name,
+                        `[${this.name}] 🛑 Account suspended until ${suspendedUntilDate}.`
+                    );
+                    users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
+                    saveUsers();
+                    throw error;
+                }
+                if (error.message === 'REFRESH_TOKEN') {
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired. Trying next...`);
+                    TokenManager.invalidateToken();
+                    await sleep(1000);
+                } else {
+                    throw error;
+                }
             }
         }
-
-        if (wplacer?.userInfo?.id && paintedTotal > 0) {
-            ChargeCache.consume(wplacer.userInfo.id, paintedTotal);
-        }
+        if (wplacer?.userInfo?.id && paintedTotal > 0) ChargeCache.consume(wplacer.userInfo.id, paintedTotal);
         return paintedTotal;
     }
 
-
     async start() {
         this.running = true;
-        this.status = "Started.";
+        this.status = 'Started.';
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
-
         try {
             while (this.running) {
-            for (this.currentPixelSkip = currentSettings.pixelSkip; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
+                for (
+                    this.currentPixelSkip = currentSettings.pixelSkip;
+                    this.currentPixelSkip >= 1;
+                    this.currentPixelSkip /= 2
+                ) {
+                    if (!this.running) break;
+                    log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
+                    let passComplete = false;
+                    while (this.running && !passComplete) {
+                        let pixelsChecked = false;
+                        let passPixelsRemaining = -1;
+                        const initialQueueSizeForCheck = this.userQueue.length;
+                        if (initialQueueSizeForCheck === 0) {
+                            log(
+                                'SYSTEM',
+                                'wplacer',
+                                `[${this.name}] No valid users in queue to check canvas. Waiting...`
+                            );
+                            await sleep(5000);
+                            this.userQueue = [...this.userIds];
+                            continue;
+                        }
+                        for (let i = 0; i < initialQueueSizeForCheck; i++) {
+                            const checkUserId = this.userQueue.shift();
+                            if (
+                                !users[checkUserId] ||
+                                (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)
+                            ) {
+                                continue;
+                            }
+                            const templateSettings = {
+                                eraseMode: this.eraseMode,
+                                outlineMode: this.outlineMode,
+                                skipPaintedPixels: this.skipPaintedPixels,
+                            };
+                            const checkWplacer = new WPlacer(
+                                this.template,
+                                this.coords,
+                                currentSettings,
+                                templateSettings,
+                                this.name
+                            );
+                            try {
+                                await checkWplacer.login(users[checkUserId].cookies);
+                                this.pixelsRemaining = await checkWplacer.pixelsLeft(1, false);
+                                passPixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip, true);
+                                this.currentRetryDelay = this.initialRetryDelay;
+                                pixelsChecked = true;
+                                this.userQueue.push(checkUserId);
+                                break;
+                            } catch (error) {
+                                logUserError(error, checkUserId, users[checkUserId].name, 'check pixels left');
+                                this.userQueue.push(checkUserId);
+                            }
+                        }
+                        if (!pixelsChecked) {
+                            log(
+                                'SYSTEM',
+                                'wplacer',
+                                `[${this.name}] All users failed to check canvas. Retrying in ${duration(this.currentRetryDelay)}.`
+                            );
+                            await sleep(this.currentRetryDelay);
+                            this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                            continue;
+                        }
+                        if (this.pixelsRemaining === 0) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
+                            this.status = 'Finished.';
+                            this.running = false;
+                            break;
+                        }
+                        if (passPixelsRemaining === 0) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
+                            passComplete = true;
+                            continue;
+                        }
+                        if (!this.running) break;
+                        if (this.userQueue.length === 0) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
+                            await sleep(5000);
+                            this.userQueue = [...this.userIds];
+                            continue;
+                        }
+                        let foundUserForTurn = false;
+                        const queueSize = this.userQueue.length;
+                        for (let i = 0; i < queueSize; i++) {
+                            const userId = this.userQueue.shift();
+                            let shouldRequeue = true;
+                            const now = Date.now();
+                            if (
+                                !users[userId] ||
+                                (users[userId].suspendedUntil && now < users[userId].suspendedUntil)
+                            ) {
+                                continue;
+                            }
+                            if (ChargeCache.stale(userId, now)) {
+                                if (!activeBrowserUsers.has(userId)) {
+                                    activeBrowserUsers.add(userId);
+                                    const w = new WPlacer();
+                                    try {
+                                        await w.login(users[userId].cookies);
+                                    } catch (e) {
+                                        logUserError(e, userId, users[userId].name, 'opportunistic resync');
+                                    } finally {
+                                        activeBrowserUsers.delete(userId);
+                                    }
+                                }
+                            }
+                            const predicted = ChargeCache.predict(userId, now);
+                            if (
+                                predicted &&
+                                Math.floor(predicted.count) >=
+                                    Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold))
+                            ) {
+                                activeBrowserUsers.add(userId);
+                                const wplacer = new WPlacer(
+                                    this.template,
+                                    this.coords,
+                                    currentSettings,
+                                    {
+                                        eraseMode: this.eraseMode,
+                                        outlineMode: this.outlineMode,
+                                        skipPaintedPixels: this.skipPaintedPixels,
+                                    },
+                                    this.name
+                                );
+                                try {
+                                    const userInfo = await wplacer.login(users[userId].cookies);
+                                    this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
+                                    log(
+                                        userInfo.id,
+                                        userInfo.name,
+                                        `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`
+                                    );
+                                    const paintedNow = await this._performPaintTurn(wplacer);
+                                    if (paintedNow > 0) foundUserForTurn = true;
+                                    await this.handleUpgrades(wplacer);
+                                    this.currentRetryDelay = this.initialRetryDelay;
+                                } catch (error) {
+                                    if (error.name !== 'SuspensionError')
+                                        logUserError(error, userId, users[userId].name, 'perform paint turn');
+                                } finally {
+                                    activeBrowserUsers.delete(userId);
+                                    if (shouldRequeue) this.userQueue.push(userId);
+                                }
+                                if (foundUserForTurn) break;
+                            } else {
+                                if (shouldRequeue) this.userQueue.push(userId);
+                            }
+                        }
+                        if (foundUserForTurn) {
+                            if (this.running && this.userIds.length > 1) {
+                                log(
+                                    'SYSTEM',
+                                    'wplacer',
+                                    `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`
+                                );
+                                await sleep(currentSettings.accountCooldown);
+                            }
+                        } else {
+                            const now = Date.now();
+                            const cooldowns = this.userQueue.map((id) => {
+                                const p = ChargeCache.predict(id, now);
+                                if (!p) return Infinity;
+                                const threshold = Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
+                                return Math.max(0, (threshold - Math.floor(p.count)) * (p.cooldownMs ?? 30000));
+                            });
+                            const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
+                            this.status = 'Waiting for charges.';
+                            log(
+                                'SYSTEM',
+                                'wplacer',
+                                `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`
+                            );
+                            await this.cancellableSleep(waitTime);
+                        }
+                    }
+                }
                 if (!this.running) break;
-                log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
-
-                let passComplete = false;
-                while (this.running && !passComplete) {
-                let pixelsChecked = false;
-
-                // pick checker respecting started/stopped
-                const availableCheckUsers = this._getEligibleUsers();
-                if (!this.running) break;
-                if (availableCheckUsers.length === 0) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No eligible accounts. Waiting...`);
-                    await this.sleep(5000);
+                if (this.antiGriefMode) {
+                    this.status = 'Monitoring for changes.';
+                    log(
+                        'SYSTEM',
+                        'wplacer',
+                        `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(currentSettings.antiGriefStandby)}.`
+                    );
+                    await this.cancellableSleep(currentSettings.antiGriefStandby);
                     continue;
-                }
-
-                for (const userId of availableCheckUsers) {
-                    const checkWplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                    try {
-                    await checkWplacer.login(users[userId].cookies);
-                    this.pixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip);
-                    this.currentRetryDelay = this.initialRetryDelay;
-                    pixelsChecked = true;
-                    break;
-                    } catch (error) {
-                    logUserError(error, userId, users[userId].name, "check pixels left");
-                    }
-                }
-
-                if (!pixelsChecked) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] All available users failed to check canvas. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
-                    await this.sleep(this.currentRetryDelay);
-                    this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                    continue;
-                }
-
-                if (this.pixelsRemaining === 0) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                    passComplete = true;
-                    continue;
-                }
-
-                const availableUsers = this._getEligibleUsers();
-                if (!this.running) break;
-                if (availableUsers.length === 0) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No eligible accounts. Waiting...`);
-                    await this.sleep(5000);
-                    continue;
-                }
-
-                // ==== prediction + seed/trickle resync ====
-                const now = Date.now();
-
-                let localUserStates = [];
-                for (const id of availableUsers) {
-                    const p = ChargeCache.predict(id, now);
-                    if (p) localUserStates.push({ userId: String(id), charges: p });
-                }
-
-                const seedCount = localUserStates.length === 0 ? Math.min(10, availableUsers.length) : 3;
-                const toResync = availableUsers
-                    .filter(id => !ChargeCache.has(id) || ChargeCache.stale(id, now))
-                    .slice(0, seedCount);
-
-                for (const userId of toResync) {
-                    if (activeBrowserUsers.has(userId)) continue;
-                    activeBrowserUsers.add(userId);
-                    const w = new WPlacer();
-                    try {
-                    const info = await w.login(users[userId].cookies); // updates cache
-                    const pred = ChargeCache.predict(info.id, Date.now());
-                    if (pred) localUserStates.push({ userId: String(info.id), charges: pred });
-                    } catch (e) {
-                    logUserError(e, userId, users[userId].name, "resync user status");
-                    } finally {
-                    activeBrowserUsers.delete(userId);
-                    }
-                    await this.sleep(currentSettings.accountCheckCooldown);
-                }
-
-                // dedupe by userId
-                const byId = new Map();
-                for (const s of localUserStates) byId.set(s.userId, s);
-                localUserStates = Array.from(byId.values());
-
-                const threshold = (c) => Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold));
-                const readyUsers = localUserStates
-                    .filter(s => Math.floor(s.charges.count) >= threshold(s.charges))
-                    .sort((a, b) => b.charges.count - a.charges.count);
-
-                const userToRun = readyUsers[0];
-
-                if (userToRun) {
-                    activeBrowserUsers.add(userToRun.userId);
-                    const wplacer = new WPlacer(this.template, this.coords, currentSettings, this.name);
-                    let paintedInTurn = false;
-
-                    try {
-                    const userInfo = await wplacer.login(users[userToRun.userId].cookies);
-                    const predicted = ChargeCache.predict(userInfo.id) ?? { count: userInfo.charges.count, max: userInfo.charges.max };
-                    this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
-                    log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
-
-                    const paintedNow = await this._performPaintTurn(wplacer);
-                    paintedInTurn = paintedNow > 0;
-
-                    await this.handleUpgrades(wplacer);
-                    this.currentRetryDelay = this.initialRetryDelay;
-
-                    } catch (error) {
-                    if (error.name !== 'SuspensionError') {
-                        logUserError(error, userToRun.userId, users[userToRun.userId].name, "perform paint turn");
-                    }
-                    if (error.name === 'NetworkError') {
-                        log('SYSTEM', 'wplacer', `[${this.name}] Network issue during paint turn. Waiting for ${duration(this.currentRetryDelay)} before retrying.`);
-                        await this.sleep(this.currentRetryDelay);
-                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                    }
-                    } finally {
-                    activeBrowserUsers.delete(userToRun.userId);
-                    }
-
-                    if (paintedInTurn && this.running && this.userIds.length > 1) {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for account turn cooldown (${duration(currentSettings.accountCooldown)}).`);
-                    await this.sleep(currentSettings.accountCooldown);
-                    }
-
                 } else {
-                    const cooldowns = localUserStates
-                    .map(s => s.charges)
-                    .map(c => Math.max(0, (Math.max(1, Math.floor(c.max * currentSettings.chargeThreshold)) - Math.floor(c.count)) * (c.cooldownMs ?? 30_000)));
-
-                    const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60000) + 2000;
-                    this.status = `Waiting for charges.`;
-                    log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
-                    await this.sleep(waitTime);
+                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete! Template finished!`);
+                    this.status = 'Finished.';
+                    this.running = false;
                 }
-                }
-            }
-
-            if (!this.running) break;
-
-            if (this.antiGriefMode) {
-                this.status = "Monitoring for changes.";
-                log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete. Monitoring... Checking again in ${duration(currentSettings.antiGriefStandby)}.`);
-                await this.sleep(currentSettings.antiGriefStandby);
-                continue;
-            } else {
-                log('SYSTEM', 'wplacer', `[${this.name}] 🖼 All passes complete! Template finished!`);
-                this.status = "Finished.";
-                this.running = false;
-            }
             }
         } finally {
             activePaintingTasks--;
-            if (this.status !== "Finished.") this.status = "Stopped.";
+            if (this.status !== 'Finished.') this.status = 'Stopped.';
+            if (!this.antiGriefMode) {
+                this.userIds.forEach((id) => activeTemplateUsers.delete(id));
+                processQueue();
+            }
         }
     }
-
-
-
 }
 
 // --- Express App Setup ---
 const app = express();
 app.use(cors());
-app.use(express.static("public"));
+app.use(express.static('public'));
 app.use(express.json({ limit: Infinity }));
 
 // --- Autostartup Templates Array ---
 const autostartedTemplates = [];
 
-// --- API Endpoints ---
-app.get("/token-needed", (req, res) => {
-    res.json({ needed: TokenManager.isTokenNeeded });
-});
+// --- Queue Processing ---
+const processQueue = () => {
+    for (let i = 0; i < templateQueue.length; i++) {
+        const templateId = templateQueue[i];
+        const manager = templates[templateId];
+        if (!manager) {
+            templateQueue.splice(i, 1);
+            i--;
+            continue;
+        }
+        const isUserBusy = manager.userIds.some((id) => activeTemplateUsers.has(id));
+        if (!isUserBusy) {
+            templateQueue.splice(i, 1);
+            manager.userIds.forEach((id) => activeTemplateUsers.add(id));
+            manager
+                .start()
+                .catch((error) => log(templateId, manager.masterName, 'Error starting queued template', error));
+            break;
+        }
+    }
+};
 
-app.post("/t", (req, res) => {
+// --- API Endpoints ---
+app.get('/token-needed', (req, res) => res.json({ needed: TokenManager.isTokenNeeded }));
+app.post('/t', (req, res) => {
     const { t } = req.body;
     if (!t) return res.sendStatus(400);
     TokenManager.setToken(t);
     res.sendStatus(200);
 });
 
-app.get("/users", (_, res) => res.json(users));
-app.post("/user", async (req, res) => {
+app.get('/users', (_, res) => res.json(users));
+app.post('/user', async (req, res) => {
     if (!req.body.cookies || !req.body.cookies.j) return res.sendStatus(400);
     const wplacer = new WPlacer();
     try {
         const userInfo = await wplacer.login(req.body.cookies);
-        users[userInfo.id] = { name: userInfo.name, cookies: req.body.cookies, expirationDate: req.body.expirationDate };
+        users[userInfo.id] = {
+            name: userInfo.name,
+            cookies: req.body.cookies,
+            expirationDate: req.body.expirationDate,
+        };
         saveUsers();
         res.json(userInfo);
     } catch (error) {
@@ -986,31 +1340,33 @@ app.post("/user", async (req, res) => {
     }
 });
 
-app.delete("/user/:id", async (req, res) => {
+app.delete('/user/:id', async (req, res) => {
     const userIdToDelete = req.params.id;
     if (!userIdToDelete || !users[userIdToDelete]) return res.sendStatus(400);
-
     const deletedUserName = users[userIdToDelete].name;
     delete users[userIdToDelete];
     saveUsers();
     log('SYSTEM', 'Users', `Deleted user ${deletedUserName}#${userIdToDelete}.`);
-
     let templatesModified = false;
     for (const templateId in templates) {
         const template = templates[templateId];
         const initialUserCount = template.userIds.length;
-        template.userIds = template.userIds.filter(id => id !== userIdToDelete);
-
+        template.userIds = template.userIds.filter((id) => id !== userIdToDelete);
+        template.userQueue = template.userQueue.filter((id) => id !== userIdToDelete);
         if (template.userIds.length < initialUserCount) {
             templatesModified = true;
-            log('SYSTEM', 'Templates', `Removed user ${deletedUserName}#${userIdToDelete} from template "${template.name}".`);
+            log(
+                'SYSTEM',
+                'Templates',
+                `Removed user ${deletedUserName}#${userIdToDelete} from template "${template.name}".`
+            );
             if (template.masterId === userIdToDelete) {
                 template.masterId = template.userIds[0] || null;
                 template.masterName = template.masterId ? users[template.masterId].name : null;
             }
             if (template.userIds.length === 0 && template.running) {
                 template.running = false;
-                log('SYSTEM', 'wplacer', `[${template.name}] 🛑 Template stopped because it has no users left.`);
+                log('SYSTEM', 'wplacer', `[${template.name}] 🛑 Template stopped, no users left.`);
             }
         }
     }
@@ -1018,7 +1374,7 @@ app.delete("/user/:id", async (req, res) => {
     res.sendStatus(200);
 });
 
-app.get("/user/status/:id", async (req, res) => {
+app.get('/user/status/:id', async (req, res) => {
     const { id } = req.params;
     if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(409);
     activeBrowserUsers.add(id);
@@ -1027,21 +1383,19 @@ app.get("/user/status/:id", async (req, res) => {
         const userInfo = await wplacer.login(users[id].cookies);
         res.status(200).json(userInfo);
     } catch (error) {
-        logUserError(error, id, users[id].name, "validate cookie");
+        logUserError(error, id, users[id].name, 'validate cookie');
         res.status(500).json({ error: error.message });
     } finally {
         activeBrowserUsers.delete(id);
     }
 });
 
-app.post("/users/status", async (req, res) => {
+app.post('/users/status', async (req, res) => {
     const userIds = Object.keys(users);
     const results = {};
-    const concurrencyLimit = 5; // Number of checks to run in parallel
-
     const checkUser = async (id) => {
         if (activeBrowserUsers.has(id)) {
-            results[id] = { success: false, error: "User is busy." };
+            results[id] = { success: false, error: 'User is busy.' };
             return;
         }
         activeBrowserUsers.add(id);
@@ -1050,76 +1404,118 @@ app.post("/users/status", async (req, res) => {
             const userInfo = await wplacer.login(users[id].cookies);
             results[id] = { success: true, data: userInfo };
         } catch (error) {
-            logUserError(error, id, users[id].name, "validate cookie in bulk check");
+            logUserError(error, id, users[id].name, 'bulk check');
             results[id] = { success: false, error: error.message };
         } finally {
             activeBrowserUsers.delete(id);
         }
     };
-
     const USER_TIMEOUT_MS = 30_000;
-    const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-    const withTimeout = (p, ms, label) => Promise.race([
-    p,
-    new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms))
-    ]);
-
-    const queue = [...userIds];
-    const workers = Array.from({ length: Math.max(1, concurrencyLimit) }, async () => {
-    while (true) {
-        const userId = queue.shift();
-        if (!userId) break;
-            try {
-                await withTimeout(checkUser(userId), USER_TIMEOUT_MS, `user ${userId}`);
-            } catch (err) {
-                console.error("users/status worker:", userId, err.message);
-                // optional: record failure
-                results[userId] = { success: false, error: err.message };
-            }
-            await sleep(10); // yield to event loop
+    const withTimeout = (p, ms, label) =>
+        Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms))]);
+    for (const userId of userIds) {
+        try {
+            await withTimeout(checkUser(userId), USER_TIMEOUT_MS, `user ${userId}`);
+        } catch (err) {
+            results[userId] = { success: false, error: err.message };
         }
-    });
-
-
-    await Promise.all(workers);
+    }
     res.json(results);
 });
 
-app.get("/templates", (_, res) => {
-    const sanitizedTemplates = {};
+// ---- GET /templates: send data, never shareCode ----
+app.get('/templates', (_, res) => {
+    const out = {};
     for (const id in templates) {
         const t = templates[id];
-        sanitizedTemplates[id] = {
+        const { width, height, data } = t.template;
+        const shareCode = t.template.shareCode || shareCodeFromTemplate({ width, height, data });
+        t.template.shareCode = shareCode; // cache for future saves
+
+        out[id] = {
             name: t.name,
-            template: t.template,
+            template: { width, height, data },
+            shareCode: t.shareCode,
             coords: t.coords,
             canBuyCharges: t.canBuyCharges,
             canBuyMaxCharges: t.canBuyMaxCharges,
             antiGriefMode: t.antiGriefMode,
+            eraseMode: t.eraseMode,
+            outlineMode: t.outlineMode,
+            skipPaintedPixels: t.skipPaintedPixels,
             enableAutostart: t.enableAutostart,
             userIds: t.userIds,
             running: t.running,
             status: t.status,
             pixelsRemaining: t.pixelsRemaining,
-            totalPixels: t.totalPixels
+            totalPixels: t.totalPixels,
         };
     }
-    res.json(sanitizedTemplates);
+    res.json(out);
 });
 
-app.post("/template", async (req, res) => {
-    const { templateName, template, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart } = req.body;
+// ---- optional: import a shared code from UI ----
+app.post('/templates/import', express.json(), (req, res) => {
+    const { id, name, coords, code } = req.body || {};
+    if (!id || !code) return res.status(400).json({ error: 'id and code required' });
+    const tmpl = templateFromShareCode(code);
+    templates[id] = {
+        name: name || `Template ${id}`,
+        coords: coords || [0, 0],
+        canBuyCharges: false,
+        canBuyMaxCharges: false,
+        antiGriefMode: false,
+        eraseMode: false,
+        outlineMode: false,
+        skipPaintedPixels: false,
+        enableAutostart: false,
+        userIds: [],
+        template: { ...tmpl, shareCode: code },
+        running: false,
+        status: 'idle',
+        pixelsRemaining: tmpl.width * tmpl.height,
+        totalPixels: tmpl.width * tmpl.height,
+    };
+    saveTemplatesCompressed();
+    res.json({ ok: true });
+});
+
+app.post('/template', async (req, res) => {
+    const {
+        templateName,
+        template,
+        coords,
+        userIds,
+        canBuyCharges,
+        canBuyMaxCharges,
+        antiGriefMode,
+        eraseMode,
+        outlineMode,
+        skipPaintedPixels,
+        enableAutostart,
+    } = req.body;
     if (!templateName || !template || !coords || !userIds || !userIds.length) return res.sendStatus(400);
-    if (Object.values(templates).some(t => t.name === templateName)) {
-        return res.status(409).json({ error: "A template with this name already exists." });
-    }
+    if (Object.values(templates).some((t) => t.name === templateName))
+        return res.status(409).json({ error: 'A template with this name already exists.' });
     const templateId = Date.now().toString();
-    templates[templateId] = new TemplateManager(templateName, template, coords, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, userIds);
+    templates[templateId] = new TemplateManager(
+        templateName,
+        template,
+        coords,
+        canBuyCharges,
+        canBuyMaxCharges,
+        antiGriefMode,
+        eraseMode,
+        outlineMode,
+        skipPaintedPixels,
+        enableAutostart,
+        userIds
+    );
     saveTemplates();
     res.status(200).json({ id: templateId });
 });
 
-app.delete("/template/:id", async (req, res) => {
+app.delete('/template/:id', async (req, res) => {
     const { id } = req.params;
     if (!id || !templates[id] || templates[id].running) return res.sendStatus(400);
     delete templates[id];
@@ -1127,45 +1523,75 @@ app.delete("/template/:id", async (req, res) => {
     res.sendStatus(200);
 });
 
-app.put("/template/edit/:id", async (req, res) => {
+app.put('/template/edit/:id', async (req, res) => {
     const { id } = req.params;
     if (!templates[id]) return res.sendStatus(404);
     const manager = templates[id];
-    const { templateName, coords, userIds, canBuyCharges, canBuyMaxCharges, antiGriefMode, enableAutostart, template } = req.body;
+    const {
+        templateName,
+        coords,
+        userIds,
+        canBuyCharges,
+        canBuyMaxCharges,
+        antiGriefMode,
+        eraseMode,
+        outlineMode,
+        skipPaintedPixels,
+        enableAutostart,
+        template,
+    } = req.body;
     manager.name = templateName;
     manager.coords = coords;
     manager.userIds = userIds;
+    manager.userQueue = [...userIds];
     manager.canBuyCharges = canBuyCharges;
     manager.canBuyMaxCharges = canBuyMaxCharges;
     manager.antiGriefMode = antiGriefMode;
+    manager.eraseMode = eraseMode;
+    manager.outlineMode = outlineMode;
+    manager.skipPaintedPixels = skipPaintedPixels;
     manager.enableAutostart = enableAutostart;
-
     if (template) {
         manager.template = template;
-        manager.totalPixels = manager.template.data.flat().filter(p => p > 0).length;
+        manager.totalPixels = manager.template.data.flat().filter((p) => p > 0).length;
     }
     manager.masterId = manager.userIds[0];
     manager.masterName = users[manager.masterId].name;
-    saveTemplates();
+    saveTemplatesCompressed();
     res.sendStatus(200);
 });
 
-app.put("/template/:id", async (req, res) => {
+app.put('/template/:id', async (req, res) => {
     const { id } = req.params;
     if (!id || !templates[id]) return res.sendStatus(400);
     const manager = templates[id];
     if (req.body.running && !manager.running) {
-        manager.start().catch(error => log(id, manager.masterName, "Error starting template", error));
-    } else {
+        if (manager.antiGriefMode) {
+            manager.start().catch((error) => log(id, manager.masterName, 'Error starting template', error));
+        } else {
+            const isUserBusy = manager.userIds.some((id) => activeTemplateUsers.has(id));
+            if (isUserBusy) {
+                if (!templateQueue.includes(id)) {
+                    templateQueue.push(id);
+                    manager.status = 'Queued';
+                    log('SYSTEM', 'wplacer', `[${manager.name}] Template queued as its users are busy.`);
+                }
+            } else {
+                manager.userIds.forEach((id) => activeTemplateUsers.add(id));
+                manager.start().catch((error) => log(id, manager.masterName, 'Error starting template', error));
+            }
+        }
+    } else if (!req.body.running) {
         manager.running = false;
+        const queueIndex = templateQueue.indexOf(id);
+        if (queueIndex > -1) templateQueue.splice(queueIndex, 1);
+        manager.userIds.forEach((id) => activeTemplateUsers.delete(id));
+        processQueue();
     }
     res.sendStatus(200);
 });
 
-app.get('/settings', (_, res) => {
-    res.json({ ...currentSettings, proxyCount: loadedProxies.length });
-});
-
+app.get('/settings', (_, res) => res.json({ ...currentSettings, proxyCount: loadedProxies.length }));
 app.put('/settings', (req, res) => {
     const oldSettings = { ...currentSettings };
     currentSettings = { ...currentSettings, ...req.body };
@@ -1183,7 +1609,7 @@ app.post('/reload-proxies', (req, res) => {
     res.status(200).json({ success: true, count: loadedProxies.length });
 });
 
-app.get("/canvas", async (req, res) => {
+app.get('/canvas', async (req, res) => {
     const { tx, ty } = req.query;
     if (isNaN(parseInt(tx)) || isNaN(parseInt(ty))) return res.sendStatus(400);
     try {
@@ -1197,75 +1623,172 @@ app.get("/canvas", async (req, res) => {
     }
 });
 
+// ---- one-time migration: old -> compressed ----
+function migrateOldTemplatesIfNeeded() {
+    const p = path.join(dataDir, 'templates.json');
+    if (!existsSync(p)) return;
+    let raw;
+    try {
+        raw = JSON.parse(readFileSync(p, 'utf8'));
+    } catch {
+        return;
+    }
+
+    let changed = false;
+    const out = {};
+    for (const id in raw) {
+        const e = raw[id] || {};
+        const te = e.template || {};
+        try {
+            // already new format
+            if (!te.data || te.shareCode) {
+                out[id] = e;
+                continue;
+            }
+
+            // old format -> build shareCode
+            const width = te.width,
+                height = te.height,
+                data = te.data;
+            const code = shareCodeFromTemplate({ width, height, data });
+            out[id] = {
+                ...e,
+                template: { width, height, shareCode: code }, // drop data
+            };
+            changed = true;
+            console.log(`[migrate] compressed template ${id} (${e.name || 'unnamed'})`);
+        } catch (err) {
+            console.error(`[migrate] skip ${id}: ${err.message}`);
+            // keep original if conversion failed
+            out[id] = e;
+        }
+    }
+
+    if (changed) {
+        writeFileSync(p, JSON.stringify(out));
+        console.log(`[migrate] templates.json updated to compressed format`);
+    }
+}
+
 // --- Server Startup ---
 (async () => {
-  console.clear();
-  const version = JSON.parse(readFileSync("package.json", "utf8")).version;
-  console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
+    console.clear();
+    const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
+    console.log(`\n--- wplacer v${version} by luluwaffless and jinx ---\n`);
+    migrateOldTemplatesIfNeeded();
+    // helper: ensure {width,height,data}
+    const ensureTemplateData = (te) => {
+        if (te?.data && Array.isArray(te.data)) {
+            const w = Number(te.width) >>> 0,
+                h = Number(te.height) >>> 0;
+            if (!w || !h) throw new Error('invalid template dimensions');
+            const data = ensureXMajor(te.data, w, h);
+            sanitizePalette2D(data);
+            return {
+                width: w,
+                height: h,
+                data,
+                shareCode: te.shareCode ?? shareCodeFromTemplate({ width: w, height: h, data }),
+            };
+        }
+        if (te?.shareCode) {
+            const dec = templateFromShareCode(te.shareCode);
+            return { width: dec.width, height: dec.height, data: dec.data, shareCode: te.shareCode };
+        }
+        throw new Error('template missing data/shareCode');
+    };
 
-  // Load templates
-  const loadedTemplates = loadJSON("templates.json");
-  for (const id in loadedTemplates) {
-    const t = loadedTemplates[id];
-    if (t.userIds.every(uid => users[uid])) {
-      templates[id] = new TemplateManager(
-        t.name, t.template, t.coords,
-        t.canBuyCharges, t.canBuyMaxCharges,
-        t.antiGriefMode, t.enableAutostart, t.userIds
-      );
-      if (t.enableAutostart) {
-        templates[id].start().catch(err =>
-          log(id, templates[id].masterName, "Error starting autostarted template", err)
-        );
-        autostartedTemplates.push({ id, name: t.name });
-      }
-    } else {
-      console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
+    const loadedTemplates = loadJSON('templates.json');
+    templates = {}; // reset container to hold managers
+
+    for (const id in loadedTemplates) {
+        try {
+            const t = loadedTemplates[id];
+            const templateData = ensureTemplateData(t.template);
+            if (t.userIds.every((uid) => users[uid])) {
+                templates[id] = new TemplateManager(
+                    t.name,
+                    templateData, // now guaranteed to have data
+                    t.coords,
+                    t.canBuyCharges,
+                    t.canBuyMaxCharges,
+                    t.antiGriefMode,
+                    t.eraseMode,
+                    t.outlineMode,
+                    t.skipPaintedPixels,
+                    t.enableAutostart,
+                    t.userIds
+                );
+                if (t.enableAutostart) autostartedTemplates.push(id);
+            } else {
+                console.warn(`⚠️ Template "${t.name}" was not loaded because its assigned user(s) no longer exist.`);
+            }
+        } catch (e) {
+            console.error(`⚠️ Skipping template ${id}: ${e.message}`);
+        }
     }
-  }
 
-  // Load proxies
-  loadProxies();
-  console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`);
+    loadProxies();
+    console.log(
+        `✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users and ${loadedProxies.length} proxies.`
+    );
 
-  // Server port selection
-  const host = "0.0.0.0";
-  const initial = Number(process.env.PORT) || 80;
-  const common = [3000, 5173, 8080, 8000, 5000, 7000, 4200, 5500];
+    const host = '0.0.0.0';
+    const initial = Number(process.env.PORT) || 80;
+    const common = [3000, 5173, 8080, 8000, 5000, 7000, 4200, 5500];
+    const probe = Array.from(new Set([initial, ...common]));
+    for (let p = 3001; p <= 3050; p++) probe.push(p);
 
-  const probe = Array.from(new Set([initial, ...common]));
-  for (let p = 3001; p <= 3050; p++) probe.push(p);
-
-  function tryListen(idx = 0) {
-    if (idx >= probe.length) {
-      console.error("No available port found.");
-      process.exit(1);
+    function tryListen(idx = 0) {
+        if (idx >= probe.length) {
+            console.error('No available port found.');
+            process.exit(1);
+        }
+        const port = probe[idx];
+        const server = app.listen(port, host);
+        server.on('listening', () => {
+            const url = `http://localhost:${port}`;
+            console.log(`✅ Server listening on ${url}`);
+            console.log('   Open the web UI in your browser to start.');
+            openBrowser(url);
+            autostartedTemplates.forEach((id) => {
+                const manager = templates[id];
+                if (manager) {
+                    log('SYSTEM', 'wplacer', `[${manager.name}] Autostarting template...`);
+                    if (manager.antiGriefMode) {
+                        manager
+                            .start()
+                            .catch((error) => log(id, manager.masterName, 'Error autostarting template', error));
+                    } else {
+                        const isUserBusy = manager.userIds.some((uid) => activeTemplateUsers.has(uid));
+                        if (isUserBusy) {
+                            if (!templateQueue.includes(id)) {
+                                templateQueue.push(id);
+                                manager.status = 'Queued';
+                            }
+                        } else {
+                            manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
+                            manager
+                                .start()
+                                .catch((error) => log(id, manager.masterName, 'Error autostarting template', error));
+                        }
+                    }
+                }
+            });
+        });
+        server.on('error', (err) => {
+            if (err.code === 'EADDRINUSE') {
+                console.error(`Port ${port} in use. Trying ${probe[idx + 1]}...`);
+                tryListen(idx + 1);
+            } else if (err.code === 'EACCES') {
+                const nextIdx = Math.max(idx + 1, probe.indexOf(common[0]));
+                console.error(`Permission denied on ${port}. Trying ${probe[nextIdx]}...`);
+                tryListen(nextIdx);
+            } else {
+                console.error('Server error:', err);
+                process.exit(1);
+            }
+        });
     }
-
-    const port = probe[idx];
-    const server = app.listen(port, host);
-
-    server.on("listening", () => {
-        const url = `http://localhost:${port}`;
-        console.log(`✅ Server listening on ${url}`);
-        console.log("   Open the web UI in your browser to start.");
-        openBrowser(url);
-    });
-
-    server.on("error", (err) => {
-      if (err.code === "EADDRINUSE") {
-        console.error(`Port ${port} in use. Trying ${probe[idx + 1]}...`);
-        tryListen(idx + 1);
-      } else if (err.code === "EACCES") {
-        const nextIdx = Math.max(idx + 1, probe.indexOf(common[0]));
-        console.error(`Permission denied on ${port}. Trying ${probe[nextIdx]}...`);
-        tryListen(nextIdx);
-      } else {
-        console.error("Server error:", err);
-        process.exit(1);
-      }
-    });
-  }
-
-  tryListen(0);
+    tryListen(0);
 })();
