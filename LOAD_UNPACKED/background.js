@@ -17,6 +17,9 @@ const getServerUrl = async (path = '') => {
 };
 
 // --- Token Refresh Logic ---
+let pendingRefreshTimeout = null;
+let lastQueueSize = 0;
+
 const pollForTokenRequest = async () => {
     console.log("wplacer: Polling server for token request...");
     try {
@@ -28,6 +31,11 @@ const pollForTokenRequest = async () => {
         }
         const data = await response.json();
         if (data.needed) {
+            // Check current queue size before initiating refresh
+            if (lastQueueSize >= 4) {
+                console.log(`⛔ wplacer: Server needs token but queue is sufficient (${lastQueueSize}), ignoring`);
+                return;
+            }
             console.log("wplacer: Server requires a token. Initiating reload.");
             await initiateReload();
         }
@@ -134,6 +142,68 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ t: request.token })
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error(`Server responded with status: ${response.status}`);
+            })
+            .then(data => {
+                const queueSize = data.queueSize || 0;
+                lastQueueSize = queueSize;
+                
+                console.log(`✅ wplacer: Token sent to server. Queue size: ${queueSize}`);
+                
+                // Queue too high
+                if (queueSize >= 10) {
+                    console.log(`🚨 wplacer: EMERGENCY STOP - Queue extremely high (${queueSize})`);
+                    return; // No more refreshes
+                }
+                
+                // Clear pending refreshes
+                if (queueSize >= 4 && pendingRefreshTimeout) {
+                    clearTimeout(pendingRefreshTimeout);
+                    pendingRefreshTimeout = null;
+                    console.log("🛑 wplacer: Cancelled pending refresh - queue too high");
+                }
+                
+                // Dynamic refresh logic based on queue size
+                let refreshDelay = 0;
+                let shouldRefresh = true;
+                
+                if (queueSize <= 1) {
+                    refreshDelay = 500; // 0.5s - build up quickly
+                } else if (queueSize === 2) {
+                    refreshDelay = 8000; // 8s - moderate
+                } else if (queueSize === 3) {
+                    refreshDelay = 30000; // 30s - maintenance
+                } else {
+                    shouldRefresh = false; // Stop refreshing
+                }
+                
+                if (shouldRefresh) {
+                    // Cancel any existing timeout
+                    if (pendingRefreshTimeout) {
+                        clearTimeout(pendingRefreshTimeout);
+                    }
+                    
+                    console.log(`⏰ wplacer: Scheduling refresh in ${refreshDelay}ms (queue: ${queueSize})`);
+                    
+                    pendingRefreshTimeout = setTimeout(() => {
+                        // Double-check queue hasn't grown
+                        if (lastQueueSize <= 3) {
+                            console.log(`🔄 wplacer: Executing scheduled refresh (queue was: ${lastQueueSize})`);
+                            initiateReload();
+                        } else {
+                            console.log(`⛔ wplacer: Refresh cancelled - queue grew to ${lastQueueSize}`);
+                        }
+                        pendingRefreshTimeout = null;
+                    }, refreshDelay);
+                }
+            })
+            .catch(error => {
+                console.error("wplacer: Error processing token response:", error.message);
             });
         });
     }
@@ -168,7 +238,8 @@ const initializeAlarms = () => {
         delayInMinutes: 1,
         periodInMinutes: 20
     });
-    console.log("wplacer: Alarms initialized.");
+    console.log("✅ wplacer: Auto-refresh system initialized.");
+    console.log("🔄 wplacer: Token queue management active with dynamic refresh control.");
 };
 
 chrome.runtime.onStartup.addListener(() => {
