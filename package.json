@@ -11,7 +11,11 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "impit": "0.5.3",
-    "tough-cookie": "^6.0.0"
+    "node-fetch": "^3.3.2",
+    "proxy-agent": "^6.5.0",
+    "socks-proxy-agent": "^8.0.5",
+    "tough-cookie": "^6.0.0",
+    "undici": "^7.15.0"
   },
   "engines": {
     "node": ">=22.0.0",
@@ -21,4 +25,3 @@
     "prettier": "^3.6.2"
   }
 }
-
