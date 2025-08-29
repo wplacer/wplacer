@@ -49,6 +49,7 @@ const settings = $("settings");
 const drawingDirectionSelect = $("drawingDirectionSelect");
 const drawingOrderSelect = $("drawingOrderSelect");
 const pixelSkipSelect = $("pixelSkipSelect");
+const stealthMode = $("stealthMode"); // Thêm cho Stealth Mode
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
 const accountCheckCooldown = $("accountCheckCooldown");
@@ -871,6 +872,7 @@ openSettings.addEventListener("click", async () => {
         drawingDirectionSelect.value = currentSettings.drawingDirection;
         drawingOrderSelect.value = currentSettings.drawingOrder;
         pixelSkipSelect.value = currentSettings.pixelSkip;
+        stealthMode.checked = currentSettings.stealthMode;
 
         proxyEnabled.checked = currentSettings.proxyEnabled;
         proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
@@ -902,6 +904,7 @@ const saveSetting = async (setting) => {
 drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
+stealthMode.addEventListener('change', () => saveSetting({ stealthMode: stealthMode.checked }));
 
 proxyEnabled.addEventListener('change', () => {
     proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
@@ -1009,4 +1012,11 @@ tx.addEventListener('blur', () => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    openManageUsers.addEventListener('click', () => changeTab('manageUsers'));
+    openAddTemplate.addEventListener('click', () => changeTab('addTemplate'));
+    openManageTemplates.addEventListener('click', () => changeTab('manageTemplates'));
+    openSettings.addEventListener('click', () => changeTab('settings'));
 });
