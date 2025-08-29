@@ -49,7 +49,6 @@ const settings = $("settings");
 const drawingDirectionSelect = $("drawingDirectionSelect");
 const drawingOrderSelect = $("drawingOrderSelect");
 const pixelSkipSelect = $("pixelSkipSelect");
-const stealthMode = $("stealthMode"); // Thêm cho Stealth Mode
 const accountCooldown = $("accountCooldown");
 const purchaseCooldown = $("purchaseCooldown");
 const accountCheckCooldown = $("accountCheckCooldown");
@@ -71,6 +70,21 @@ const proxyRotationMode = $("proxyRotationMode");
 const proxyCount = $("proxyCount");
 const reloadProxiesBtn = $("reloadProxiesBtn");
 const logProxyUsage = $("logProxyUsage");
+
+// Stealth Mode Elements
+const stealthMode = $("stealthMode");
+const stealthOptions = $("stealthOptions");
+const stealthChargeThresholdFluctuation = $("stealthChargeThresholdFluctuation");
+const stealthCooldownMinPercent = $("stealthCooldownMinPercent");
+const stealthCooldownMaxPercent = $("stealthCooldownMaxPercent");
+const stealthBurstMinPercent = $("stealthBurstMinPercent");
+const stealthBurstMaxPercent = $("stealthBurstMaxPercent");
+const stealthBreakChancePercent = $("stealthBreakChancePercent");
+const stealthBreakMinMinutes = $("stealthBreakMinMinutes");
+const stealthBreakMaxMinutes = $("stealthBreakMaxMinutes");
+const stealthTileDelayMinMs = $("stealthTileDelayMinMs");
+const stealthTileDelayMaxMs = $("stealthTileDelayMaxMs");
+
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -868,24 +882,36 @@ openManageTemplates.addEventListener("click", () => {
 openSettings.addEventListener("click", async () => {
     try {
         const response = await axios.get('/settings');
-        const currentSettings = response.data;
-        drawingDirectionSelect.value = currentSettings.drawingDirection;
-        drawingOrderSelect.value = currentSettings.drawingOrder;
-        pixelSkipSelect.value = currentSettings.pixelSkip;
-        stealthMode.checked = currentSettings.stealthMode;
+        const s = response.data;
+        drawingDirectionSelect.value = s.drawingDirection;
+        drawingOrderSelect.value = s.drawingOrder;
+        pixelSkipSelect.value = s.pixelSkip;
+        stealthMode.checked = s.stealthMode;
+        stealthOptions.style.display = s.stealthMode ? 'block' : 'none';
+        
+        stealthChargeThresholdFluctuation.value = s.stealthChargeThresholdFluctuation;
+        stealthCooldownMinPercent.value = s.stealthCooldownMinPercent;
+        stealthCooldownMaxPercent.value = s.stealthCooldownMaxPercent;
+        stealthBurstMinPercent.value = s.stealthBurstMinPercent;
+        stealthBurstMaxPercent.value = s.stealthBurstMaxPercent;
+        stealthBreakChancePercent.value = s.stealthBreakChancePercent;
+        stealthBreakMinMinutes.value = s.stealthBreakMinMinutes;
+        stealthBreakMaxMinutes.value = s.stealthBreakMaxMinutes;
+        stealthTileDelayMinMs.value = s.stealthTileDelayMinMs;
+        stealthTileDelayMaxMs.value = s.stealthTileDelayMaxMs;
 
-        proxyEnabled.checked = currentSettings.proxyEnabled;
-        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
-        logProxyUsage.checked = currentSettings.logProxyUsage;
-        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
+        proxyEnabled.checked = s.proxyEnabled;
+        proxyRotationMode.value = s.proxyRotationMode || 'sequential';
+        logProxyUsage.checked = s.logProxyUsage;
+        proxyCount.textContent = `${s.proxyCount} proxies loaded from file.`;
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
 
-        accountCooldown.value = currentSettings.accountCooldown / 1000;
-        purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
-        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
-        dropletReserve.value = currentSettings.dropletReserve;
-        antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
-        chargeThreshold.value = currentSettings.chargeThreshold * 100;
+        accountCooldown.value = s.accountCooldown / 1000;
+        purchaseCooldown.value = s.purchaseCooldown / 1000;
+        accountCheckCooldown.value = s.accountCheckCooldown / 1000;
+        dropletReserve.value = s.dropletReserve;
+        antiGriefStandby.value = s.antiGriefStandby / 60000;
+        chargeThreshold.value = s.chargeThreshold * 100;
     } catch (error) {
         handleError(error);
     }
@@ -901,23 +927,49 @@ const saveSetting = async (setting) => {
     }
 };
 
+const setupSettingListener = (element, key, isNumeric = true, multiplier = 1, isFloat = false) => {
+    element.addEventListener('change', () => {
+        let value = element.value;
+        if (isNumeric) {
+            value = isFloat ? parseFloat(value) : parseInt(value, 10);
+            if (isNaN(value)) {
+                showMessage("Error", "Please enter a valid number.");
+                return;
+            }
+        }
+        saveSetting({ [key]: value * multiplier });
+    });
+};
+
 drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
-stealthMode.addEventListener('change', () => saveSetting({ stealthMode: stealthMode.checked }));
+
+stealthMode.addEventListener('change', () => {
+    const isEnabled = stealthMode.checked;
+    stealthOptions.style.display = isEnabled ? 'block' : 'none';
+    saveSetting({ stealthMode: isEnabled });
+});
+
+setupSettingListener(stealthChargeThresholdFluctuation, 'stealthChargeThresholdFluctuation');
+setupSettingListener(stealthCooldownMinPercent, 'stealthCooldownMinPercent');
+setupSettingListener(stealthCooldownMaxPercent, 'stealthCooldownMaxPercent');
+setupSettingListener(stealthBurstMinPercent, 'stealthBurstMinPercent');
+setupSettingListener(stealthBurstMaxPercent, 'stealthBurstMaxPercent');
+setupSettingListener(stealthBreakChancePercent, 'stealthBreakChancePercent');
+setupSettingListener(stealthBreakMinMinutes, 'stealthBreakMinMinutes');
+setupSettingListener(stealthBreakMaxMinutes, 'stealthBreakMaxMinutes');
+setupSettingListener(stealthTileDelayMinMs, 'stealthTileDelayMinMs');
+setupSettingListener(stealthTileDelayMaxMs, 'stealthTileDelayMaxMs');
+
 
 proxyEnabled.addEventListener('change', () => {
     proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
     saveSetting({ proxyEnabled: proxyEnabled.checked });
 });
 
-logProxyUsage.addEventListener('change', () => {
-    saveSetting({ logProxyUsage: logProxyUsage.checked });
-});
-
-proxyRotationMode.addEventListener('change', () => {
-    saveSetting({ proxyRotationMode: proxyRotationMode.value });
-});
+logProxyUsage.addEventListener('change', () => saveSetting({ logProxyUsage: logProxyUsage.checked }));
+proxyRotationMode.addEventListener('change', () => saveSetting({ proxyRotationMode: proxyRotationMode.value }));
 
 reloadProxiesBtn.addEventListener('click', async () => {
     try {
@@ -931,59 +983,12 @@ reloadProxiesBtn.addEventListener('click', async () => {
     }
 });
 
-accountCooldown.addEventListener('change', () => {
-    const value = parseInt(accountCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage("Error", "Please enter a valid non-negative number.");
-        return;
-    }
-    saveSetting({ accountCooldown: value });
-});
-
-purchaseCooldown.addEventListener('change', () => {
-    const value = parseInt(purchaseCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage("Error", "Please enter a valid non-negative number.");
-        return;
-    }
-    saveSetting({ purchaseCooldown: value });
-});
-
-accountCheckCooldown.addEventListener('change', () => {
-    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage("Error", "Please enter a valid non-negative number.");
-        return;
-    }
-    saveSetting({ accountCheckCooldown: value });
-});
-
-dropletReserve.addEventListener('change', () => {
-    const value = parseInt(dropletReserve.value, 10);
-    if (isNaN(value) || value < 0) {
-        showMessage("Error", "Please enter a valid non-negative number.");
-        return;
-    }
-    saveSetting({ dropletReserve: value });
-});
-
-antiGriefStandby.addEventListener('change', () => {
-    const value = parseInt(antiGriefStandby.value, 10) * 60000;
-    if (isNaN(value) || value < 60000) {
-        showMessage("Error", "Please enter a valid number (at least 1 minute).");
-        return;
-    }
-    saveSetting({ antiGriefStandby: value });
-});
-
-chargeThreshold.addEventListener('change', () => {
-    const value = parseInt(chargeThreshold.value, 10);
-    if (isNaN(value) || value < 0 || value > 100) {
-        showMessage("Error", "Please enter a valid percentage between 0 and 100.");
-        return;
-    }
-    saveSetting({ chargeThreshold: value / 100 });
-});
+setupSettingListener(accountCooldown, 'accountCooldown', true, 1000);
+setupSettingListener(purchaseCooldown, 'purchaseCooldown', true, 1000);
+setupSettingListener(accountCheckCooldown, 'accountCheckCooldown', true, 1000);
+setupSettingListener(dropletReserve, 'dropletReserve');
+setupSettingListener(antiGriefStandby, 'antiGriefStandby', true, 60000);
+setupSettingListener(chargeThreshold, 'chargeThreshold', true, 0.01, true);
 
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
