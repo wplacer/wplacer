@@ -692,11 +692,7 @@ class TemplateManager {
                                 break;
                             } catch (error) {
                                 logUserError(error, checkUserId, users[checkUserId].name, "check pixels left");
-                                if (error.message?.includes("(401)")) {
-                                    log(checkUserId, users[checkUserId].name, `[${this.name}] Authentication error (401) on canvas check. Removing from active queue.`);
-                                } else {
-                                    this.userQueue.push(checkUserId);
-                                }
+                                this.userQueue.push(checkUserId);
                             }
                         }
                         if (!pixelsChecked) {
@@ -740,16 +736,11 @@ class TemplateManager {
                                         await w.login(users[userId].cookies);
                                     } catch (e) {
                                         logUserError(e, userId, users[userId].name, "opportunistic resync");
-                                        if (e.message?.includes("(401)")) {
-                                            log(userId, users[userId].name, `[${this.name}] Authentication error (401) on resync. Removing from active queue.`);
-                                            shouldRequeue = false;
-                                        }
                                     } finally {
                                         activeBrowserUsers.delete(userId);
                                     }
                                 }
                             }
-                            if (!shouldRequeue) continue;
                             const predicted = ChargeCache.predict(userId, now);
                             if (predicted && Math.floor(predicted.count) >= Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold))) {
                                 activeBrowserUsers.add(userId);
@@ -764,10 +755,6 @@ class TemplateManager {
                                     this.currentRetryDelay = this.initialRetryDelay;
                                 } catch (error) {
                                     if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, "perform paint turn");
-                                    if (error.message?.includes("(401)")) {
-                                        log(userId, users[userId].name, `[${this.name}] Authentication error (401). Removing from this template's active queue.`);
-                                        shouldRequeue = false;
-                                    }
                                 } finally {
                                     activeBrowserUsers.delete(userId);
                                     if (shouldRequeue) this.userQueue.push(userId);
@@ -922,7 +909,6 @@ app.get("/user/status/:id", async (req, res) => {
 app.post("/users/status", async (req, res) => {
     const userIds = Object.keys(users);
     const results = {};
-    const concurrencyLimit = 5;
     const checkUser = async (id) => {
         if (activeBrowserUsers.has(id)) {
             results[id] = { success: false, error: "User is busy." };
@@ -942,20 +928,13 @@ app.post("/users/status", async (req, res) => {
     };
     const USER_TIMEOUT_MS = 30_000;
     const withTimeout = (p, ms, label) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timeout`)), ms))]);
-    const queue = [...userIds];
-    const workers = Array.from({ length: Math.max(1, concurrencyLimit) }, async () => {
-        while (true) {
-            const userId = queue.shift();
-            if (!userId) break;
-            try {
-                await withTimeout(checkUser(userId), USER_TIMEOUT_MS, `user ${userId}`);
-            } catch (err) {
-                results[userId] = { success: false, error: err.message };
-            }
-            await sleep(10);
+    for (const userId of userIds) {
+        try {
+            await withTimeout(checkUser(userId), USER_TIMEOUT_MS, `user ${userId}`);
+        } catch (err) {
+            results[userId] = { success: false, error: err.message };
         }
-    });
-    await Promise.all(workers);
+    }
     res.json(results);
 });
 
