@@ -910,11 +910,11 @@ openManageTemplates.addEventListener('click', () => {
                 // header: name and quick stats
                 const header = document.createElement('div');
                 header.className = 'template-header';
-                const pixelCountAndName = document.createElement('span')
-                pixelCountAndName.textContent = `${t.name} ${completed}/${total} px`
-                pixelCountAndName.className = 'pixel-count'
+                const pixelCountAndName = document.createElement('span');
+                pixelCountAndName.textContent = `${t.name} ${completed}/${total} px`;
+                pixelCountAndName.className = 'pixel-count';
 
-                header.append(pixelCountAndName)
+                header.append(pixelCountAndName);
 
                 card.appendChild(header);
 
