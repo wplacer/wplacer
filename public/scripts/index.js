@@ -998,11 +998,7 @@ openManageTemplates.addEventListener('click', () => {
                 function drawOnce() {
                     if (drawn) return;
                     drawTemplate(t.template, canvas);
-                    canvas.addEventListener('click', () => {
-                        if (!t.coords || t.coords.length !== 4) return;
-                        const url = wplaceUrlFromCoords(t.coords);
-                        window.open(url, '_blank');
-                    })
+                    });
                     drawn = true;
                 }
 
