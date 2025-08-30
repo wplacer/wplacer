@@ -365,15 +365,21 @@ canvas {
     text-align: left;
 }
 
-.template span {
-    display: block;
-    line-height: 1.6;
-    color: var(--text-secondary);
+.template-info {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+    gap: 4px;
+    margin-bottom: 12px;
 }
 
-.template span b {
+.template-info b {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+.template-info .template-data {
+    color: var(--text-secondary);
 }
 
 .progress-bar-container {
