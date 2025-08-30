@@ -997,7 +997,6 @@ openManageTemplates.addEventListener('click', () => {
                 function drawOnce() {
                     if (drawn) return;
                     drawTemplate(t.template, canvas);
-                    });
                     drawn = true;
                 }
 
