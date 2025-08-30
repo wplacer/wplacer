@@ -806,7 +806,6 @@ const updateTemplateStatus = async () => {
         const { data: templates } = await axios.get('/templates');
         for (const id in templates) {
             const t = templates[id];
-            console.log(t)
             const templateElement = $(id);
             if (!templateElement) continue;
 
