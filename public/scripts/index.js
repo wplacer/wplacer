@@ -854,7 +854,7 @@ function tlpxToLatLng(tlX, tlY, pxX, pxY) {
 }
 function wplaceUrlFromCoords(coords, zoom = 17.432051496765904) {
   const [tlX, tlY, pxX, pxY] = coords.map(Number);
-  const { lat, lng } = tlpxToLatLng(tlX, tlY, pxX, pyY = pxY); // keep names explicit
+  const { lat, lng } = tlpxToLatLng(tlX, tlY, pxX, pxY); // keep names explicit
   return `https://wplace.live/?lat=${lat}&lng=${lng}&zoom=${zoom}`;
 }
 
