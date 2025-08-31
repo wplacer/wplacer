@@ -696,23 +696,10 @@ class WPlacer {
         }
 
         // order (only applies if not using a color-based direction)
-        switch (this.globalSettings.drawingOrder) {
-            case 'color':
-            case 'randomColor': {
-                const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
-                const colors = Object.keys(buckets);
-                if (this.globalSettings.drawingOrder === 'randomColor') {
-                    for (let i = colors.length - 1; i > 0; i--) {
-                        const j = Math.floor(Math.random() * (i + 1));
-                        [colors[i], colors[j]] = [colors[j], colors[i]];
-                    }
-                }
-                mismatched = colors.flatMap((c) => buckets[c]);
-                break;
-            }
-            case 'linear':
-            default:
-                break;
+        if (this.globalSettings.drawingOrder === 'color') {
+            const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
+            const colors = Object.keys(buckets);
+            mismatched = colors.flatMap((c) => buckets[c]);
         }
 
         const chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
@@ -1219,7 +1206,7 @@ class TemplateManager {
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
-        const isColorMode = ['color', 'randomColor'].includes(currentSettings.drawingOrder);
+        const isColorMode = currentSettings.drawingOrder === 'color';
 
         try {
             while (this.running) {
