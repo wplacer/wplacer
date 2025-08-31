@@ -46,6 +46,7 @@ const templateList = $('templateList');
 const startAll = $('startAll');
 const stopAll = $('stopAll');
 const settings = $('settings');
+const openBrowserOnStart = $('openBrowserOnStart');
 const drawingDirectionSelect = $('drawingDirectionSelect');
 const drawingOrderSelect = $('drawingOrderSelect');
 const pixelSkipSelect = $('pixelSkipSelect');
@@ -792,7 +793,7 @@ const createToggleButton = (template, id, buttonsContainer, progressBarText, cur
     const isRunning = template.running;
 
     button.className = isRunning ? 'destructive-button' : 'primary-button';
-    button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'} Template`;
+    button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'}`;
 
     button.addEventListener('click', async () => {
         try {
@@ -826,11 +827,11 @@ const updateTemplateStatus = async () => {
 
             const progressBar = templateElement.querySelector('.progress-bar');
             const progressBarText = templateElement.querySelector('.progress-bar-text');
-            const pixelCount = templateElement.querySelector('.pixel-count');
+            const pixelCountSpan = templateElement.querySelector('.pixel-count');
 
             if (progressBar) progressBar.style.width = `${percent}%`;
             if (progressBarText) progressBarText.textContent = `${percent}% | ${t.status}`;
-            if (pixelCount) pixelCount.textContent = `${t.name} ${completed}px / ${total}px`;
+            if (pixelCountSpan) pixelCountSpan.textContent = `${completed} / ${total}`;
 
             if (t.status === 'Finished.') {
                 progressBar.classList.add('finished');
@@ -847,45 +848,124 @@ const updateTemplateStatus = async () => {
     }
 };
 
-function tlpxToLatLng(tlX, tlY, pxX, pxY) {
-  const MAP_TILE = 1024;      // map tile pixels
-  const CANVAS_TILE = 1000;   // canvas tile pixels
-  const TILE_Z = 11;          // fixed zoom used by wplace tiling
+const createTemplateCard = (t, id) => {
+    const total = t.totalPixels || 1;
+    const remaining = t.pixelsRemaining != null ? t.pixelsRemaining : total;
+    const completed = total - remaining;
+    const percent = Math.floor((completed / total) * 100);
 
-  const sx = pxX * (MAP_TILE / CANVAS_TILE);
-  const sy = pxY * (MAP_TILE / CANVAS_TILE);
-  const worldX = tlX * MAP_TILE + sx;
-  const worldY = tlY * MAP_TILE + sy;
+    const card = document.createElement('div');
+    card.id = id;
+    card.className = 'template';
 
-  const W = MAP_TILE * Math.pow(2, TILE_Z);
-  const lng = (worldX / W) * 360 - 180;
-  const lat = Math.atan(Math.sinh(Math.PI * (1 - 2 * (worldY / W)))) * 180 / Math.PI;
-  return { lat, lng };
-}
-function wplaceUrlFromCoords(coords, zoom = 17.432051496765904) {
-  const [tlX, tlY, pxX, pxY] = coords.map(Number);
-  const { lat, lng } = tlpxToLatLng(tlX, tlY, pxX, pxY); // keep names explicit
-  return `https://wplace.live/?lat=${lat}&lng=${lng}&zoom=${zoom}`;
-}
+    // Header: Name and Pixels
+    const info = document.createElement('div');
+    info.className = 'template-info';
+    info.innerHTML = `
+        <span><b>Name:</b> <span class="template-data">${t.name}</span></span>
+        <span><b>Pixels:</b> <span class="template-data pixel-count">${completed} / ${total}</span></span>
+    `;
+    card.appendChild(info);
+
+    // Progress Bar
+    const pc = document.createElement('div');
+    pc.className = 'progress-bar-container';
+    const pb = document.createElement('div');
+    pb.className = 'progress-bar';
+    pb.style.width = `${percent}%`;
+    const pbt = document.createElement('span');
+    pbt.className = 'progress-bar-text';
+    pbt.textContent = `${percent}% | ${t.status}`;
+    if (t.status === 'Finished.') pb.classList.add('finished');
+    else if (!t.running) pb.classList.add('stopped');
+    pc.append(pb, pbt);
+    card.appendChild(pc);
+
+    // Actions
+    const actions = document.createElement('div');
+    actions.className = 'template-actions';
+    actions.appendChild(createToggleButton(t, id, actions, pbt, percent));
+
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'secondary-button';
+    shareBtn.innerHTML = '<img src="icons/open.svg">Share';
+    shareBtn.addEventListener('click', async () => {
+        if (!t.shareCode) {
+            showMessage('Error', 'No share code available for this template.');
+            return;
+        }
+        await navigator.clipboard.writeText(t.shareCode);
+        showMessage('Copied!', 'Share code copied to clipboard.');
+    });
+    actions.appendChild(shareBtn);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'secondary-button';
+    editBtn.innerHTML = '<img src="icons/settings.svg">Edit';
+    editBtn.addEventListener('click', () => {
+        openAddTemplate.click();
+        templateFormTitle.textContent = `Edit Template: ${t.name}`;
+        submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
+        templateForm.dataset.editId = id;
+        templateName.value = t.name;
+        [tx.value, ty.value, px.value, py.value] = t.coords;
+        canBuyCharges.checked = t.canBuyCharges;
+        canBuyMaxCharges.checked = t.canBuyMaxCharges;
+        antiGriefMode.checked = t.antiGriefMode;
+        eraseMode.checked = t.eraseMode;
+        templateOutlineMode.checked = t.outlineMode;
+        templateSkipPaintedPixels.checked = t.skipPaintedPixels;
+        enableAutostart.checked = t.enableAutostart;
+        setTimeout(() => {
+            document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
+                cb.checked = t.userIds.includes(cb.value);
+            });
+        }, 100);
+    });
+    actions.appendChild(editBtn);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'destructive-button';
+    delBtn.innerHTML = '<img src="icons/remove.svg">Delete';
+    delBtn.addEventListener('click', () => {
+        showConfirmation('Delete Template', `Are you sure you want to delete "${t.name}"?`, async () => {
+            try {
+                await axios.delete(`/template/${id}`);
+                openManageTemplates.click();
+            } catch (e) {
+                handleError(e);
+            }
+        });
+    });
+    actions.appendChild(delBtn);
+    card.appendChild(actions);
+
+    // Canvas Preview
+    const canvasContainer = document.createElement('div');
+    const canvas = document.createElement('canvas');
+    canvasContainer.appendChild(canvas);
+    card.appendChild(canvasContainer);
+    drawTemplate(t.template, canvas);
+
+    return card;
+};
 
 let importShareCode = false;
 openManageTemplates.addEventListener('click', () => {
     templateList.innerHTML = '';
     if (templateUpdateInterval) clearInterval(templateUpdateInterval);
 
-    // top toolbar: only once
-    const topBar = document.createElement('div');
-    topBar.className = 'template-toolbar';
     if (!importShareCode) {
+        const topBar = document.createElement('div');
+        topBar.className = 'template-actions-all';
         const importBtnTop = document.createElement('button');
-        importBtnTop.className = 'secondary-button btn-sm';
+        importBtnTop.className = 'secondary-button';
         importBtnTop.innerHTML = '<img src="icons/addTemplate.svg">Import Share Code';
+        importBtnTop.style.marginBottom = '24px';
         importBtnTop.addEventListener('click', async () => {
             const code = prompt('Paste a share code:');
             if (!code) return;
             try {
-                // minimal import. Server endpoint you already have:
-                // POST /templates/import expects: { id, name, coords, code }
                 const genId = Date.now().toString();
                 await axios.post('/templates/import', {
                     id: genId,
@@ -893,7 +973,7 @@ openManageTemplates.addEventListener('click', () => {
                     coords: [0, 0, 0, 0],
                     code,
                 });
-                showMessage('Success', 'Template imported.');
+                showMessage('Success', 'Template imported successfully.');
                 openManageTemplates.click();
             } catch (e) {
                 handleError(e);
@@ -903,131 +983,19 @@ openManageTemplates.addEventListener('click', () => {
         templateList.before(topBar);
         importShareCode = true;
     }
-    loadUsers((users) => {
-        loadTemplates((templates) => {
-            for (const id of Object.keys(templates)) {
-                const t = templates[id];
-                const total = t.totalPixels || 1;
-                const remaining = t.pixelsRemaining != null ? t.pixelsRemaining : total;
-                const completed = total - remaining;
-                const percent = Math.floor((completed / total) * 100);
 
-                const card = document.createElement('div');
-                card.id = id;
-                card.className = 'template';
-
-                // header: name and quick stats
-                const header = document.createElement('div');
-                header.className = 'template-header';
-                const pixelCountAndName = document.createElement('span');
-                pixelCountAndName.textContent = `${t.name} ${completed}/${total} px`;
-                pixelCountAndName.className = 'pixel-count';
-
-                header.append(pixelCountAndName);
-
-                card.appendChild(header);
-
-                // progress
-                const pc = document.createElement('div');
-                pc.className = 'progress-bar-container';
-                const pb = document.createElement('div');
-                pb.className = 'progress-bar';
-                pb.style.width = `${percent}%`;
-                const pbt = document.createElement('span');
-                pbt.className = 'progress-bar-text';
-                pbt.textContent = `${percent}% | ${t.status}`;
-                if (t.status === 'Finished.') pb.classList.add('finished');
-                else if (!t.running) pb.classList.add('stopped');
-                pc.append(pb, pbt);
-                card.appendChild(pc);
-
-                // actions row
-                const actions = document.createElement('div');
-                actions.className = 'template-actions compact';
-
-                actions.appendChild(createToggleButton(t, id, actions, pbt, percent));
-
-                const copyBtn = document.createElement('button');
-                copyBtn.className = 'secondary-button btn-sm';
-                copyBtn.innerHTML = '<img src="icons/code.svg">Copy Share Code';
-                copyBtn.addEventListener('click', async () => {
-                    const code = t.shareCode; // from server
-                    if (!code) {
-                        showMessage('Error', 'No share code available.');
-                        return;
-                    }
-                    await navigator.clipboard.writeText(code);
-                    showMessage('Copied', 'Share code copied to clipboard.');
-                });
-                actions.appendChild(copyBtn);
-
-                const editBtn = document.createElement('button');
-                editBtn.className = 'secondary-button btn-sm';
-                editBtn.innerHTML = '<img src="icons/settings.svg">Edit';
-                editBtn.addEventListener('click', () => {
-                    openAddTemplate.click();
-                    templateFormTitle.textContent = `Edit Template: ${t.name}`;
-                    submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
-                    templateForm.dataset.editId = id;
-                    templateName.value = t.name;
-                    [tx.value, ty.value, px.value, py.value] = t.coords;
-                    canBuyCharges.checked = t.canBuyCharges;
-                    canBuyMaxCharges.checked = t.canBuyMaxCharges;
-                    antiGriefMode.checked = t.antiGriefMode;
-                    eraseMode.checked = t.eraseMode;
-                    templateOutlineMode.checked = t.outlineMode;
-                    templateSkipPaintedPixels.checked = t.skipPaintedPixels;
-                    enableAutostart.checked = t.enableAutostart;
-                    setTimeout(() => {
-                        document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
-                            cb.checked = t.userIds.includes(cb.value);
-                        });
-                    }, 100);
-                });
-                actions.appendChild(editBtn);
-
-                const delBtn = document.createElement('button');
-                delBtn.className = 'destructive-button btn-sm';
-                delBtn.innerHTML = '<img src="icons/remove.svg">Delete';
-                delBtn.addEventListener('click', () => {
-                    showConfirmation('Delete Template', `Delete "${t.name}"?`, async () => {
-                        try {
-                            await axios.delete(`/template/${id}`);
-                            openManageTemplates.click();
-                        } catch (e) {
-                            handleError(e);
-                        }
-                    });
-                });
-                actions.appendChild(delBtn);
-
-                card.appendChild(actions);
-
-                let drawn = false;
-                function drawOnce() {
-                    if (drawn) return;
-                    drawTemplate(t.template, canvas);
-                    drawn = true;
-                }
-
-                // collapsible details (hidden by default)
-                const details = document.createElement('div');
-                details.className = 'template-details hidden';
-                const canvas = document.createElement('canvas');
-                // draw only when expanded
-                header.addEventListener('click', () => {
-                    details.classList.toggle('hidden');
-                    drawOnce();
-                    if (!details.classList.contains('hidden') && canvas.width === 0) drawTemplate(t.template, canvas);
-                });
-                details.append(canvas);
-                card.appendChild(details);
-
-                templateList.appendChild(card);
-            }
-            templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
-        });
+    loadTemplates((templates) => {
+        if (Object.keys(templates).length === 0) {
+            templateList.innerHTML = '<span>No templates created yet.</span>';
+            return;
+        }
+        for (const id in templates) {
+            const card = createTemplateCard(templates[id], id);
+            templateList.appendChild(card);
+        }
+        templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
     });
+
     changeTab('manageTemplates');
 });
 
@@ -1035,6 +1003,7 @@ openSettings.addEventListener('click', async () => {
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
+        openBrowserOnStart.checked = currentSettings.openBrowserOnStart;
         drawingDirectionSelect.value = currentSettings.drawingDirection;
         drawingOrderSelect.value = currentSettings.drawingOrder;
         pixelSkipSelect.value = currentSettings.pixelSkip;
@@ -1066,6 +1035,7 @@ const saveSetting = async (setting) => {
     }
 };
 
+openBrowserOnStart.addEventListener('change', () => saveSetting({ openBrowserOnStart: openBrowserOnStart.checked }));
 drawingDirectionSelect.addEventListener('change', () =>
     saveSetting({ drawingDirection: drawingDirectionSelect.value })
 );

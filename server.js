@@ -331,7 +331,7 @@ const loadProxies = () => {
     for (const line of lines) {
         const p = parseOne(line);
         if (!p) {
-            console.log(`[SYSTEM] WARNING: Invalid proxy skipped: "${line}"`);
+            console.log(`[SYSTEM] ⚠️ WARNING: Invalid proxy skipped: "${line}"`);
             continue;
         }
         const key = `${p.protocol}://${p.username}:${p.password}@${p.host}:${p.port}`;
@@ -376,7 +376,7 @@ const getColorOrderForTemplate = (templateId) => {
  * Holds cookie jar, optional proxy, and Impit fetch context.
  */
 class WPlacer {
-    constructor(template, coords, globalSettings, templateSettings, templateName) {
+    constructor({ template, coords, globalSettings, templateSettings, templateName }) {
         this.template = template;
         this.templateName = templateName;
         this.coords = coords;
@@ -517,7 +517,7 @@ class WPlacer {
             log(
                 this.userInfo.id,
                 this.userInfo.name,
-                `[${this.templateName}] Painted ${body.colors.length} px at ${tx},${ty}.`
+                `[${this.templateName}] 🎨 Painted ${body.colors.length} px at ${tx},${ty}.`
             );
             return { painted: body.colors.length };
         }
@@ -533,7 +533,7 @@ class WPlacer {
         if (response.status === HTTP_STATUS.UNAVAILABLE_LEGAL && response.data.suspension)
             throw new SuspensionError(`Account is suspended.`, response.data.durationMs || 0);
         if (response.status === HTTP_STATUS.SRV_ERR) {
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Server error (500). Wait 40s.`);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Wait 40s.`);
             await sleep(MS.FORTY_SEC);
             return { painted: 0 };
         }
@@ -628,7 +628,7 @@ class WPlacer {
     }
 
     async paint(currentSkip = 1) {
-        await this.loadTiles();
+        if (this.tiles.size === 0) await this.loadTiles();
         if (!this.token) throw new Error('Token not provided.');
 
         let mismatched = this._getMismatchedPixels(currentSkip);
@@ -743,7 +743,7 @@ class WPlacer {
             let msg = `Purchase ok product #${productId} amount ${amount}`;
             if (productId === 80) msg = `Bought ${amount * 30} pixels for ${amount * 500} droplets`;
             else if (productId === 70) msg = `Bought ${amount} Max Charge for ${amount * 500} droplets`;
-            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ${msg}`);
+            log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 💰 ${msg}`);
             return true;
         }
         if (res.status === HTTP_STATUS.TOO_MANY || (res.data.error && res.data.error.includes('Error 1015')))
@@ -751,8 +751,10 @@ class WPlacer {
         throw new Error(`Unexpected purchase response: ${JSON.stringify(res)}`);
     }
 
-    async pixelsLeft(currentSkip = 1, useCachedTiles = false) {
-        if (!useCachedTiles) await this.loadTiles();
+    async pixelsLeft(currentSkip = 1) {
+        if (this.tiles.size === 0) {
+            await this.loadTiles();
+        }
         return this._getMismatchedPixels(currentSkip).length;
     }
 }
@@ -935,7 +937,7 @@ function loadTemplatesFromDisk() {
                 },
             };
         } catch (err) {
-            console.error(`[templates] skip ${id}: ${err.message}`);
+            console.error(`[templates] ⚠️ skip ${id}: ${err.message}`);
         }
     }
     templates = out;
@@ -963,7 +965,7 @@ function saveTemplatesCompressed() {
                 template: { width, height, shareCode }, // compact on disk
             };
         } catch (e) {
-            console.error(`[templates] skip ${id}: ${e.message}`);
+            console.error(`[templates] ⚠️ skip ${id}: ${e.message}`);
         }
     }
     writeFileSync(TEMPLATES_PATH, JSON.stringify(toSave, null, 2));
@@ -985,6 +987,7 @@ let currentSettings = {
     proxyEnabled: false,
     proxyRotationMode: 'sequential', // 'sequential' | 'random'
     logProxyUsage: false,
+    openBrowserOnStart: true,
 };
 if (existsSync(path.join(DATA_DIR, SETTINGS_FILE))) {
     currentSettings = { ...currentSettings, ...loadJSON(SETTINGS_FILE) };
@@ -1012,13 +1015,13 @@ const TokenManager = {
         const size0 = this.tokenQueue.length;
         this.tokenQueue = this.tokenQueue.filter((t) => now - t.receivedAt < this.TOKEN_EXPIRATION_MS);
         const removed = size0 - this.tokenQueue.length;
-        if (removed > 0) log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Discarded ${removed} expired token(s).`);
+        if (removed > 0) log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🗑️ Discarded ${removed} expired token(s).`);
     },
     getToken() {
         this._purgeExpiredTokens();
         if (this.tokenQueue.length > 0) return Promise.resolve(this.tokenQueue[0].token);
         if (!this.tokenPromise) {
-            log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: A task is waiting for a token.');
+            log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: ⏳ A task is waiting for a token.');
             this.isTokenNeeded = true;
             this.tokenPromise = new Promise((resolve) => {
                 this.resolvePromise = resolve;
@@ -1027,7 +1030,7 @@ const TokenManager = {
         return this.tokenPromise;
     },
     setToken(t) {
-        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Token received. Queue size: ${this.tokenQueue.length + 1}`);
+        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received. Queue size: ${this.tokenQueue.length + 1}`);
         this.isTokenNeeded = false;
         const newToken = { token: t, receivedAt: Date.now() };
         this.tokenQueue.push(newToken);
@@ -1039,7 +1042,7 @@ const TokenManager = {
     },
     invalidateToken() {
         this.tokenQueue.shift();
-        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: Invalidating token. ${this.tokenQueue.length} left.`);
+        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🔄 Invalidating token. ${this.tokenQueue.length} left.`);
     },
 };
 
@@ -1054,16 +1057,16 @@ function logUserError(error, id, name, context) {
         message.includes('(502)') ||
         error?.name === 'SuspensionError'
     ) {
-        log(id, name, `Failed to ${context}: ${message}`);
+        log(id, name, `❌ Failed to ${context}: ${message}`);
     } else {
-        log(id, name, `Failed to ${context}`, error);
+        log(id, name, `❌ Failed to ${context}`, error);
     }
 }
 
 // ---------- TemplateManager ----------
 
 class TemplateManager {
-    constructor(
+    constructor({
         name,
         templateData,
         coords,
@@ -1074,8 +1077,8 @@ class TemplateManager {
         outlineMode,
         skipPaintedPixels,
         enableAutostart,
-        userIds
-    ) {
+        userIds,
+    }) {
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -1123,7 +1126,7 @@ class TemplateManager {
     }
     interruptSleep() {
         if (this.sleepAbortController) {
-            log('SYSTEM', 'wplacer', `[${this.name}] Settings changed, waking.`);
+            log('SYSTEM', 'wplacer', `[${this.name}] ⚙️ Settings changed, waking.`);
             this.sleepAbortController.abort();
         }
     }
@@ -1135,7 +1138,7 @@ class TemplateManager {
         const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
         const amountToBuy = Math.floor(affordableDroplets / 500);
         if (amountToBuy > 0) {
-            log(wplacer.userInfo.id, wplacer.userInfo.name, `Attempting to buy ${amountToBuy} max charge upgrade(s).`);
+            log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
             try {
                 await wplacer.buyProduct(70, amountToBuy);
                 await sleep(currentSettings.purchaseCooldown);
@@ -1158,13 +1161,13 @@ class TemplateManager {
             } catch (error) {
                 if (error.name === 'SuspensionError') {
                     const until = new Date(error.suspendedUntil).toLocaleString();
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] Account suspended until ${until}.`);
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended until ${until}.`);
                     users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
                     saveUsers();
                     throw error;
                 }
                 if (error.message === 'REFRESH_TOKEN') {
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] Token expired. Next token...`);
+                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired. Next token...`);
                     TokenManager.invalidateToken();
                     await sleep(1000);
                 } else {
@@ -1179,7 +1182,7 @@ class TemplateManager {
     async start() {
         this.running = true;
         this.status = 'Started.';
-        log('SYSTEM', 'wplacer', `Starting template "${this.name}"...`);
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
         try {
@@ -1199,7 +1202,7 @@ class TemplateManager {
 
                         const initialQueueSizeForCheck = this.userQueue.length;
                         if (initialQueueSizeForCheck === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] No valid users to check canvas. Waiting...`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users to check canvas. Waiting...`);
                             await sleep(5000);
                             this.userQueue = [...this.userIds];
                             continue;
@@ -1219,13 +1222,13 @@ class TemplateManager {
                                 outlineMode: this.outlineMode,
                                 skipPaintedPixels: this.skipPaintedPixels,
                             };
-                            const checkWplacer = new WPlacer(
-                                this.template,
-                                this.coords,
-                                currentSettings,
+                            const checkWplacer = new WPlacer({
+                                template: this.template,
+                                coords: this.coords,
+                                globalSettings: currentSettings,
                                 templateSettings,
-                                this.name
-                            );
+                                templateName: this.name,
+                            });
 
                             try {
                                 await checkWplacer.login(users[checkUserId].cookies);
@@ -1245,7 +1248,7 @@ class TemplateManager {
                             log(
                                 'SYSTEM',
                                 'wplacer',
-                                `[${this.name}] All users failed to check canvas. Retry in ${duration(this.currentRetryDelay)}.`
+                                `[${this.name}] ❌ All users failed to check canvas. Retry in ${duration(this.currentRetryDelay)}.`
                             );
                             await sleep(this.currentRetryDelay);
                             this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
@@ -1253,13 +1256,13 @@ class TemplateManager {
                         }
 
                         if (this.pixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] All passes complete! Template finished.`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished.`);
                             this.status = 'Finished.';
                             this.running = false;
                             break;
                         }
                         if (passPixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] Pass (1/${this.currentPixelSkip}) complete.`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
                             passComplete = true;
                             continue;
                         }
@@ -1268,7 +1271,7 @@ class TemplateManager {
 
                         // rotate users until one is ready by predicted charges
                         if (this.userQueue.length === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] No valid users in queue. Waiting...`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
                             await sleep(5000);
                             this.userQueue = [...this.userIds];
                             continue;
@@ -1291,7 +1294,7 @@ class TemplateManager {
                             if (ChargeCache.stale(userId, now)) {
                                 if (!activeBrowserUsers.has(userId)) {
                                     activeBrowserUsers.add(userId);
-                                    const w = new WPlacer();
+                                    const w = new WPlacer({});
                                     try {
                                         await w.login(users[userId].cookies);
                                     } catch (e) {
@@ -1309,24 +1312,24 @@ class TemplateManager {
 
                             if (predicted && Math.floor(predicted.count) >= threshold) {
                                 activeBrowserUsers.add(userId);
-                                const wplacer = new WPlacer(
-                                    this.template,
-                                    this.coords,
-                                    currentSettings,
-                                    {
+                                const wplacer = new WPlacer({
+                                    template: this.template,
+                                    coords: this.coords,
+                                    globalSettings: currentSettings,
+                                    templateSettings: {
                                         eraseMode: this.eraseMode,
                                         outlineMode: this.outlineMode,
                                         skipPaintedPixels: this.skipPaintedPixels,
                                     },
-                                    this.name
-                                );
+                                    templateName: this.name,
+                                });
                                 try {
                                     const userInfo = await wplacer.login(users[userId].cookies);
                                     this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
                                     log(
                                         userInfo.id,
                                         userInfo.name,
-                                        `[${this.name}] Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`
+                                        `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`
                                     );
                                     const paintedNow = await this._performPaintTurn(wplacer);
                                     if (paintedNow > 0) foundUserForTurn = true;
@@ -1350,7 +1353,7 @@ class TemplateManager {
                                 log(
                                     'SYSTEM',
                                     'wplacer',
-                                    `[${this.name}] Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`
+                                    `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`
                                 );
                                 await sleep(currentSettings.accountCooldown);
                             }
@@ -1365,7 +1368,7 @@ class TemplateManager {
                             });
                             const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
                             this.status = 'Waiting for charges.';
-                            log('SYSTEM', 'wplacer', `[${this.name}] No users ready. Waiting ~${duration(waitTime)}.`);
+                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                             await this.cancellableSleep(waitTime);
                         }
                     }
@@ -1378,12 +1381,12 @@ class TemplateManager {
                     log(
                         'SYSTEM',
                         'wplacer',
-                        `[${this.name}] All passes complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`
+                        `[${this.name}] 🖼️ All passes complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`
                     );
                     await this.cancellableSleep(currentSettings.antiGriefStandby);
                     continue;
                 } else {
-                    log('SYSTEM', 'wplacer', `[${this.name}] All passes complete! Template finished!`);
+                    log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
                     this.status = 'Finished.';
                     this.running = false;
                 }
@@ -1558,7 +1561,7 @@ app.get('/users', (_req, res) => res.json(users));
 
 app.post('/user', async (req, res) => {
     if (!req.body?.cookies || !req.body.cookies.j) return res.sendStatus(HTTP_STATUS.BAD_REQ);
-    const wplacer = new WPlacer();
+    const wplacer = new WPlacer({});
     try {
         const userInfo = await wplacer.login(req.body.cookies);
         users[userInfo.id] = {
@@ -1581,7 +1584,7 @@ app.delete('/user/:id', async (req, res) => {
     const deletedName = users[userId].name;
     delete users[userId];
     saveUsers();
-    log('SYSTEM', 'Users', `Deleted user ${deletedName}#${userId}.`);
+    log('SYSTEM', 'Users', `🗑️ Deleted user ${deletedName}#${userId}.`);
 
     let templatesModified = false;
     for (const templateId in templates) {
@@ -1591,14 +1594,14 @@ app.delete('/user/:id', async (req, res) => {
         manager.userQueue = manager.userQueue.filter((id) => id !== userId);
         if (manager.userIds.length < before) {
             templatesModified = true;
-            log('SYSTEM', 'Templates', `Removed user ${deletedName}#${userId} from template "${manager.name}".`);
+            log('SYSTEM', 'Templates', `🗑️ Removed user ${deletedName}#${userId} from template "${manager.name}".`);
             if (manager.masterId === userId) {
                 manager.masterId = manager.userIds[0] || null;
                 manager.masterName = manager.masterId ? users[manager.masterId].name : null;
             }
             if (manager.userIds.length === 0 && manager.running) {
                 manager.running = false;
-                log('SYSTEM', 'wplacer', `[${manager.name}] Template stopped, no users left.`);
+                log('SYSTEM', 'wplacer', `[${manager.name}] 🛑 Template stopped, no users left.`);
             }
         }
     }
@@ -1610,7 +1613,7 @@ app.get('/user/status/:id', async (req, res) => {
     const { id } = req.params;
     if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(HTTP_STATUS.CONFLICT);
     activeBrowserUsers.add(id);
-    const wplacer = new WPlacer();
+    const wplacer = new WPlacer({});
     try {
         const userInfo = await wplacer.login(users[id].cookies);
         res.status(HTTP_STATUS.OK).json(userInfo);
@@ -1636,7 +1639,7 @@ app.post('/users/status', async (_req, res) => {
             return;
         }
         activeBrowserUsers.add(id);
-        const wplacer = new WPlacer();
+        const wplacer = new WPlacer({});
         try {
             const userInfo = await wplacer.login(users[id].cookies);
             results[id] = { success: true, data: userInfo };
@@ -1734,9 +1737,9 @@ app.post('/template', (req, res) => {
         return res.status(HTTP_STATUS.CONFLICT).json({ error: 'A template with this name already exists.' });
 
     const templateId = Date.now().toString();
-    templates[templateId] = new TemplateManager(
-        templateName,
-        template,
+    templates[templateId] = new TemplateManager({
+        name: templateName,
+        templateData: template,
         coords,
         canBuyCharges,
         canBuyMaxCharges,
@@ -1745,8 +1748,8 @@ app.post('/template', (req, res) => {
         outlineMode,
         skipPaintedPixels,
         enableAutostart,
-        userIds
-    );
+        userIds,
+    });
     saveTemplates();
     res.status(HTTP_STATUS.OK).json({ id: templateId });
 });
@@ -1813,7 +1816,7 @@ app.put('/template/:id', (req, res) => {
                 if (!templateQueue.includes(id)) {
                     templateQueue.push(id);
                     manager.status = 'Queued';
-                    log('SYSTEM', 'wplacer', `[${manager.name}] Template queued as its users are busy.`);
+                    log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy.`);
                 }
             } else {
                 manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
@@ -1988,13 +1991,13 @@ function migrateOldTemplatesIfNeeded() {
             changed = true;
             console.log(`[migrate] compressed template ${id} (${e.name || 'unnamed'})`);
         } catch (err) {
-            console.error(`[migrate] skip ${id}: ${err.message}`);
+            console.error(`[migrate] ⚠️ skip ${id}: ${err.message}`);
             out[id] = e;
         }
     }
     if (changed) {
         writeFileSync(p, JSON.stringify(out, null, 2));
-        console.log(`[migrate] templates.json updated to compressed format`);
+        console.log(`[migrate] ✅ templates.json updated to compressed format`);
     }
 }
 
@@ -2037,51 +2040,53 @@ function migrateOldTemplatesIfNeeded() {
             const t = loadedTemplates[id];
             const templateData = ensureTemplateData(t.template);
             if (t.userIds.every((uid) => users[uid])) {
-                templates[id] = new TemplateManager(
-                    t.name,
+                templates[id] = new TemplateManager({
+                    name: t.name,
                     templateData,
-                    t.coords,
-                    t.canBuyCharges,
-                    t.canBuyMaxCharges,
-                    t.antiGriefMode,
-                    t.eraseMode,
-                    t.outlineMode,
-                    t.skipPaintedPixels,
-                    t.enableAutostart,
-                    t.userIds
-                );
+                    coords: t.coords,
+                    canBuyCharges: t.canBuyCharges,
+                    canBuyMaxCharges: t.canBuyMaxCharges,
+                    antiGriefMode: t.antiGriefMode,
+                    eraseMode: t.eraseMode,
+                    outlineMode: t.outlineMode,
+                    skipPaintedPixels: t.skipPaintedPixels,
+                    enableAutostart: t.enableAutostart,
+                    userIds: t.userIds,
+                });
                 if (t.enableAutostart) autostartedTemplates.push(id);
             } else {
-                console.warn(`Template "${t.name}" not loaded because assigned user(s) are missing.`);
+                console.warn(`⚠️ Template "${t.name}" not loaded because assigned user(s) are missing.`);
             }
         } catch (e) {
-            console.error(`Skipping template ${id}: ${e.message}`);
+            console.error(`⚠️ Skipping template ${id}: ${e.message}`);
         }
     }
 
     loadProxies();
     console.log(
-        `Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`
+        `✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`
     );
 
     const probe = Array.from(new Set([APP_PRIMARY_PORT, ...APP_FALLBACK_PORTS]));
     function tryListen(idx = 0) {
         if (idx >= probe.length) {
-            console.error('No available port found.');
+            console.error('❌ No available port found.');
             process.exit(1);
         }
         const port = probe[idx];
         const server = app.listen(port, APP_HOST);
         server.on('listening', () => {
             const url = `http://localhost:${port}`;
-            console.log(`Server listening on ${url}`);
-            console.log('Open the web UI in your browser to start.');
-            openBrowser(url);
+            console.log(`✅ Server listening on ${url}`);
+            console.log('   Open the web UI in your browser to start.');
+            if (currentSettings.openBrowserOnStart) {
+                openBrowser(url);
+            }
 
             autostartedTemplates.forEach((id) => {
                 const manager = templates[id];
                 if (!manager) return;
-                log('SYSTEM', 'wplacer', `[${manager.name}] Autostarting template...`);
+                log('SYSTEM', 'wplacer', `[${manager.name}] 🚀 Autostarting template...`);
                 if (manager.antiGriefMode) {
                     manager.start().catch((e) => log(id, manager.masterName, 'Error autostarting template', e));
                 } else {
@@ -2100,14 +2105,14 @@ function migrateOldTemplatesIfNeeded() {
         });
         server.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
-                console.error(`Port ${port} in use. Trying ${probe[idx + 1]}...`);
+                console.error(`❌ Port ${port} in use. Trying ${probe[idx + 1]}...`);
                 tryListen(idx + 1);
             } else if (err.code === 'EACCES') {
                 const nextIdx = Math.max(idx + 1, probe.indexOf(APP_FALLBACK_PORTS[0]));
-                console.error(`Permission denied on ${port}. Trying ${probe[nextIdx]}...`);
+                console.error(`❌ Permission denied on ${port}. Trying ${probe[nextIdx]}...`);
                 tryListen(nextIdx);
             } else {
-                console.error('Server error:', err);
+                console.error('❌ Server error:', err);
                 process.exit(1);
             }
         });
