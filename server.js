@@ -361,6 +361,14 @@ const getNextProxy = () => {
     return proxyUrl;
 };
 
+// Get the color ordoring for a given template, or global default.
+const getColorOrderForTemplate = (templateId) => {
+    if (templateId && colorOrdering.templates[templateId]) {
+        return colorOrdering.templates[templateId];
+    }
+    return colorOrdering.global;
+};
+
 // ---------- HTTP client wrapper ----------
 
 /**
@@ -667,17 +675,37 @@ class WPlacer {
                 }
                 break;
             }
+            // With this updated version:
             case 'color':
             case 'randomColor': {
                 const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
-                const colors = Object.keys(buckets);
-                if (this.globalSettings.drawingOrder === 'randomColor') {
+                let colors = Object.keys(buckets).map(Number);
+                
+                if (this.globalSettings.drawingOrder === 'color') {
+                    // Use custom color ordering if available, otherwise fall back to ID order
+                    const templateId = this.templateName ? Object.keys(templates).find(id => 
+                        templates[id].name === this.templateName) : null;
+                    const colorOrder = getColorOrderForTemplate(templateId);
+                    
+                    // Sort colors based on their position in the color order
+                    colors.sort((a, b) => {
+                        const indexA = colorOrder.indexOf(a);
+                        const indexB = colorOrder.indexOf(b);
+                        
+                        // If color not in order, put it at the end
+                        const finalA = indexA === -1 ? colorOrder.length : indexA;
+                        const finalB = indexB === -1 ? colorOrder.length : indexB;
+                        
+                        return finalA - finalB;
+                    });
+                } else if (this.globalSettings.drawingOrder === 'randomColor') {
                     for (let i = colors.length - 1; i > 0; i--) {
                         const j = Math.floor(Math.random() * (i + 1));
                         [colors[i], colors[j]] = [colors[j], colors[i]];
                     }
                 }
-                mismatched = colors.flatMap((c) => buckets[c]);
+                
+                mismatched = colors.flatMap((c) => buckets[String(c)]);
                 break;
             }
             case 'linear':
@@ -1402,6 +1430,119 @@ const processQueue = () => {
     }
 };
 
+// --- Color Odering ---
+
+// Default color order (by ID)
+let defaultColorOrder = Object.entries(pallete)
+    .map(([rgb, id]) => ({ rgb, id, name: getColorName(rgb) }))
+    .sort((a, b) => a.id - b.id)
+    .map(color => color.id);
+
+// Store custom color orders (can be global or per-template)
+let colorOrdering = {
+    global: [...defaultColorOrder], // Global color order
+    templates: {} // Per-template color orders
+};
+
+function getColorName(rgb) {
+    const colors = {
+        '0,0,0': { id: 1, name: 'Black' },
+        '60,60,60': { id: 2, name: 'Dark Gray' },
+        '120,120,120': { id: 3, name: 'Gray' },
+        '210,210,210': { id: 4, name: 'Light Gray' },
+        '255,255,255': { id: 5, name: 'White' },
+        '96,0,24': { id: 6, name: 'Dark Red' },
+        '237,28,36': { id: 7, name: 'Red' },
+        '255,127,39': { id: 8, name: 'Orange' },
+        '246,170,9': { id: 9, name: 'Dark Orange' },
+        '249,221,59': { id: 10, name: 'Yellow' },
+        '255,250,188': { id: 11, name: 'Light Yellow' },
+        '14,185,104': { id: 12, name: 'Green' },
+        '19,230,123': { id: 13, name: 'Light Green' },
+        '135,255,94': { id: 14, name: 'Bright Green' },
+        '12,129,110': { id: 15, name: 'Teal' },
+        '16,174,166': { id: 16, name: 'Cyan' },
+        '19,225,190': { id: 17, name: 'Light Cyan' },
+        '40,80,158': { id: 18, name: 'Dark Blue' },
+        '64,147,228': { id: 19, name: 'Blue' },
+        '96,247,242': { id: 20, name: 'Light Blue' },
+        '107,80,246': { id: 21, name: 'Purple' },
+        '153,177,251': { id: 22, name: 'Light Purple' },
+        '120,12,153': { id: 23, name: 'Dark Purple' },
+        '170,56,185': { id: 24, name: 'Magenta' },
+        '224,159,249': { id: 25, name: 'Light Magenta' },
+        '203,0,122': { id: 26, name: 'Dark Pink' },
+        '236,31,128': { id: 27, name: 'Pink' },
+        '243,141,169': { id: 28, name: 'Light Pink' },
+        '104,70,52': { id: 29, name: 'Brown' },
+        '149,104,42': { id: 30, name: 'Dark Brown' },
+        '248,178,119': { id: 31, name: 'Tan' },
+        '170,170,170': { id: 32, name: 'Medium Gray' },
+        '165,14,30': { id: 33, name: 'Maroon' },
+        '250,128,114': { id: 34, name: 'Salmon' },
+        '228,92,26': { id: 35, name: 'Red Orange' },
+        '214,181,148': { id: 36, name: 'Beige' },
+        '156,132,49': { id: 37, name: 'Olive' },
+        '197,173,49': { id: 38, name: 'Yellow Green' },
+        '232,212,95': { id: 39, name: 'Pale Yellow' },
+        '74,107,58': { id: 40, name: 'Forest Green' },
+        '90,148,74': { id: 41, name: 'Moss Green' },
+        '132,197,115': { id: 42, name: 'Mint Green' },
+        '15,121,159': { id: 43, name: 'Steel Blue' },
+        '187,250,242': { id: 44, name: 'Aqua' },
+        '125,199,255': { id: 45, name: 'Sky Blue' },
+        '77,49,184': { id: 46, name: 'Indigo' },
+        '74,66,132': { id: 47, name: 'Navy Blue' },
+        '122,113,196': { id: 48, name: 'Slate Blue' },
+        '181,174,241': { id: 49, name: 'Periwinkle' },
+        '219,164,99': { id: 50, name: 'Peach' },
+        '209,128,81': { id: 51, name: 'Bronze' },
+        '255,197,165': { id: 52, name: 'Light Peach' },
+        '155,82,73': { id: 53, name: 'Rust' },
+        '209,128,120': { id: 54, name: 'Rose' },
+        '250,182,164': { id: 55, name: 'Blush' },
+        '123,99,82': { id: 56, name: 'Coffee' },
+        '156,132,107': { id: 57, name: 'Taupe' },
+        '51,57,65': { id: 58, name: 'Charcoal' },
+        '109,117,141': { id: 59, name: 'Slate' },
+        '179,185,209': { id: 60, name: 'Lavender' },
+        '109,100,63': { id: 61, name: 'Khaki' },
+        '148,140,107': { id: 62, name: 'Sand' },
+        '205,197,158': { id: 63, name: 'Cream' },
+    };
+    return colorNames[rgb] || `RGB(${rgb})`;
+}
+
+// Load color ordering from disk
+const loadColorOrdering = () => {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    if (existsSync(orderingPath)) {
+        try {
+            const data = JSON.parse(readFileSync(orderingPath, 'utf8'));
+            return {
+                global: data.global || [...defaultColorOrder],
+                templates: data.templates || {}
+            };
+        } catch (e) {
+            console.error('Error loading color ordering:', e.message);
+        }
+    }
+    return {
+        global: [...defaultColorOrder],
+        templates: {}
+    };
+};
+
+// Save color ordering to disk
+const saveColorOrdering = () => {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    try {
+        writeFileSync(orderingPath, JSON.stringify(colorOrdering, null, 2));
+    } catch (e) {
+        console.error('Error saving color ordering:', e.message);
+    }
+};
+
 // ---------- API ----------
 
 app.get('/token-needed', (_req, res) => res.json({ needed: TokenManager.isTokenNeeded }));
@@ -1721,6 +1862,94 @@ app.get('/canvas', async (req, res) => {
     } catch (error) {
         res.status(HTTP_STATUS.SRV_ERR).json({ error: error.message });
     }
+});
+
+app.get('/color-ordering', (req, res) => {
+    const { templateId } = req.query;
+    
+    if (templateId && colorOrdering.templates[templateId]) {
+        res.json({ order: colorOrdering.templates[templateId] });
+    } else {
+        res.json({ order: colorOrdering.global });
+    }
+});
+
+app.put('/color-ordering/global', (req, res) => {
+    const { order } = req.body;
+    
+    if (!Array.isArray(order) || order.length === 0) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid order array' });
+    }
+    
+    // Validate that all color IDs are valid
+    const validIds = new Set(Object.values(pallete));
+    for (const id of order) {
+        if (!validIds.has(id)) {
+            return res.status(HTTP_STATUS.BAD_REQ).json({ error: `Invalid color ID: ${id}` });
+        }
+    }
+    
+    colorOrdering.global = [...order];
+    saveColorOrdering();
+    
+    log('SYSTEM', 'color-ordering', `Global color order updated (${order.length} colors)`);
+    res.json({ success: true });
+});
+
+app.put('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    const { order } = req.body;
+    
+    if (!templates[templateId]) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Template not found' });
+    }
+    
+    if (!Array.isArray(order) || order.length === 0) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid order array' });
+    }
+    
+    // Validate that all color IDs are valid
+    const validIds = new Set(Object.values(pallete));
+    for (const id of order) {
+        if (!validIds.has(id)) {
+            return res.status(HTTP_STATUS.BAD_REQ).json({ error: `Invalid color ID: ${id}` });
+        }
+    }
+    
+    colorOrdering.templates[templateId] = [...order];
+    saveColorOrdering();
+    
+    const templateName = templates[templateId].name;
+    log('SYSTEM', 'color-ordering', `Template "${templateName}" color order updated (${order.length} colors)`);
+    res.json({ success: true });
+});
+
+app.delete('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    
+    if (colorOrdering.templates[templateId]) {
+        delete colorOrdering.templates[templateId];
+        saveColorOrdering();
+        
+        const templateName = templates[templateId]?.name || 'Unknown';
+        log('SYSTEM', 'color-ordering', `Template "${templateName}" color order reset to global`);
+    }
+    
+    res.json({ success: true });
+});
+
+app.get('/colors', (req, res) => {
+    // Return color palette with names for the frontend
+    const colorData = {};
+    
+    for (const [rgb, id] of Object.entries(pallete)) {
+        colorData[rgb] = {
+            id,
+            name: getColorName(rgb)
+        };
+    }
+    
+    res.json(colorData);
 });
 
 // ---------- One-time migration: old -> compressed ----------

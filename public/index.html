@@ -124,6 +124,17 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <h3>Reorder Colors</h3>
+                <div class="color-grid" id="colorGrid"></div>
+
+                <div class="setting-toggle">
+                    <label for="toggleBasicColors">Toggle Paid Colors </label>
+                        <label class="switch">
+                            <input id="toggleBasicColors" name="toggleBasicColors" type="checkbox" onchange="toggleBasicColors()" checked>
+                            <span class="slider"></span>
+                        </label>
+                </div>
+                <button class="btn-danger" onclick="resetOrder()">Reset to Default</button>
 
                 <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
             </form>

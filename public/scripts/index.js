@@ -176,71 +176,70 @@ userForm.addEventListener('submit', async (e) => {
     }
 });
 
-// templates
 const colors = {
-    '0,0,0': 1,
-    '60,60,60': 2,
-    '120,120,120': 3,
-    '210,210,210': 4,
-    '255,255,255': 5,
-    '96,0,24': 6,
-    '237,28,36': 7,
-    '255,127,39': 8,
-    '246,170,9': 9,
-    '249,221,59': 10,
-    '255,250,188': 11,
-    '14,185,104': 12,
-    '19,230,123': 13,
-    '135,255,94': 14,
-    '12,129,110': 15,
-    '16,174,166': 16,
-    '19,225,190': 17,
-    '40,80,158': 18,
-    '64,147,228': 19,
-    '96,247,242': 20,
-    '107,80,246': 21,
-    '153,177,251': 22,
-    '120,12,153': 23,
-    '170,56,185': 24,
-    '224,159,249': 25,
-    '203,0,122': 26,
-    '236,31,128': 27,
-    '243,141,169': 28,
-    '104,70,52': 29,
-    '149,104,42': 30,
-    '248,178,119': 31,
-    '170,170,170': 32,
-    '165,14,30': 33,
-    '250,128,114': 34,
-    '228,92,26': 35,
-    '214,181,148': 36,
-    '156,132,49': 37,
-    '197,173,49': 38,
-    '232,212,95': 39,
-    '74,107,58': 40,
-    '90,148,74': 41,
-    '132,197,115': 42,
-    '15,121,159': 43,
-    '187,250,242': 44,
-    '125,199,255': 45,
-    '77,49,184': 46,
-    '74,66,132': 47,
-    '122,113,196': 48,
-    '181,174,241': 49,
-    '219,164,99': 50,
-    '209,128,81': 51,
-    '255,197,165': 52,
-    '155,82,73': 53,
-    '209,128,120': 54,
-    '250,182,164': 55,
-    '123,99,82': 56,
-    '156,132,107': 57,
-    '51,57,65': 58,
-    '109,117,141': 59,
-    '179,185,209': 60,
-    '109,100,63': 61,
-    '148,140,107': 62,
-    '205,197,158': 63,
+    '0,0,0': { id: 1, name: 'Black' },
+    '60,60,60': { id: 2, name: 'Dark Gray' },
+    '120,120,120': { id: 3, name: 'Gray' },
+    '210,210,210': { id: 4, name: 'Light Gray' },
+    '255,255,255': { id: 5, name: 'White' },
+    '96,0,24': { id: 6, name: 'Dark Red' },
+    '237,28,36': { id: 7, name: 'Red' },
+    '255,127,39': { id: 8, name: 'Orange' },
+    '246,170,9': { id: 9, name: 'Dark Orange' },
+    '249,221,59': { id: 10, name: 'Yellow' },
+    '255,250,188': { id: 11, name: 'Light Yellow' },
+    '14,185,104': { id: 12, name: 'Green' },
+    '19,230,123': { id: 13, name: 'Light Green' },
+    '135,255,94': { id: 14, name: 'Bright Green' },
+    '12,129,110': { id: 15, name: 'Teal' },
+    '16,174,166': { id: 16, name: 'Cyan' },
+    '19,225,190': { id: 17, name: 'Light Cyan' },
+    '40,80,158': { id: 18, name: 'Dark Blue' },
+    '64,147,228': { id: 19, name: 'Blue' },
+    '96,247,242': { id: 20, name: 'Light Blue' },
+    '107,80,246': { id: 21, name: 'Purple' },
+    '153,177,251': { id: 22, name: 'Light Purple' },
+    '120,12,153': { id: 23, name: 'Dark Purple' },
+    '170,56,185': { id: 24, name: 'Magenta' },
+    '224,159,249': { id: 25, name: 'Light Magenta' },
+    '203,0,122': { id: 26, name: 'Dark Pink' },
+    '236,31,128': { id: 27, name: 'Pink' },
+    '243,141,169': { id: 28, name: 'Light Pink' },
+    '104,70,52': { id: 29, name: 'Brown' },
+    '149,104,42': { id: 30, name: 'Dark Brown' },
+    '248,178,119': { id: 31, name: 'Tan' },
+    '170,170,170': { id: 32, name: 'Medium Gray' },
+    '165,14,30': { id: 33, name: 'Maroon' },
+    '250,128,114': { id: 34, name: 'Salmon' },
+    '228,92,26': { id: 35, name: 'Red Orange' },
+    '214,181,148': { id: 36, name: 'Beige' },
+    '156,132,49': { id: 37, name: 'Olive' },
+    '197,173,49': { id: 38, name: 'Yellow Green' },
+    '232,212,95': { id: 39, name: 'Pale Yellow' },
+    '74,107,58': { id: 40, name: 'Forest Green' },
+    '90,148,74': { id: 41, name: 'Moss Green' },
+    '132,197,115': { id: 42, name: 'Mint Green' },
+    '15,121,159': { id: 43, name: 'Steel Blue' },
+    '187,250,242': { id: 44, name: 'Aqua' },
+    '125,199,255': { id: 45, name: 'Sky Blue' },
+    '77,49,184': { id: 46, name: 'Indigo' },
+    '74,66,132': { id: 47, name: 'Navy Blue' },
+    '122,113,196': { id: 48, name: 'Slate Blue' },
+    '181,174,241': { id: 49, name: 'Periwinkle' },
+    '219,164,99': { id: 50, name: 'Peach' },
+    '209,128,81': { id: 51, name: 'Bronze' },
+    '255,197,165': { id: 52, name: 'Light Peach' },
+    '155,82,73': { id: 53, name: 'Rust' },
+    '209,128,120': { id: 54, name: 'Rose' },
+    '250,182,164': { id: 55, name: 'Blush' },
+    '123,99,82': { id: 56, name: 'Coffee' },
+    '156,132,107': { id: 57, name: 'Taupe' },
+    '51,57,65': { id: 58, name: 'Charcoal' },
+    '109,117,141': { id: 59, name: 'Slate' },
+    '179,185,209': { id: 60, name: 'Lavender' },
+    '109,100,63': { id: 61, name: 'Khaki' },
+    '148,140,107': { id: 62, name: 'Sand' },
+    '205,197,158': { id: 63, name: 'Cream' },
 };
 
 const colorById = (id) => Object.keys(colors).find((key) => colors[key] === id);
@@ -770,6 +769,16 @@ openAddTemplate.addEventListener('click', () => {
             userSelectList.appendChild(userDiv);
         }
     });
+
+    
+
+    // Initialize the grid on load
+    initializeGrid();
+    console.log('Grid initialized for template placement.');
+
+    
+    document.getElementById('toggleBasicColors').checked = true;
+
     changeTab('addTemplate');
 });
 
@@ -1169,3 +1178,305 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
+
+/// --- Color Ordering
+const colorGrid = document.getElementById('colorGrid');
+let draggedElement = null;
+let showBasicOnly = true; // Default to true
+
+// Initialize the grid
+function initializeGrid() {
+    const filteredColors = getFilteredColors();
+    buildColorGrid(filteredColors);
+}
+
+// Drag and drop event handlers
+colorGrid.addEventListener('dragstart', handleDragStart);
+colorGrid.addEventListener('dragover', handleDragOver);
+colorGrid.addEventListener('dragenter', handleDragEnter);
+colorGrid.addEventListener('dragleave', handleDragLeave);
+colorGrid.addEventListener('drop', handleDrop);
+colorGrid.addEventListener('dragend', handleDragEnd);
+
+function getFilteredColors() {
+    const sortedColors = Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
+    return showBasicOnly ? sortedColors.slice(0, 31) : sortedColors;
+}
+
+function buildColorGrid(colorEntries) {
+    colorGrid.innerHTML = '';
+
+    for (const [rgb, colorData] of colorEntries) {
+        const div = document.createElement('div');
+        div.className = 'color-item';
+        div.setAttribute('draggable', 'true');
+        div.dataset.id = colorData.id;
+        div.dataset.rgb = rgb;
+        div.dataset.name = colorData.name;
+
+        div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
+
+        // Create color swatch
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.background = `rgb(${rgb})`;
+
+        // Create info section
+        const info = document.createElement('div');
+        info.className = 'color-info';
+
+        const prioritySpan = document.createElement('span');
+        prioritySpan.className = 'priority-number';
+        prioritySpan.textContent = getCurrentPriority(div);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'color-name';
+        nameSpan.textContent = colorData.name;
+
+        info.appendChild(prioritySpan);
+        info.appendChild(nameSpan);
+
+        div.appendChild(swatch);
+        div.appendChild(info);
+        colorGrid.appendChild(div);
+    }
+
+    updateAllPriorities();
+}
+
+function toggleBasicColors() {
+    const toggle = document.getElementById('toggleBasicColors')
+    showBasicOnly = toggle.checked;
+
+    // Get current order before rebuilding
+    const currentOrder = [...colorGrid.querySelectorAll('.color-item')].map(el => ({
+        rgb: el.dataset.rgb,
+        id: parseInt(el.dataset.id),
+        name: el.dataset.name
+    }));
+
+    // Filter current order based on toggle state
+    const filteredOrder = showBasicOnly ?
+        currentOrder.filter(item => item.id <= 31) :
+        currentOrder;
+
+    // Rebuild grid with filtered colors, maintaining order
+    colorGrid.innerHTML = '';
+
+    // First add items that were already in the grid (in their current order)
+    const addedIds = new Set();
+    for (const item of filteredOrder) {
+        if (colors[item.rgb]) {
+            createAndAddColorItem(item.rgb, colors[item.rgb]);
+            addedIds.add(item.id);
+        }
+    }
+
+    // Then add any remaining colors that weren't in the current order
+    const availableColors = getFilteredColors();
+    for (const [rgb, colorData] of availableColors) {
+        if (!addedIds.has(colorData.id)) {
+            createAndAddColorItem(rgb, colorData);
+        }
+    }
+
+    updateAllPriorities();
+}
+
+function createAndAddColorItem(rgb, colorData) {
+    const div = document.createElement('div');
+    div.className = 'color-item';
+    div.setAttribute('draggable', 'true');
+    div.dataset.id = colorData.id;
+    div.dataset.rgb = rgb;
+    div.dataset.name = colorData.name;
+
+    div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
+
+    // Create color swatch
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.background = `rgb(${rgb})`;
+
+    // Create info section
+    const info = document.createElement('div');
+    info.className = 'color-info';
+
+    const prioritySpan = document.createElement('span');
+    prioritySpan.className = 'priority-number';
+    prioritySpan.textContent = getCurrentPriority(div);
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'color-name';
+    nameSpan.textContent = colorData.name;
+
+    info.appendChild(prioritySpan);
+    info.appendChild(nameSpan);
+
+    div.appendChild(swatch);
+    div.appendChild(info);
+    colorGrid.appendChild(div);
+}
+
+function getCurrentPriority(element) {
+    const items = Array.from(colorGrid.children);
+    const index = items.indexOf(element);
+    return index >= 0 ? index + 1 : colors[element.dataset.rgb].id;
+}
+
+function updateAllPriorities() {
+    const items = colorGrid.querySelectorAll('.color-item');
+    items.forEach((item, index) => {
+        const prioritySpan = item.querySelector('.priority-number');
+        if (prioritySpan) {
+            prioritySpan.textContent = index + 1;
+        }
+    });
+}
+
+function handleDragStart(e) {
+    if (!e.target.closest('.color-item')) return;
+
+    draggedElement = e.target.closest('.color-item');
+    draggedElement.classList.add('dragging');
+
+    // Set drag data
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/html', draggedElement.outerHTML);
+}
+
+function handleDragOver(e) {
+    if (e.preventDefault) {
+        e.preventDefault();
+    }
+    e.dataTransfer.dropEffect = 'move';
+    return false;
+}
+
+function handleDragEnter(e) {
+    const colorItem = e.target.closest('.color-item');
+    if (!colorItem || colorItem === draggedElement) return;
+    colorItem.classList.add('drag-over');
+}
+
+function handleDragLeave(e) {
+    const colorItem = e.target.closest('.color-item');
+    if (!colorItem) return;
+    colorItem.classList.remove('drag-over');
+}
+
+function handleDrop(e) {
+    if (e.stopPropagation) {
+        e.stopPropagation();
+    }
+
+    const dropTarget = e.target.closest('.color-item');
+
+    if (dropTarget && dropTarget !== draggedElement && draggedElement) {
+        // Get all current items
+        const items = Array.from(colorGrid.children);
+        const draggedIndex = items.indexOf(draggedElement);
+        const dropIndex = items.indexOf(dropTarget);
+
+        // Remove dragged element from DOM
+        draggedElement.remove();
+
+        // Insert dragged element at the correct position
+        if (dropIndex < draggedIndex) {
+            // Insert before the drop target
+            colorGrid.insertBefore(draggedElement, dropTarget);
+        } else {
+            // Insert after the drop target
+            const nextSibling = dropTarget.nextElementSibling;
+            if (nextSibling) {
+                colorGrid.insertBefore(draggedElement, nextSibling);
+            } else {
+                colorGrid.appendChild(draggedElement);
+            }
+        }
+    }
+
+    return false;
+}
+
+function handleDragEnd(e) {
+    // Clean up all visual indicators
+    const items = colorGrid.querySelectorAll('.color-item');
+    items.forEach(item => {
+        item.classList.remove('dragging', 'drag-over');
+    });
+
+    // Update all priority numbers after drag ends
+    updateAllPriorities();
+
+    draggedElement = null;
+}
+
+function resetOrder() {
+    // Clear current grid
+    colorGrid.innerHTML = '';
+
+    // Rebuild in original numeric order
+    const sortedColors = Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
+    for (const [rgb, colorData] of sortedColors) {
+        const div = document.createElement('div');
+        div.className = 'color-item';
+        div.setAttribute('draggable', 'true');
+        div.dataset.id = colorData.id;
+        div.dataset.rgb = rgb;
+        div.dataset.name = colorData.name;
+
+        div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
+
+        // Create color swatch
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.background = `rgb(${rgb})`;
+
+        // Create info section
+        const info = document.createElement('div');
+        info.className = 'color-info';
+
+        const prioritySpan = document.createElement('span');
+        prioritySpan.className = 'priority-number';
+        prioritySpan.textContent = getCurrentPriority(div);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'color-name';
+        nameSpan.textContent = colorData.name;
+
+        info.appendChild(prioritySpan);
+        info.appendChild(nameSpan);
+
+        div.appendChild(swatch);
+        div.appendChild(info);
+        colorGrid.appendChild(div);
+    }
+    updateAllPriorities();
+}
+
+// Fetch current color order
+async function loadColorOrder(templateId = null) {
+    const url = templateId ? 
+        `/color-ordering?templateId=${templateId}` : 
+        `/color-ordering`;
+    const response = await fetch(url);
+    return await response.json();
+}
+
+// Save color order
+async function saveColorOrder(templateId = null) {
+    const order = [...colorGrid.querySelectorAll('.color-item')].map(el => 
+        parseInt(el.dataset.id)
+    );
+    
+    const url = templateId ? 
+        `/color-ordering/template/${templateId}` : 
+        `/color-ordering/global`;
+    
+    await fetch(url, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ order })
+    });
+}
