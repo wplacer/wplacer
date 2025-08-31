@@ -1468,17 +1468,31 @@ async function loadColorOrder(templateId = null) {
 
 // Save color order
 async function saveColorOrder(templateId = null) {
-    const order = [...colorGrid.querySelectorAll('.color-item')].map(el => 
-        parseInt(el.dataset.id)
-    );
+    const order = [...colorGrid.querySelectorAll('.color-item')]
+        .map(el => parseInt(el.dataset.id))
+        .filter(id => !isNaN(id) && id > 0); // Remove invalid IDs
+    
+    if (order.length === 0) {
+        console.error('No valid color IDs found');
+        return;
+    }
     
     const url = templateId ? 
         `/color-ordering/template/${templateId}` : 
         `/color-ordering/global`;
     
-    await fetch(url, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ order })
-    });
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            console.error('Failed to save color order:', error);
+        }
+    } catch (error) {
+        console.error('Error saving color order:', error);
+    }
 }

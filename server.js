@@ -1881,18 +1881,24 @@ app.put('/color-ordering/global', (req, res) => {
         return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid order array' });
     }
     
-    // Validate that all color IDs are valid
+    // Validate that all color IDs are valid and remove any invalid ones
     const validIds = new Set(Object.values(pallete));
-    for (const id of order) {
-        if (!validIds.has(id)) {
-            return res.status(HTTP_STATUS.BAD_REQ).json({ error: `Invalid color ID: ${id}` });
+    const validOrder = order.filter(id => {
+        const isValid = Number.isInteger(id) && validIds.has(id);
+        if (!isValid) {
+            console.warn(`Invalid color ID filtered out: ${id}`);
         }
+        return isValid;
+    });
+    
+    if (validOrder.length === 0) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'No valid color IDs in order' });
     }
     
-    colorOrdering.global = [...order];
+    colorOrdering.global = validOrder;
     saveColorOrdering();
     
-    log('SYSTEM', 'color-ordering', `Global color order updated (${order.length} colors)`);
+    log('SYSTEM', 'color-ordering', `Global color order updated (${validOrder.length} colors)`);
     res.json({ success: true });
 });
 
