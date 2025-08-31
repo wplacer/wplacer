@@ -46,6 +46,7 @@ const MS = {
     TWO_MIN: 120_000,
     FIVE_MIN: 300_000,
     FORTY_SEC: 40_000,
+    ONE_HOUR: 3600_000,
 };
 
 const HTTP_STATUS = {
@@ -88,6 +89,7 @@ function openBrowser(url) {
 /** Human-readable duration. */
 const duration = (ms) => {
     if (ms <= 0) return '0s';
+    if (ms < 1000) return `${ms}ms`;
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60) % 60;
     const h = Math.floor(s / 3600);
@@ -381,6 +383,20 @@ class WPlacer {
         this.token = null;
     }
 
+    async _fetch(url, options) {
+        try {
+            // Add a default timeout to all requests to prevent hangs
+            const optsWithTimeout = { timeout: 30000, ...options };
+            return await this.browser.fetch(url, optsWithTimeout);
+        } catch (error) {
+            if (error.code === 'InvalidArg') {
+                throw new NetworkError(`Internal fetch error (InvalidArg) for URL: ${url}. This may be a temporary network issue or a problem with a proxy.`);
+            }
+            // Re-throw other errors
+            throw error;
+        }
+    }
+
     async login(cookies) {
         this.cookies = cookies;
         const jar = new CookieJar();
@@ -408,14 +424,15 @@ class WPlacer {
     }
 
     async loadUserInfo() {
-        const me = await this.browser.fetch(WPLACE_ME);
+        const me = await this._fetch(WPLACE_ME);
         const bodyText = await me.text();
 
         if (bodyText.trim().startsWith('<!DOCTYPE html>')) throw new NetworkError('Cloudflare interruption detected.');
 
         try {
             const userInfo = JSON.parse(bodyText);
-            if (userInfo.error === 'Unauthorized') throw new NetworkError(`(401) Unauthorized.`);
+            if (userInfo.error === 'Unauthorized')
+                throw new NetworkError('(401) Unauthorized. The cookie may be invalid or the current IP/proxy is rate-limited.');
             if (userInfo.error) throw new Error(`(500) Auth failed: "${userInfo.error}".`);
             if (userInfo.id && userInfo.name) {
                 this.userInfo = userInfo;
@@ -432,7 +449,7 @@ class WPlacer {
     }
 
     async post(url, body) {
-        const req = await this.browser.fetch(url, {
+        const req = await this._fetch(url, {
             method: 'POST',
             headers: { Accept: '*/*', 'Content-Type': 'text/plain;charset=UTF-8', Referer: 'https://wplace.live/' },
             body: JSON.stringify(body),
@@ -441,10 +458,10 @@ class WPlacer {
         return { status: req.status, data };
     }
 
-    /**
+    /*
      * Load all tiles intersecting the template bounding box into memory.
      * Converts to palette IDs for quick mismatch checks.
-     */
+    */
     async loadTiles() {
         this.tiles.clear();
         const [tx, ty, px, py] = this.coords;
@@ -456,8 +473,7 @@ class WPlacer {
         const promises = [];
         for (let X = tx; X <= endTx; X++) {
             for (let Y = ty; Y <= endTy; Y++) {
-                const p = this.browser
-                    .fetch(`${TILE_URL(X, Y)}?t=${Date.now()}`)
+                const p = this._fetch(`${TILE_URL(X, Y)}?t=${Date.now()}`)
                     .then(async (r) => (r.ok ? Buffer.from(await r.arrayBuffer()) : null))
                     .then((buf) => {
                         if (!buf) return null;
@@ -511,12 +527,24 @@ class WPlacer {
                 this.userInfo.name,
                 `[${this.templateName}] 🎨 Painted ${body.colors.length} px at ${tx},${ty}.`
             );
+            // Update the in-memory tile data.
+            const tile = this.tiles.get(`${tx}_${ty}`);
+            if (tile) {
+                for (let i = 0; i < body.colors.length; i++) {
+                    const px = body.coords[i * 2];
+                    const py = body.coords[i * 2 + 1];
+                    const color = body.colors[i];
+                    if (tile.data[px]) {
+                        tile.data[px][py] = color;
+                    }
+                }
+            }
             return { painted: body.colors.length };
         }
 
         // classify
         if (response.status === HTTP_STATUS.UNAUTH && response.data.error === 'Unauthorized')
-            throw new NetworkError(`(401) Unauthorized during paint.`);
+            throw new NetworkError('(401) Unauthorized during paint. The cookie may be invalid or the current IP/proxy is rate-limited.');
         if (
             response.status === HTTP_STATUS.FORBIDDEN &&
             (response.data.error === 'refresh' || response.data.error === 'Unauthorized')
@@ -539,7 +567,7 @@ class WPlacer {
     }
 
     /** Compute pixels needing change, honoring modes. */
-    _getMismatchedPixels(currentSkip = 1) {
+    _getMismatchedPixels(currentSkip = 1, colorFilter = null) {
         const [startX, startY, startPx, startPy] = this.coords;
         const out = [];
 
@@ -548,6 +576,8 @@ class WPlacer {
                 if ((x + y) % currentSkip !== 0) continue;
 
                 const tplColor = this.template.data[x][y];
+                if (colorFilter !== null && tplColor !== colorFilter) continue;
+
                 const globalPx = startPx + x,
                     globalPy = startPy + y;
 
@@ -619,14 +649,14 @@ class WPlacer {
         return out;
     }
 
-    async paint(currentSkip = 1) {
+    async paint(currentSkip = 1, colorFilter = null) {
         if (this.tiles.size === 0) await this.loadTiles();
         if (!this.token) throw new Error('Token not provided.');
 
-        let mismatched = this._getMismatchedPixels(currentSkip);
+        let mismatched = this._getMismatchedPixels(currentSkip, colorFilter);
         if (mismatched.length === 0) return 0;
 
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatched.length} mismatched px.`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatched.length} mismatched pixels.`);
 
         // outline
         if (this.templateSettings.outlineMode) {
@@ -652,14 +682,6 @@ class WPlacer {
                 mismatched.sort((a, b) => d2(a) - d2(b));
                 break;
             }
-            case 'ttb':
-            default:
-                mismatched.sort((a, b) => a.localY - b.localY);
-                break;
-        }
-
-        // order
-        switch (this.globalSettings.drawingOrder) {
             case 'random': {
                 for (let i = mismatched.length - 1; i > 0; i--) {
                     const j = Math.floor(Math.random() * (i + 1));
@@ -667,6 +689,14 @@ class WPlacer {
                 }
                 break;
             }
+            case 'ttb':
+            default:
+                mismatched.sort((a, b) => a.localY - b.localY);
+                break;
+        }
+
+        // order (only applies if not using a color-based direction)
+        switch (this.globalSettings.drawingOrder) {
             case 'color':
             case 'randomColor': {
                 const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
@@ -723,11 +753,11 @@ class WPlacer {
         throw new Error(`Unexpected purchase response: ${JSON.stringify(res)}`);
     }
 
-    async pixelsLeft(currentSkip = 1) {
+    async getMismatchedPixels(currentSkip = 1, colorFilter = null) {
         if (this.tiles.size === 0) {
             await this.loadTiles();
         }
-        return this._getMismatchedPixels(currentSkip).length;
+        return this._getMismatchedPixels(currentSkip, colorFilter);
     }
 }
 
@@ -949,7 +979,7 @@ const saveTemplates = saveTemplatesCompressed;
 let currentSettings = {
     accountCooldown: 20_000,
     purchaseCooldown: 5_000,
-    keepAliveCooldown: 5_000,
+    keepAliveCooldown: MS.ONE_HOUR,
     dropletReserve: 0,
     antiGriefStandby: 600_000,
     drawingDirection: 'ttb',
@@ -963,6 +993,15 @@ let currentSettings = {
 };
 if (existsSync(path.join(DATA_DIR, SETTINGS_FILE))) {
     currentSettings = { ...currentSettings, ...loadJSON(SETTINGS_FILE) };
+    // Sanitize keepAliveCooldown to prevent issues from old/bad settings files
+    if (currentSettings.keepAliveCooldown < MS.FIVE_MIN) {
+        console.log(
+            `[SYSTEM] WARNING: keepAliveCooldown is set to a very low value (${duration(
+                currentSettings.keepAliveCooldown
+            )}). Adjusting to 1 hour.`
+        );
+        currentSettings.keepAliveCooldown = MS.ONE_HOUR;
+    }
 }
 const saveSettings = () => saveJSON(SETTINGS_FILE, currentSettings);
 
@@ -989,11 +1028,11 @@ const TokenManager = {
         const removed = size0 - this.tokenQueue.length;
         if (removed > 0) log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🗑️ Discarded ${removed} expired token(s).`);
     },
-    getToken() {
+    getToken(templateName = 'Unknown') {
         this._purgeExpiredTokens();
-        if (this.tokenQueue.length > 0) return Promise.resolve(this.tokenQueue[0].token);
+        if (this.tokenQueue.length > 0) return Promise.resolve(this.tokenQueue.shift().token);
         if (!this.tokenPromise) {
-            log('SYSTEM', 'wplacer', 'TOKEN_MANAGER: ⏳ A task is waiting for a token.');
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ⏳ Template "${templateName}" is waiting for a token.`);
             this.isTokenNeeded = true;
             this.tokenPromise = new Promise((resolve) => {
                 this.resolvePromise = resolve;
@@ -1002,19 +1041,24 @@ const TokenManager = {
         return this.tokenPromise;
     },
     setToken(t) {
-        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received. Queue size: ${this.tokenQueue.length + 1}`);
-        this.isTokenNeeded = false;
         const newToken = { token: t, receivedAt: Date.now() };
-        this.tokenQueue.push(newToken);
         if (this.resolvePromise) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received, immediately consumed by waiting task.`);
             this.resolvePromise(newToken.token);
             this.tokenPromise = null;
             this.resolvePromise = null;
+            this.isTokenNeeded = false;
+        } else {
+            this.tokenQueue.push(newToken);
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received. Queue size: ${this.tokenQueue.length}`);
         }
     },
     invalidateToken() {
-        this.tokenQueue.shift();
-        log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🔄 Invalidating token. ${this.tokenQueue.length} left.`);
+        // This is now handled by the consumer (getToken), but we keep it in case of explicit invalidation needs.
+        const invalidated = this.tokenQueue.shift();
+        if (invalidated) {
+            log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🔄 Invalidating token. ${this.tokenQueue.length} left.`);
+        }
     },
 };
 
@@ -1080,7 +1124,7 @@ class TemplateManager {
         this.userQueue = [...this.userIds];
     }
 
-    /** Sleep that can be interrupted when settings change. */
+    /* Sleep that can be interrupted when settings change. */
     cancellableSleep(ms) {
         return new Promise((resolve) => {
             const controller = new AbortController();
@@ -1103,14 +1147,13 @@ class TemplateManager {
         }
     }
 
-    /** Optional purchase of max-charge upgrades. */
+    /* Optional purchase of max-charge upgrades. */
     async handleUpgrades(wplacer) {
         if (!this.canBuyMaxCharges) return;
         await wplacer.loadUserInfo();
         const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
         const amountToBuy = Math.floor(affordableDroplets / 500);
         if (amountToBuy > 0) {
-            log(wplacer.userInfo.id, wplacer.userInfo.name, `💰 Attempting to buy ${amountToBuy} max charge upgrade(s).`);
             try {
                 await wplacer.buyProduct(70, amountToBuy);
                 await sleep(currentSettings.purchaseCooldown);
@@ -1121,13 +1164,32 @@ class TemplateManager {
         }
     }
 
-    async _performPaintTurn(wplacer) {
+    async handleChargePurchases(wplacer) {
+        if (!this.canBuyCharges) return;
+        await wplacer.loadUserInfo();
+        const charges = wplacer.userInfo.charges;
+        if (charges.count < charges.max && wplacer.userInfo.droplets > currentSettings.dropletReserve) {
+            const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
+            const amountToBuy = Math.floor(affordableDroplets / 500);
+            if (amountToBuy > 0) {
+                try {
+                    await wplacer.buyProduct(80, amountToBuy);
+                    await sleep(currentSettings.purchaseCooldown);
+                    await wplacer.loadUserInfo();
+                } catch (error) {
+                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, 'purchase charges');
+                }
+            }
+        }
+    }
+
+    async _performPaintTurn(wplacer, colorFilter = null) {
         let paintedTotal = 0;
         let done = false;
         while (!done && this.running) {
             try {
-                wplacer.token = await TokenManager.getToken();
-                const painted = await wplacer.paint(this.currentPixelSkip);
+                wplacer.token = await TokenManager.getToken(this.name);
+                const painted = await wplacer.paint(this.currentPixelSkip, colorFilter);
                 paintedTotal += painted;
                 done = true;
             } catch (error) {
@@ -1140,7 +1202,7 @@ class TemplateManager {
                 }
                 if (error.message === 'REFRESH_TOKEN') {
                     log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired. Next token...`);
-                    TokenManager.invalidateToken();
+                    // Token is already consumed by getToken, just need to retry
                     await sleep(1000);
                 } else {
                     throw error;
@@ -1157,191 +1219,198 @@ class TemplateManager {
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
+        const isColorMode = ['color', 'randomColor'].includes(currentSettings.drawingOrder);
+
         try {
             while (this.running) {
-                for (
-                    this.currentPixelSkip = currentSettings.pixelSkip;
-                    this.currentPixelSkip >= 1;
-                    this.currentPixelSkip /= 2
-                ) {
+                let colorsToPaint;
+                if (isColorMode) {
+                    const allColors = this.template.data.flat().filter((c) => c > 0);
+                    const colorCounts = allColors.reduce((acc, color) => {
+                        acc[color] = (acc[color] || 0) + 1;
+                        return acc;
+                    }, {});
+
+                    let sortedColors = Object.keys(colorCounts).map(Number);
+                    sortedColors.sort((a, b) => {
+                        if (a === 1) return -1; // Black (ID 1) always first
+                        if (b === 1) return 1;
+                        return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
+                    });
+                    colorsToPaint = sortedColors;
+                    if (this.eraseMode) {
+                        colorsToPaint.push(0); // Add erase pass at the end
+                    }
+                } else {
+                    colorsToPaint = [null]; // A single loop for non-color mode
+                }
+
+
+                for (const color of colorsToPaint) {
                     if (!this.running) break;
-                    log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
 
-                    let passComplete = false;
-                    while (this.running && !passComplete) {
-                        let pixelsChecked = false;
-                        let passPixelsRemaining = -1;
+                    // --- OPTIMIZED CHECK ---
+                    let allMismatchedForColor = [];
+                    let checkWplacer = null;
 
-                        const initialQueueSizeForCheck = this.userQueue.length;
-                        if (initialQueueSizeForCheck === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users to check canvas. Waiting...`);
-                            await sleep(5000);
-                            this.userQueue = [...this.userIds];
+                    // 1. Find a working user and perform a single check for the current color
+                    for (let i = 0; i < this.userQueue.length; i++) {
+                        const checkUserId = this.userQueue.shift();
+                        if (!users[checkUserId] || (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)) {
+                            this.userQueue.push(checkUserId);
                             continue;
                         }
-
-                        // check current canvas with first working user
-                        for (let i = 0; i < initialQueueSizeForCheck; i++) {
-                            const checkUserId = this.userQueue.shift();
-                            if (
-                                !users[checkUserId] ||
-                                (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)
-                            ) {
-                                continue;
-                            }
-                            const templateSettings = {
-                                eraseMode: this.eraseMode,
-                                outlineMode: this.outlineMode,
-                                skipPaintedPixels: this.skipPaintedPixels,
-                            };
-                            const checkWplacer = new WPlacer({
-                                template: this.template,
-                                coords: this.coords,
-                                globalSettings: currentSettings,
-                                templateSettings,
-                                templateName: this.name,
-                            });
-
-                            try {
-                                await checkWplacer.login(users[checkUserId].cookies);
-                                this.pixelsRemaining = await checkWplacer.pixelsLeft(1, false);
-                                passPixelsRemaining = await checkWplacer.pixelsLeft(this.currentPixelSkip, true);
-                                this.currentRetryDelay = this.initialRetryDelay;
-                                pixelsChecked = true;
-                                this.userQueue.push(checkUserId);
-                                break;
-                            } catch (error) {
-                                logUserError(error, checkUserId, users[checkUserId].name, 'check pixels left');
-                                this.userQueue.push(checkUserId);
-                            }
+                        const wplacer = new WPlacer({
+                            template: this.template, coords: this.coords, globalSettings: currentSettings,
+                            templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
+                            templateName: this.name,
+                        });
+                        try {
+                            await wplacer.login(users[checkUserId].cookies);
+                            allMismatchedForColor = await wplacer.getMismatchedPixels(1, color);
+                            this.pixelsRemaining = (await wplacer.getMismatchedPixels(1, null)).length;
+                            checkWplacer = wplacer;
+                            this.userQueue.push(checkUserId);
+                            break;
+                        } catch (error) {
+                            logUserError(error, checkUserId, users[checkUserId].name, 'initial pixel check');
+                            this.userQueue.push(checkUserId);
                         }
+                    }
 
-                        if (!pixelsChecked) {
-                            log(
-                                'SYSTEM',
-                                'wplacer',
-                                `[${this.name}] ❌ All users failed to check canvas. Retry in ${duration(this.currentRetryDelay)}.`
-                            );
-                            await sleep(this.currentRetryDelay);
-                            this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                            continue;
-                        }
+                    if (!checkWplacer) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ❌ All users failed initial check. Retrying in ${duration(this.currentRetryDelay)}.`);
+                        await sleep(this.currentRetryDelay);
+                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                        continue; // Retry the entire color loop
+                    }
 
-                        if (this.pixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished.`);
-                            this.status = 'Finished.';
-                            this.running = false;
+                    if (this.pixelsRemaining === 0) {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
+                        this.status = 'Finished.';
+                        this.running = false;
+                        break;
+                    }
+
+                    if (allMismatchedForColor.length === 0) {
+                        if (isColorMode) log('SYSTEM', 'wplacer', `[${this.name}] ✅ No pixels remaining for color ID ${color}.`);
+                        continue; // Skip to the next color
+                    }
+
+                    // 2. Determine the highest density that has pixels to paint
+                    let highestDensityWithPixels = 1;
+                    for (let density = currentSettings.pixelSkip; density > 1; density /= 2) {
+                        if (allMismatchedForColor.some(p => (p.localX + p.localY) % density === 0)) {
+                            highestDensityWithPixels = density;
                             break;
                         }
-                        if (passPixelsRemaining === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                            passComplete = true;
-                            continue;
-                        }
+                    }
+                    if (isColorMode) log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} from density 1/${highestDensityWithPixels}`);
 
+
+                    // 3. Loop from the determined highest density down to 1
+                    for (this.currentPixelSkip = highestDensityWithPixels; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                         if (!this.running) break;
+                        log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
 
-                        // rotate users until one is ready by predicted charges
-                        if (this.userQueue.length === 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
-                            await sleep(5000);
-                            this.userQueue = [...this.userIds];
-                            continue;
-                        }
+                        let passComplete = false;
+                        while (this.running && !passComplete) {
+                            // The check is now synchronous and uses the pre-fetched data
+                            const pixelsForThisPass = allMismatchedForColor.filter(p => (p.localX + p.localY) % this.currentPixelSkip === 0);
 
-                        let foundUserForTurn = false;
-                        const queueSize = this.userQueue.length;
-                        for (let i = 0; i < queueSize; i++) {
-                            const userId = this.userQueue.shift();
-                            let shouldRequeue = true;
-                            const now = Date.now();
-
-                            if (
-                                !users[userId] ||
-                                (users[userId].suspendedUntil && now < users[userId].suspendedUntil)
-                            ) {
+                            if (pixelsForThisPass.length === 0) {
+                                log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
+                                passComplete = true;
                                 continue;
                             }
 
-                            if (ChargeCache.stale(userId, now)) {
-                                if (!activeBrowserUsers.has(userId)) {
-                                    activeBrowserUsers.add(userId);
-                                    const w = new WPlacer({});
-                                    try {
-                                        await w.login(users[userId].cookies);
-                                    } catch (e) {
-                                        logUserError(e, userId, users[userId].name, 'opportunistic resync');
-                                    } finally {
-                                        activeBrowserUsers.delete(userId);
+                            if (!this.running) break;
+
+                            if (this.userQueue.length === 0) {
+                                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
+                                await sleep(5000);
+                                this.userQueue = [...this.userIds];
+                                continue;
+                            }
+
+                            let foundUserForTurn = false;
+                            const queueSize = this.userQueue.length;
+                            for (let i = 0; i < queueSize; i++) {
+                                const userId = this.userQueue.shift();
+                                const now = Date.now();
+
+                                if (!users[userId] || (users[userId].suspendedUntil && now < users[userId].suspendedUntil)) {
+                                    this.userQueue.push(userId);
+                                    continue;
+                                }
+
+                                if (ChargeCache.stale(userId, now)) {
+                                    if (!activeBrowserUsers.has(userId)) {
+                                        activeBrowserUsers.add(userId);
+                                        const w = new WPlacer({});
+                                        try { await w.login(users[userId].cookies); }
+                                        catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); }
+                                        finally { activeBrowserUsers.delete(userId); }
                                     }
                                 }
-                            }
 
-                            const predicted = ChargeCache.predict(userId, now);
-                            const threshold = predicted
-                                ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold))
-                                : Infinity;
+                                const predicted = ChargeCache.predict(userId, now);
+                                const threshold = predicted ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold)) : Infinity;
 
-                            if (predicted && Math.floor(predicted.count) >= threshold) {
-                                activeBrowserUsers.add(userId);
-                                const wplacer = new WPlacer({
-                                    template: this.template,
-                                    coords: this.coords,
-                                    globalSettings: currentSettings,
-                                    templateSettings: {
-                                        eraseMode: this.eraseMode,
-                                        outlineMode: this.outlineMode,
-                                        skipPaintedPixels: this.skipPaintedPixels,
-                                    },
-                                    templateName: this.name,
-                                });
-                                try {
-                                    const userInfo = await wplacer.login(users[userId].cookies);
-                                    this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
-                                    log(
-                                        userInfo.id,
-                                        userInfo.name,
-                                        `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`
-                                    );
-                                    const paintedNow = await this._performPaintTurn(wplacer);
-                                    if (paintedNow > 0) foundUserForTurn = true;
-                                    await this.handleUpgrades(wplacer);
-                                    this.currentRetryDelay = this.initialRetryDelay;
-                                } catch (error) {
-                                    if (error.name !== 'SuspensionError')
-                                        logUserError(error, userId, users[userId].name, 'perform paint turn');
-                                } finally {
-                                    activeBrowserUsers.delete(userId);
-                                    if (shouldRequeue) this.userQueue.push(userId);
+                                if (predicted && Math.floor(predicted.count) >= threshold) {
+                                    activeBrowserUsers.add(userId);
+                                    const wplacer = new WPlacer({
+                                        template: this.template, coords: this.coords, globalSettings: currentSettings,
+                                        templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
+                                        templateName: this.name,
+                                    });
+                                    try {
+                                        const userInfo = await wplacer.login(users[userId].cookies);
+                                        this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
+                                        log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
+                                        
+                                        const paintedNow = await this._performPaintTurn(wplacer, color);
+                                        
+                                        if (paintedNow > 0) {
+                                            foundUserForTurn = true;
+                                            // Tile cache is now stale. Reload tiles before re-checking pixels.
+                                            await wplacer.loadTiles(); 
+                                            allMismatchedForColor = await wplacer.getMismatchedPixels(1, color);
+                                        }
+                                        
+                                        await this.handleUpgrades(wplacer);
+                                        await this.handleChargePurchases(wplacer);
+                                        this.currentRetryDelay = this.initialRetryDelay;
+                                    } catch (error) {
+                                        if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
+                                    } finally {
+                                        activeBrowserUsers.delete(userId);
+                                        this.userQueue.push(userId);
+                                    }
+                                    if (foundUserForTurn) break;
+                                } else {
+                                    this.userQueue.push(userId);
                                 }
-                                if (foundUserForTurn) break;
-                            } else {
-                                if (shouldRequeue) this.userQueue.push(userId);
                             }
-                        }
 
-                        if (foundUserForTurn) {
-                            if (this.running && this.userIds.length > 1) {
-                                log(
-                                    'SYSTEM',
-                                    'wplacer',
-                                    `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`
-                                );
-                                await sleep(currentSettings.accountCooldown);
+                            if (foundUserForTurn) {
+                                if (this.running && currentSettings.accountCooldown > 0) {
+                                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
+                                    await this.cancellableSleep(currentSettings.accountCooldown);
+                                }
+                            } else {
+                                const now = Date.now();
+                                const cooldowns = this.userQueue.map((id) => {
+                                    const p = ChargeCache.predict(id, now);
+                                    if (!p) return Infinity;
+                                    const th = Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
+                                    return Math.max(0, (th - Math.floor(p.count)) * (p.cooldownMs ?? 30_000));
+                                });
+                                const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
+                                this.status = 'Waiting for charges.';
+                                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
+                                await this.cancellableSleep(waitTime);
                             }
-                        } else {
-                            // compute wait time until next threshold hit
-                            const now = Date.now();
-                            const cooldowns = this.userQueue.map((id) => {
-                                const p = ChargeCache.predict(id, now);
-                                if (!p) return Infinity;
-                                const th = Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
-                                return Math.max(0, (th - Math.floor(p.count)) * (p.cooldownMs ?? 30_000));
-                            });
-                            const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
-                            this.status = 'Waiting for charges.';
-                            log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
-                            await this.cancellableSleep(waitTime);
                         }
                     }
                 }
@@ -1350,11 +1419,7 @@ class TemplateManager {
 
                 if (this.antiGriefMode) {
                     this.status = 'Monitoring for changes.';
-                    log(
-                        'SYSTEM',
-                        'wplacer',
-                        `[${this.name}] 🖼️ All passes complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`
-                    );
+                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ All passes complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
                     await this.cancellableSleep(currentSettings.antiGriefStandby);
                     continue;
                 } else {
@@ -1667,27 +1732,27 @@ app.put('/template/:id', (req, res) => {
     const manager = templates[id];
 
     if (req.body.running && !manager.running) {
-        if (manager.antiGriefMode) {
-            manager.start().catch((e) => log(id, manager.masterName, 'Error starting template', e));
-        } else {
-            const busy = manager.userIds.some((uid) => activeTemplateUsers.has(uid));
-            if (busy) {
-                if (!templateQueue.includes(id)) {
-                    templateQueue.push(id);
-                    manager.status = 'Queued';
-                    log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy.`);
-                }
-            } else {
-                manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
-                manager.start().catch((e) => log(id, manager.masterName, 'Error starting template', e));
+        // STARTING a template
+        const busy = manager.userIds.some((uid) => activeTemplateUsers.has(uid));
+        if (busy) {
+            if (!templateQueue.includes(id)) {
+                templateQueue.push(id);
+                manager.status = 'Queued';
+                log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy.`);
             }
+        } else {
+            manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
+            manager.start().catch((e) => log(id, manager.masterName, 'Error starting template', e));
         }
-    } else if (!req.body.running) {
+    } else if (!req.body.running && manager.running) {
+        // STOPPING a template
+        log('SYSTEM', 'wplacer', `[${manager.name}] 🛑 Template stopped by user.`);
         manager.running = false;
         const idx = templateQueue.indexOf(id);
         if (idx > -1) templateQueue.splice(idx, 1);
+
         manager.userIds.forEach((uid) => activeTemplateUsers.delete(uid));
-        processQueue();
+        processQueue(); // Always process queue after stopping
     }
     res.sendStatus(HTTP_STATUS.OK);
 });
@@ -1765,6 +1830,52 @@ function migrateOldTemplatesIfNeeded() {
         console.log(`[migrate] ✅ templates.json updated to compressed format`);
     }
 }
+
+// ---------- Keep-Alive System ----------
+const runKeepAlive = async () => {
+    log('SYSTEM', 'KeepAlive', '🔄 Starting hourly keep-alive check...');
+
+    const activeUserIds = new Set();
+    for (const templateId in templates) {
+        const manager = templates[templateId];
+        if (manager.running) {
+            manager.userIds.forEach((id) => activeUserIds.add(id));
+        }
+    }
+
+    const allUserIds = Object.keys(users);
+    const inactiveUserIds = allUserIds.filter((id) => !activeUserIds.has(id));
+
+    if (inactiveUserIds.length === 0) {
+        log('SYSTEM', 'KeepAlive', '✅ No idle users to check. All users are active in templates.');
+        return;
+    }
+
+    log('SYSTEM', 'KeepAlive', `Found ${inactiveUserIds.length} idle users to check out of ${allUserIds.length} total users.`);
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const id of inactiveUserIds) {
+        if (users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) {
+            log(id, users[id].name, '🚫 Keep-alive check skipped (account suspended).');
+            continue;
+        }
+        const wplacer = new WPlacer({});
+        try {
+            // The login method performs a /me request, which is what we need.
+            await wplacer.login(users[id].cookies);
+            log(id, users[id].name, '✔️ Keep-alive check successful.');
+            successCount++;
+        } catch (error) {
+            logUserError(error, id, users[id].name, 'keep-alive check');
+            failCount++;
+        }
+        await sleep(2000); // Stagger requests to avoid rate-limiting
+    }
+
+    log('SYSTEM', 'KeepAlive', `✅ Keep-alive check finished. Successful: ${successCount}, Failed: ${failCount}.`);
+};
 
 // ---------- Startup ----------
 
@@ -1847,6 +1958,9 @@ function migrateOldTemplatesIfNeeded() {
             if (currentSettings.openBrowserOnStart) {
                 openBrowser(url);
             }
+
+            setInterval(runKeepAlive, currentSettings.keepAliveCooldown);
+            log('SYSTEM', 'KeepAlive', `🔄 User session keep-alive started. Interval: ${duration(currentSettings.keepAliveCooldown)}.`);
 
             autostartedTemplates.forEach((id) => {
                 const manager = templates[id];

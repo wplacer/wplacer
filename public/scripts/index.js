@@ -133,6 +133,9 @@ const handleError = (error) => {
         } else if (errMsg.includes('(500)')) {
             message =
                 "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
+        } else if (errMsg.includes('(401)')) {
+            message =
+                'Authentication failed (401). This may be due to an invalid cookie or the IP/proxy being rate-limited. Please try again later or with a different proxy.';
         } else if (errMsg.includes('(502)')) {
             message =
                 "The server reported a 'Bad Gateway' error. It might be temporarily down or restarting. Please try again in a few moments.";
@@ -165,8 +168,29 @@ const loadUsers = async (f) => {
 
 userForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    let jValue = jcookie.value.trim();
+
+    if (!jValue) {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                jcookie.value = text;
+                jValue = text.trim();
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard contents: ', err);
+            showMessage('Clipboard Error', 'Could not read from clipboard. Please paste the cookie manually.');
+            return;
+        }
+    }
+
+    if (!jValue) {
+        showMessage('Error', 'JWT Cookie (j) is required.');
+        return;
+    }
+
     try {
-        const response = await axios.post('/user', { cookies: { s: scookie.value, j: jcookie.value } });
+        const response = await axios.post('/user', { cookies: { s: scookie.value, j: jValue } });
         if (response.status === 200) {
             showMessage('Success', `Logged in as ${response.data.name} (#${response.data.id})!`);
             userForm.reset();
@@ -780,21 +804,25 @@ selectAllUsers.addEventListener('click', () => {
 
 const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
     const button = document.createElement('button');
-    const isRunning = template.running;
+    button.className = template.running ? 'destructive-button' : 'primary-button';
+    button.innerHTML = `<img src="icons/${template.running ? 'pause' : 'play'}.svg">${template.running ? 'Stop' : 'Start'}`;
 
-    button.className = isRunning ? 'destructive-button' : 'primary-button';
-    button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'}`;
-
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const shouldBeRunning = !template.running;
         try {
-            await axios.put(`/template/${id}`, { running: !isRunning });
-            template.running = !isRunning;
-            const newStatus = !isRunning ? 'Started' : 'Stopped';
-            const newButton = createToggleButton(template, id, buttonsContainer, progressBarText, currentPercent);
-            button.replaceWith(newButton);
+            await axios.put(`/template/${id}`, { running: shouldBeRunning });
+            template.running = shouldBeRunning;
+
+            // Update button appearance
+            button.className = template.running ? 'destructive-button' : 'primary-button';
+            button.innerHTML = `<img src="icons/${template.running ? 'pause' : 'play'}.svg">${template.running ? 'Stop' : 'Start'}`;
+
+            // Update progress bar
+            const newStatus = template.running ? 'Started' : 'Stopped';
             progressBarText.textContent = `${currentPercent}% | ${newStatus}`;
             const progressBar = progressBarText.previousElementSibling;
-            progressBar.classList.toggle('stopped', !isRunning);
+            progressBar.classList.toggle('stopped', !template.running);
         } catch (error) {
             handleError(error);
         }
@@ -951,7 +979,7 @@ openManageTemplates.addEventListener('click', () => {
         const importBtnTop = document.createElement('button');
         importBtnTop.className = 'secondary-button';
         importBtnTop.innerHTML = '<img src="icons/addTemplate.svg">Import Share Code';
-        importBtnTop.style.marginBottom = '24px';
+        importBtnTop.style.marginBottom = '10px';
         importBtnTop.addEventListener('click', async () => {
             const code = prompt('Paste a share code:');
             if (!code) return;
