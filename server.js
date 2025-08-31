@@ -1445,7 +1445,7 @@ let colorOrdering = {
 };
 
 function getColorName(rgb) {
-    const colors = {
+    const colorNames = {
         '0,0,0': { id: 1, name: 'Black' },
         '60,60,60': { id: 2, name: 'Dark Gray' },
         '120,120,120': { id: 3, name: 'Gray' },

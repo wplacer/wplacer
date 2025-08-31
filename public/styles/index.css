@@ -560,8 +560,8 @@ input:checked + .slider:before {
     grid-template-columns: repeat(auto-fill, 80px);
     gap: 12px;
     max-width: 800px;
-    margin-bottom: 20px;
-    margin-left: 15%;
+    margin: 0 auto 20px auto;
+    justify-content: center;
 }
 
 .color-item {

@@ -70,6 +70,7 @@ const proxyRotationMode = $('proxyRotationMode');
 const proxyCount = $('proxyCount');
 const reloadProxiesBtn = $('reloadProxiesBtn');
 const logProxyUsage = $('logProxyUsage');
+const showPaidColors = $('showPaidColors');
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -777,7 +778,7 @@ openAddTemplate.addEventListener('click', () => {
     console.log('Grid initialized for template placement.');
 
     
-    document.getElementById('toggleBasicColors').checked = true;
+    document.getElementById('showPaidColors').checked = false;
 
     changeTab('addTemplate');
 });
@@ -1182,7 +1183,7 @@ tx.addEventListener('blur', () => {
 /// --- Color Ordering
 const colorGrid = document.getElementById('colorGrid');
 let draggedElement = null;
-let showBasicOnly = true; // Default to true
+let showAllColors= false; // Default to false
 
 // Initialize the grid
 function initializeGrid() {
@@ -1200,7 +1201,7 @@ colorGrid.addEventListener('dragend', handleDragEnd);
 
 function getFilteredColors() {
     const sortedColors = Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
-    return showBasicOnly ? sortedColors.slice(0, 31) : sortedColors;
+    return showAllColors? sortedColors : sortedColors.slice(0, 31);
 }
 
 function buildColorGrid(colorEntries) {
@@ -1244,9 +1245,8 @@ function buildColorGrid(colorEntries) {
     updateAllPriorities();
 }
 
-function toggleBasicColors() {
-    const toggle = document.getElementById('toggleBasicColors')
-    showBasicOnly = toggle.checked;
+function togglePaidColors() {
+    showAllColors= showPaidColors.checked;
 
     // Get current order before rebuilding
     const currentOrder = [...colorGrid.querySelectorAll('.color-item')].map(el => ({
@@ -1256,9 +1256,9 @@ function toggleBasicColors() {
     }));
 
     // Filter current order based on toggle state
-    const filteredOrder = showBasicOnly ?
-        currentOrder.filter(item => item.id <= 31) :
-        currentOrder;
+    const filteredOrder = showAllColors?
+        currentOrder : // Show all colors when showAllColorsis true
+        currentOrder.filter(item => item.id <= 31); // Show only basic colors when showAllColorsis false
 
     // Rebuild grid with filtered colors, maintaining order
     colorGrid.innerHTML = '';
@@ -1281,6 +1281,8 @@ function toggleBasicColors() {
     }
 
     updateAllPriorities();
+
+    window.scrollTo(0, document.body.scrollHeight);
 }
 
 function createAndAddColorItem(rgb, colorData) {
