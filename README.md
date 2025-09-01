@@ -29,18 +29,18 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - [Tampermonkey](https://www.tampermonkey.net/)
 - [git](https://git-scm.com/downloads) (optional, but recommended)
 ### Installation:
+1. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
+1. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
 1. Install the extension on each browser window with an account you want to be used by wplacer and to automatically solve Turnstiles (CAPTCHAs) by going to the extensions page of your browser, turning on developer mode, pressing load unpacked, and then selecting the LOAD_UNPACKED folder included with wplacer.
-2. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
-3. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
 - If you'd like, you can change the host and port of the local server by creating a `.env` file.
 ### Usage:
 1. To start the bot, run `npm start` in the terminal.
-2. Open the URL printed in the console (usually `http://127.0.0.1/`) in your browser.
-3. In each browser window with the extension installed, log into your account on wplace.live. If your account does not show up in the manager after refreshing it, you can press on the extension to manually send it to wplacer.
-4. Go to the "Add Template" page to create your drawing templates.
+1. Open the URL printed in the console (usually `http://127.0.0.1/`) in your browser.
+1. In each browser window with the extension installed, log into your account on wplace.live. If your account does not show up in the manager after refreshing it, you can press on the extension to manually send it to wplacer.
+1. Go to the "Add Template" page to create your drawing templates.
    - The coordinates (`Tile X/Y`, `Pixel X/Y`) are for the top-left corner of your image. You can find these by clicking a pixel on wplace.live and inspecting the `pixel` request in the Network tab of DevTools. You can also use the [Blue Marble](https://github.com/SwingTheVine/Wplace-BlueMarble) userscript (user TamperMonkey) to see a pixel's coordinates.
    - You can assign multiple users to a single template.
-5. Finally, go to "Manage Templates" and click "Start" on any template to begin drawing.
+1. Finally, go to "Manage Templates" and click "Start" on any template to begin drawing.
    - The script will occasionally refresh one of the active bot windows on [wplace.live](https://wplace.live/). This is required to refresh the Turnstile token needed for painting.
 
 ## Notes 📝
