@@ -268,7 +268,7 @@ const colors = {
     '205,197,158': { id: 63, name: 'Cream' },
 };
 
-const colorById = (id) => Object.keys(colors).find((key) => colors[key] === id);
+const colorById = (id) => Object.keys(colors).find((key) => colors[key].id === id);
 const closest = (color) => {
     const [tr, tg, tb] = color.split(',').map(Number);
     return Object.keys(colors).reduce((closestKey, currentKey) => {
@@ -304,7 +304,7 @@ const drawTemplate = (template, canvas) => {
                 continue;
             }
 
-            const key = Object.keys(colors).find((k) => colors[k] === color);
+            const key = Object.keys(colors).find((k) => colors[k].id === color);
             if (!key) {
                 // Unknown color id. Skip to avoid `.split` crash.
                 // Optional: console.warn('Unknown color id:', color);
@@ -419,9 +419,13 @@ const nearestimgdecoder = (imageData, width, height) => {
                 if (rgb == '158,189,255') {
                     matrix[x][y] = -1;
                 } else {
-                    const id = colors[rgb] || colors[closest(rgb)];
-                    matrix[x][y] = id;
-                    if (id >= 32) hasPremium = true;
+                    const colorObj = colors[rgb] || colors[closest(rgb)];
+                    if (colorObj) {
+                        matrix[x][y] = colorObj.id;
+                        if (colorObj.id >= 32) hasPremium = true;
+                    } else {
+                        matrix[x][y] = 0; // fallback if not found
+                    }
                 }
                 ink++;
             } else {

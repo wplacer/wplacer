@@ -1220,18 +1220,50 @@ class TemplateManager {
             while (this.running) {
                 let colorsToPaint;
                 if (isColorMode) {
+                    console.log('Template data structure:', {
+                        width: this.template.width,
+                        height: this.template.height,
+                        dataType: typeof this.template.data,
+                        isArray: Array.isArray(this.template.data),
+                        firstColumn: this.template.data[0]?.slice(0, 5) // First 5 pixels of first column
+                    });
+                    
                     const allColors = this.template.data.flat().filter((c) => c > 0);
+                    console.log('All colors found:', allColors.slice(0, 20)); // First 20 colors
+                    console.log('Total pixels with color:', allColors.length);
+                    
+                    if (allColors.length === 0) {
+                        console.log('ERROR: No colors found in template data!');
+                        console.log('Sample of raw data:', this.template.data.slice(0, 3));
+                    }
+                        
                     const colorCounts = allColors.reduce((acc, color) => {
                         acc[color] = (acc[color] || 0) + 1;
                         return acc;
                     }, {});
 
+                    const customOrder = getColorOrderForTemplate(this.id); // You'll need to pass templateId
                     let sortedColors = Object.keys(colorCounts).map(Number);
-                    sortedColors.sort((a, b) => {
-                        if (a === 1) return -1; // Black (ID 1) always first
-                        if (b === 1) return 1;
-                        return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
-                    });
+
+                    // Sort by custom color order if available
+                    if (customOrder && customOrder.length > 0) {
+                        const orderMap = new Map(customOrder.map((id, index) => [id, index]));
+                        sortedColors.sort((a, b) => {
+                            const orderA = orderMap.get(a) ?? 999999;
+                            const orderB = orderMap.get(b) ?? 999999;
+                            return orderA - orderB;
+                        });
+                    } else {
+                        // Fallback to original logic
+                        sortedColors.sort((a, b) => {
+                            if (a === 1) return -1;
+                            if (b === 1) return 1;
+                            return colorCounts[a] - colorCounts[b];
+                        });
+                    }
+
+                    console.log('Painting order of colors:', sortedColors);
+
                     colorsToPaint = sortedColors;
                     if (this.eraseMode) {
                         colorsToPaint.push(0); // Add erase pass at the end
@@ -1694,34 +1726,53 @@ app.post('/users/status', async (_req, res) => {
 });
 
 // Templates
-app.get('/templates', (_req, res) => {
-    const out = {};
+app.get('/templates', (req, res) => {
+    const templateList = {};
+    
     for (const id in templates) {
-        const t = templates[id];
-        const { width, height, data } = t.template;
-        const shareCode = t.template.shareCode || shareCodeFromTemplate({ width, height, data });
-        t.template.shareCode = shareCode; // cache for future saves
-
-        out[id] = {
-            name: t.name,
-            template: { width, height, data }, // no shareCode inside template payload
-            shareCode, // provide separately for UI
-            coords: t.coords,
-            canBuyCharges: t.canBuyCharges,
-            canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode,
-            eraseMode: t.eraseMode,
-            outlineMode: t.outlineMode,
-            skipPaintedPixels: t.skipPaintedPixels,
-            enableAutostart: t.enableAutostart,
-            userIds: t.userIds,
-            running: t.running,
-            status: t.status,
-            pixelsRemaining: t.pixelsRemaining,
-            totalPixels: t.totalPixels,
-        };
+        const manager = templates[id];
+        try {
+            // Create a safe share code
+            let shareCode;
+            try {
+                shareCode = manager.template.shareCode || shareCodeFromTemplate(manager.template);
+            } catch (shareCodeError) {
+                console.warn(`Could not generate share code for template ${id}: ${shareCodeError.message}`);
+                shareCode = null; // Don't include invalid share code
+            }
+            
+            templateList[id] = {
+                id: id,
+                name: manager.name,
+                coords: manager.coords,
+                canBuyCharges: manager.canBuyCharges,
+                canBuyMaxCharges: manager.canBuyMaxCharges,
+                antiGriefMode: manager.antiGriefMode,
+                eraseMode: manager.eraseMode,
+                outlineMode: manager.outlineMode,
+                skipPaintedPixels: manager.skipPaintedPixels,
+                enableAutostart: manager.enableAutostart,
+                userIds: manager.userIds,
+                running: manager.running,
+                status: manager.status,
+                masterId: manager.masterId,
+                masterName: manager.masterName,
+                totalPixels: manager.totalPixels,
+                pixelsRemaining: manager.pixelsRemaining,
+                currentPixelSkip: manager.currentPixelSkip,
+                template: {
+                    width: manager.template.width,
+                    height: manager.template.height,
+                    data: manager.template.data,
+                    shareCode: shareCode
+                }
+            };
+        } catch (error) {
+            console.warn(`Error processing template ${id} for API response: ${error.message}`);
+        }
     }
-    res.json(out);
+    
+    res.json(templateList);
 });
 
 app.post('/templates/import', (req, res) => {
@@ -2139,6 +2190,9 @@ const runKeepAlive = async () => {
             console.error(`⚠️ Skipping template ${id}: ${e.message}`);
         }
     }
+
+    //Load color ordering on startup
+    colorOrdering = loadColorOrdering();
 
     loadProxies();
     console.log(
