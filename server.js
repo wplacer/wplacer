@@ -35,9 +35,9 @@ const WPLACE_PURCHASE = `${WPLACE_BASE}/purchase`;
 const TILE_URL = (tx, ty) => `${WPLACE_FILES}/tiles/${tx}/${ty}.png`;
 
 const DATA_DIR = './data';
-const USERS_FILE = 'users.json';
-const SETTINGS_FILE = 'settings.json';
-const TEMPLATES_PATH = path.join(__dirname, 'templates.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
+const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
 
 const JSON_LIMIT = '50mb';
 
@@ -117,76 +117,37 @@ class NetworkError extends Error {
 
 // ---------- Palette ----------
 
-const basic_colors = {
-    '0,0,0': 1,
-    '60,60,60': 2,
-    '120,120,120': 3,
-    '210,210,210': 4,
-    '255,255,255': 5,
-    '96,0,24': 6,
-    '237,28,36': 7,
-    '255,127,39': 8,
-    '246,170,9': 9,
-    '249,221,59': 10,
-    '255,250,188': 11,
-    '14,185,104': 12,
-    '19,230,123': 13,
-    '135,255,94': 14,
-    '12,129,110': 15,
-    '16,174,166': 16,
-    '19,225,190': 17,
-    '40,80,158': 18,
-    '64,147,228': 19,
-    '96,247,242': 20,
-    '107,80,246': 21,
-    '153,177,251': 22,
-    '120,12,153': 23,
-    '170,56,185': 24,
-    '224,159,249': 25,
-    '203,0,122': 26,
-    '236,31,128': 27,
-    '243,141,169': 28,
-    '104,70,52': 29,
-    '149,104,42': 30,
-    '248,178,119': 31,
+const pallete = {
+    '0,0,0': 1, '60,60,60': 2, '120,120,120': 3, '210,210,210': 4, '255,255,255': 5,
+    '96,0,24': 6, '237,28,36': 7, '255,127,39': 8, '246,170,9': 9, '249,221,59': 10,
+    '255,250,188': 11, '14,185,104': 12, '19,230,123': 13, '135,255,94': 14, '12,129,110': 15,
+    '16,174,166': 16, '19,225,190': 17, '40,80,158': 18, '64,147,228': 19, '96,247,242': 20,
+    '107,80,246': 21, '153,177,251': 22, '120,12,153': 23, '170,56,185': 24, '224,159,249': 25,
+    '203,0,122': 26, '236,31,128': 27, '243,141,169': 28, '104,70,52': 29, '149,104,42': 30,
+    '248,178,119': 31, '170,170,170': 32, '165,14,30': 33, '250,128,114': 34, '228,92,26': 35,
+    '214,181,148': 36, '156,132,49': 37, '197,173,49': 38, '232,212,95': 39, '74,107,58': 40,
+    '90,148,74': 41, '132,197,115': 42, '15,121,159': 43, '187,250,242': 44, '125,199,255': 45,
+    '77,49,184': 46, '74,66,132': 47, '122,113,196': 48, '181,174,241': 49, '219,164,99': 50,
+    '209,128,81': 51, '255,197,165': 52, '155,82,73': 53, '209,128,120': 54, '250,182,164': 55,
+    '123,99,82': 56, '156,132,107': 57, '51,57,65': 58, '109,117,141': 59, '179,185,209': 60,
+    '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
-const premium_colors = {
-    '170,170,170': 32,
-    '165,14,30': 33,
-    '250,128,114': 34,
-    '228,92,26': 35,
-    '214,181,148': 36,
-    '156,132,49': 37,
-    '197,173,49': 38,
-    '232,212,95': 39,
-    '74,107,58': 40,
-    '90,148,74': 41,
-    '132,197,115': 42,
-    '15,121,159': 43,
-    '187,250,242': 44,
-    '125,199,255': 45,
-    '77,49,184': 46,
-    '74,66,132': 47,
-    '122,113,196': 48,
-    '181,174,241': 49,
-    '219,164,99': 50,
-    '209,128,81': 51,
-    '255,197,165': 52,
-    '155,82,73': 53,
-    '209,128,120': 54,
-    '250,182,164': 55,
-    '123,99,82': 56,
-    '156,132,107': 57,
-    '51,57,65': 58,
-    '109,117,141': 59,
-    '179,185,209': 60,
-    '109,100,63': 61,
-    '148,140,107': 62,
-    '205,197,158': 63,
-};
-const pallete = { ...basic_colors, ...premium_colors };
-const colorBitmapShift = 32;
 const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
+const COLOR_NAMES = {
+    1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
+    6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
+    12: 'Dark Green', 13: 'Green', 14: 'Light Green', 15: 'Dark Teal', 16: 'Teal', 17: 'Light Teal',
+    18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
+    23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
+    29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
+    32: 'P-Gray', 33: 'P-Maroon', 34: 'P-Salmon', 35: 'P-Burnt Orange', 36: 'P-Tan',
+    37: 'P-Dark Gold', 38: 'P-Gold', 39: 'P-Light Gold', 40: 'P-Olive', 41: 'P-Forest Green',
+    42: 'P-Lime Green', 43: 'P-Dark Aqua', 44: 'P-Cyan', 45: 'P-Sky Blue', 46: 'P-Royal Blue',
+    47: 'P-Navy', 48: 'P-Light Purple', 49: 'P-Lilac', 50: 'P-Ochre', 51: 'P-Terracotta',
+    52: 'P-Peach', 53: 'P-Dark Rose', 54: 'P-Rose', 55: 'P-Light Rose', 56: 'P-Taupe',
+    57: 'P-Light Taupe', 58: 'P-Charcoal', 59: 'P-Slate', 60: 'P-Light Slate', 61: 'P-Khaki',
+    62: 'P-Light Khaki', 63: 'P-Beige'
+};
 
 // ---------- Charge prediction cache ----------
 
@@ -512,9 +473,9 @@ class WPlacer {
         return true;
     }
 
-    hasColor(id) {
-        if (id < colorBitmapShift) return true;
-        return !!(this.userInfo.extraColorsBitmap & (1 << (id - colorBitmapShift)));
+    hasColor() {
+        // This function is now obsolete as all colors are considered available.
+        return true;
     }
 
     async _executePaint(tx, ty, body) {
@@ -631,7 +592,7 @@ class WPlacer {
                     const shouldPaint = this.templateSettings.skipPaintedPixels
                         ? canvasColor === 0
                         : tplColor !== canvasColor;
-                    if (shouldPaint && this.hasColor(tplColor)) {
+                    if (shouldPaint) {
                         out.push({
                             tx: targetTx,
                             ty: targetTy,
@@ -656,7 +617,7 @@ class WPlacer {
         let mismatched = this._getMismatchedPixels(currentSkip, colorFilter);
         if (mismatched.length === 0) return 0;
 
-        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatched.length} mismatched pixels.`);
+        log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] Found ${mismatched.length} paintable pixels.`);
 
         // outline
         if (this.templateSettings.outlineMode) {
@@ -739,20 +700,13 @@ class WPlacer {
             throw new NetworkError('(1015) Rate-limited during purchase.');
         throw new Error(`Unexpected purchase response: ${JSON.stringify(res)}`);
     }
-
-    async getMismatchedPixels(currentSkip = 1, colorFilter = null) {
-        if (this.tiles.size === 0) {
-            await this.loadTiles();
-        }
-        return this._getMismatchedPixels(currentSkip, colorFilter);
-    }
 }
 
 // ---------- Persistence helpers ----------
 
 const loadJSON = (filename) =>
-    existsSync(path.join(DATA_DIR, filename)) ? JSON.parse(readFileSync(path.join(DATA_DIR, filename), 'utf8')) : {};
-const saveJSON = (filename, data) => writeFileSync(path.join(DATA_DIR, filename), JSON.stringify(data, null, 2));
+    existsSync(filename) ? JSON.parse(readFileSync(filename, 'utf8')) : {};
+const saveJSON = (filename, data) => writeFileSync(filename, JSON.stringify(data, null, 2));
 
 const users = loadJSON(USERS_FILE);
 const saveUsers = () => saveJSON(USERS_FILE, users);
@@ -978,7 +932,7 @@ let currentSettings = {
     logProxyUsage: false,
     openBrowserOnStart: true,
 };
-if (existsSync(path.join(DATA_DIR, SETTINGS_FILE))) {
+if (existsSync(SETTINGS_FILE)) {
     currentSettings = { ...currentSettings, ...loadJSON(SETTINGS_FILE) };
     // Sanitize keepAliveCooldown to prevent issues from old/bad settings files
     if (currentSettings.keepAliveCooldown < MS.FIVE_MIN) {
@@ -1189,7 +1143,6 @@ class TemplateManager {
                 }
                 if (error.message === 'REFRESH_TOKEN') {
                     log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired. Next token...`);
-                    // Token is already consumed by getToken, just need to retry
                     await sleep(1000);
                 } else {
                     throw error;
@@ -1210,6 +1163,7 @@ class TemplateManager {
 
         try {
             while (this.running) {
+                log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
                 if (isColorMode) {
                     const allColors = this.template.data.flat().filter((c) => c > 0);
@@ -1254,8 +1208,9 @@ class TemplateManager {
                         });
                         try {
                             await wplacer.login(users[checkUserId].cookies);
-                            allMismatchedForColor = await wplacer.getMismatchedPixels(1, color);
-                            this.pixelsRemaining = (await wplacer.getMismatchedPixels(1, null)).length;
+                            await wplacer.loadTiles();
+                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
+                            this.pixelsRemaining = (await wplacer._getMismatchedPixels(1, null)).length;
                             checkWplacer = wplacer;
                             this.userQueue.push(checkUserId);
                             break;
@@ -1272,15 +1227,27 @@ class TemplateManager {
                         continue; // Retry the entire color loop
                     }
 
+                    // --- ANTI-GRIEF FIX ---
                     if (this.pixelsRemaining === 0) {
-                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
-                        this.status = 'Finished.';
-                        this.running = false;
-                        break;
+                        if (this.antiGriefMode) {
+                            this.status = 'Monitoring for changes.';
+                            log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
+                            await this.cancellableSleep(currentSettings.antiGriefStandby);
+                            continue; // Continue the main `while (this.running)` loop to re-check later
+                        } else {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
+                            this.status = 'Finished.';
+                            this.running = false;
+                            break; // Break the `for (const color of colorsToPaint)` loop
+                        }
                     }
+                    if (!this.running) break; // Check running status after potential break
 
                     if (allMismatchedForColor.length === 0) {
-                        if (isColorMode) log('SYSTEM', 'wplacer', `[${this.name}] ✅ No pixels remaining for color ID ${color}.`);
+                        if (isColorMode) {
+                            const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ No pixels remaining for color ID ${color} (${colorName}).`);
+                        }
                         continue; // Skip to the next color
                     }
 
@@ -1292,7 +1259,10 @@ class TemplateManager {
                             break;
                         }
                     }
-                    if (isColorMode) log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} from density 1/${highestDensityWithPixels}`);
+                    if (isColorMode) {
+                        const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
+                        log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} (${colorName}) from density 1/${highestDensityWithPixels}`);
+                    }
 
 
                     // 3. Loop from the determined highest density down to 1
@@ -1362,7 +1332,7 @@ class TemplateManager {
                                             foundUserForTurn = true;
                                             // Tile cache is now stale. Reload tiles before re-checking pixels.
                                             await wplacer.loadTiles(); 
-                                            allMismatchedForColor = await wplacer.getMismatchedPixels(1, color);
+                                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
                                         }
                                         
                                         await this.handleUpgrades(wplacer);
@@ -1397,23 +1367,13 @@ class TemplateManager {
                                 this.status = 'Waiting for charges.';
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
+                                log('SYSTEM', 'wplacer', `[${this.name}] ⌚ Woke up after waiting. Re-evaluating users...`);
                             }
                         }
                     }
                 }
 
                 if (!this.running) break;
-
-                if (this.antiGriefMode) {
-                    this.status = 'Monitoring for changes.';
-                    log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ All passes complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
-                    await this.cancellableSleep(currentSettings.antiGriefStandby);
-                    continue;
-                } else {
-                    log('SYSTEM', 'wplacer', `[${this.name}] ✅ All passes complete! Template finished!`);
-                    this.status = 'Finished.';
-                    this.running = false;
-                }
             }
         } finally {
             activePaintingTasks--;
@@ -1781,11 +1741,10 @@ app.get('/canvas', async (req, res) => {
 // ---------- One-time migration: old -> compressed ----------
 
 function migrateOldTemplatesIfNeeded() {
-    const p = path.join(DATA_DIR, 'templates.json');
-    if (!existsSync(p)) return;
+    if (!existsSync(TEMPLATES_PATH)) return;
     let raw;
     try {
-        raw = JSON.parse(readFileSync(p, 'utf8'));
+        raw = JSON.parse(readFileSync(TEMPLATES_PATH, 'utf8'));
     } catch {
         return;
     }
@@ -1813,7 +1772,7 @@ function migrateOldTemplatesIfNeeded() {
         }
     }
     if (changed) {
-        writeFileSync(p, JSON.stringify(out, null, 2));
+        writeFileSync(TEMPLATES_PATH, JSON.stringify(out, null, 2));
         console.log(`[migrate] ✅ templates.json updated to compressed format`);
     }
 }
@@ -1895,7 +1854,7 @@ const runKeepAlive = async () => {
         throw new Error('template missing data/shareCode');
     };
 
-    const loadedTemplates = loadJSON('templates.json');
+    const loadedTemplates = loadJSON(TEMPLATES_PATH);
     templates = {};
 
     for (const id in loadedTemplates) {

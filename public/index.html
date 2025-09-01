@@ -51,7 +51,6 @@
             <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg" alt="">Convert Image</button>
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
-                <div id="premiumWarning" class="warning-box" style="display: none;"></div>
                 <canvas id="templateCanvas"></canvas>
                 <div class="preview-controls">
                     <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
@@ -164,6 +163,7 @@
             <label for="drawingOrderSelect">Drawing Order</label>
             <select id="drawingOrderSelect">
                 <option value="linear">Linear</option>
+                <option value="randomColor">Random Color</option>
                 <option value="color">Color by Color</option>
             </select>
 
