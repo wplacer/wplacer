@@ -34,10 +34,10 @@ const WPLACE_PIXEL = (tx, ty) => `${WPLACE_BASE}/s0/pixel/${tx}/${ty}`;
 const WPLACE_PURCHASE = `${WPLACE_BASE}/purchase`;
 const TILE_URL = (tx, ty) => `${WPLACE_FILES}/tiles/${tx}/${ty}.png`;
 
-const DATA_DIR = './data';
+const DATA_DIR = path.join(__dirname, 'data');
 const USERS_FILE = 'users.json';
 const SETTINGS_FILE = 'settings.json';
-const TEMPLATES_PATH = path.join(__dirname, 'templates.json');
+const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
 
 const JSON_LIMIT = '50mb';
 
