@@ -403,6 +403,7 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    const uniqueColors = new Set();
     let ink = 0;
 
     for (let y = 0; y < height; y++) {
@@ -420,6 +421,7 @@ const nearestimgdecoder = (imageData, width, height) => {
                     const colorObj = colors[rgb] || colors[closest(rgb)];
                     if (colorObj) {
                         matrix[x][y] = colorObj.id;
+                        uniqueColors.add(colorObj.id);
                     } else {
                         matrix[x][y] = 0; // fallback if not found
                     }
@@ -430,7 +432,7 @@ const nearestimgdecoder = (imageData, width, height) => {
             }
         }
     }
-    return { matrix, ink };
+    return { matrix, ink, uniqueColors };
 };
 
 const processImageFile = (file, callback) => {
@@ -447,14 +449,16 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink , uniqueColors } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+
+            const filteredColors = Array.from(uniqueColors).filter(id => id !== 0 && id !== -1);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
                 data: matrix,
-            };
+                uniqueColors: filteredColors            };
 
             canvas.remove();
             callback(template);
@@ -475,6 +479,23 @@ const processEvent = () => {
             templateCanvas.style.display = 'block';
             previewCanvas.style.display = 'none';
             details.style.display = 'block';
+
+            // Update the color grid to show only colors in this image
+            if (template.uniqueColors && template.uniqueColors.length > 0) {
+                // Clear current available colors and set to image colors
+                availableColors.clear();
+                template.uniqueColors.forEach(colorId => availableColors.add(colorId));
+                
+                // Update the color grid with image-specific colors
+                updateColorGridForImage(template.uniqueColors);
+                
+                console.log(`Image processed: Found ${template.uniqueColors.length} unique colors`);
+            } else {
+                // Fallback to all colors if no unique colors found
+                console.warn('No unique colors found in image, showing all colors');
+                availableColors = new Set(Object.values(colors).map(c => c.id));
+                resetOrder();
+            }
         });
     }
 };
@@ -1203,6 +1224,7 @@ async function loadAndDisplayColors(templateId = null) {
                 const templateColors = await response.json();
                 // Build color map from template-specific colors
                 colorData = {};
+                availableColors.clear(); // Clear previous colors
                 for (const colorInfo of templateColors.colors) {
                     // Find the RGB key for this color ID
                     const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === colorInfo.id);
@@ -1211,6 +1233,7 @@ async function loadAndDisplayColors(templateId = null) {
                         availableColors.add(colorInfo.id);
                     }
                 }
+                console.log(`Template ${templateId}: Found ${availableColors.size} unique colors`);
             } else {
                 console.warn('Failed to load template colors, falling back to all colors');
                 colorData = colors;
@@ -1222,14 +1245,21 @@ async function loadAndDisplayColors(templateId = null) {
             availableColors = new Set(Object.values(colors).map(c => c.id));
         }
         
-        // Load current ordering and apply it
+        // Build the grid with only available colors
+        const colorEntries = Object.entries(colorData).filter(([rgb, colorData]) => 
+            availableColors.has(colorData.id)
+        ).sort((a, b) => a[1].id - b[1].id);
+        
+        buildColorGrid(colorEntries);
+        
+        // Load and apply saved ordering
         await loadColorOrder(templateId);
         
     } catch (error) {
         console.error('Error loading colors:', error);
         // Fallback to all colors
         availableColors = new Set(Object.values(colors).map(c => c.id));
-        buildColorGrid(Object.entries(colors));
+        buildColorGrid(Object.entries(colors).sort((a, b) => a[1].id - b[1].id));
     }
 }
 
@@ -1250,11 +1280,6 @@ function buildColorGrid(colorEntries) {
     colorGrid.innerHTML = '';
 
     for (const [rgb, colorData] of colorEntries) {
-        // Skip colors not available in current context
-        if (currentTemplateId && !availableColors.has(colorData.id)) {
-            continue;
-        }
-        
         const div = document.createElement('div');
         div.className = 'color-item';
         div.setAttribute('draggable', 'true');
@@ -1443,8 +1468,14 @@ function handleDragEnd(e) {
 function resetOrder() {
     colorGrid.innerHTML = '';
 
-    const sortedColors = getAvailableColors();
-    for (const [rgb, colorData] of sortedColors) {
+    // Get colors filtered by current context
+    const availableColorEntries = Object.entries(colors)
+        .filter(([rgb, colorData]) => !currentTemplateId || availableColors.has(colorData.id))
+        .sort((a, b) => a[1].id - b[1].id);
+    
+    console.log(`Resetting order with ${availableColorEntries.length} colors for template ${currentTemplateId || 'global'}`);
+
+    for (const [rgb, colorData] of availableColorEntries) {
         createColorItem(rgb, colorData);
     }
     updateAllPriorities();
@@ -1490,7 +1521,9 @@ function applyColorOrder(order) {
         }
     }
     
-    // Add colors in the specified order
+    console.log(`Applying order with ${colorMap.size} available colors for template ${currentTemplateId || 'global'}`);
+    
+    // Add colors in the specified order (only if they're available in current context)
     for (const colorId of order) {
         const colorInfo = colorMap.get(colorId);
         if (colorInfo) {
@@ -1584,8 +1617,41 @@ async function saveColorOrder(templateId = null) {
     }
 }
 
-function switchColorContext(templateId = null) {
+function switchColorContext(templateId = null, imageColors = null) {
     currentTemplateId = templateId;
     availableColors.clear();
-    initializeGrid(templateId);
+    
+    if (imageColors) {
+        // If we have specific image colors, use those
+        imageColors.forEach(colorId => availableColors.add(colorId));
+        updateColorGridForImage(imageColors);
+    } else {
+        // Otherwise use the normal template/global logic
+        initializeGrid(templateId);
+    }
+}
+
+function updateColorGridForImage(imageColorIds) {
+    colorGrid.innerHTML = '';
+    
+    // Create a map of available colors from the image
+    const imageColors = [];
+    for (const colorId of imageColorIds) {
+        const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === colorId);
+        if (rgbKey) {
+            imageColors.push([rgbKey, colors[rgbKey]]);
+        }
+    }
+    
+    // Sort by color ID for consistent ordering
+    imageColors.sort((a, b) => a[1].id - b[1].id);
+    
+    console.log(`Displaying ${imageColors.length} colors found in image`);
+    
+    // Build the grid with image colors
+    for (const [rgb, colorData] of imageColors) {
+        createColorItem(rgb, colorData);
+    }
+    
+    updateAllPriorities();
 }
