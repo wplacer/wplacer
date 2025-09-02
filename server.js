@@ -1144,6 +1144,7 @@ class TemplateManager {
                 }
                 if (error.message === 'REFRESH_TOKEN') {
                     log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🔄 Token expired. Next token...`);
+                    TokenManager.invalidateToken();
                     await sleep(1000);
                 } else {
                     throw error;
