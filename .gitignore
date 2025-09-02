@@ -8,3 +8,5 @@ ExtensionTesting/
 *.png
 CONVERTED/
 data/
+bun.lock
+.DS_Store

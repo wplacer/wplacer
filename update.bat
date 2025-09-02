@@ -116,6 +116,9 @@ git pull
 if %errorlevel% equ 0 (
     echo.
     echo Repository updated successfully!
+    echo Installing dependencies...
+    npm i
+    echo.
 ) else (
     echo.
     echo Error updating the repository.

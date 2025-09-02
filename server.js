@@ -134,21 +134,6 @@ const palette = {
     '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
 const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
-const COLOR_NAMES = {
-    1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
-    6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
-    12: 'Dark Green', 13: 'Green', 14: 'Light Green', 15: 'Dark Teal', 16: 'Teal', 17: 'Light Teal',
-    18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
-    23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
-    29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
-    32: 'P-Gray', 33: 'P-Maroon', 34: 'P-Salmon', 35: 'P-Burnt Orange', 36: 'P-Tan',
-    37: 'P-Dark Gold', 38: 'P-Gold', 39: 'P-Light Gold', 40: 'P-Olive', 41: 'P-Forest Green',
-    42: 'P-Lime Green', 43: 'P-Dark Aqua', 44: 'P-Cyan', 45: 'P-Sky Blue', 46: 'P-Royal Blue',
-    47: 'P-Navy', 48: 'P-Light Purple', 49: 'P-Lilac', 50: 'P-Ochre', 51: 'P-Terracotta',
-    52: 'P-Peach', 53: 'P-Dark Rose', 54: 'P-Rose', 55: 'P-Light Rose', 56: 'P-Taupe',
-    57: 'P-Light Taupe', 58: 'P-Charcoal', 59: 'P-Slate', 60: 'P-Light Slate', 61: 'P-Khaki',
-    62: 'P-Light Khaki', 63: 'P-Beige'
-};
 
 function getColorName(rgb) {
     const id = palette[rgb];
@@ -488,7 +473,6 @@ class WPlacer {
     }
 
     hasColor() {
-        // This function is now obsolete as all colors are considered available.
         return true;
     }
 
@@ -1357,16 +1341,16 @@ class TemplateManager {
                                         const userInfo = await wplacer.login(users[userId].cookies);
                                         this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
-
+                                        
                                         const paintedNow = await this._performPaintTurn(wplacer, color);
-
+                                        
                                         if (paintedNow > 0) {
                                             foundUserForTurn = true;
                                             // Tile cache is now stale. Reload tiles before re-checking pixels.
-                                            await wplacer.loadTiles();
+                                            await wplacer.loadTiles(); 
                                             allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
                                         }
-
+                                        
                                         await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
                                         this.currentRetryDelay = this.initialRetryDelay;
@@ -1399,7 +1383,7 @@ class TemplateManager {
                                 this.status = 'Waiting for charges.';
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
-                                log('SYSTEM', 'wplacer', `[${this.name}] ⌚ Woke up after waiting. Re-evaluating users...`);
+                                log('SYSTEM', 'wplacer', `[${this.name}] 🌞 Woke up after waiting. Re-evaluating users...`);
                             }
                         }
                     }
@@ -2000,28 +1984,28 @@ function migrateOldTemplatesIfNeeded() {
 const runKeepAlive = async () => {
     log('SYSTEM', 'KeepAlive', '🔄 Starting hourly keep-alive check...');
 
-    const activeUserIds = new Set();
+    const trulyActiveUserIds = new Set();
     for (const templateId in templates) {
         const manager = templates[templateId];
-        if (manager.running) {
-            manager.userIds.forEach((id) => activeUserIds.add(id));
+        if (manager.running && manager.status !== 'Monitoring for changes.') {
+            manager.userIds.forEach((id) => trulyActiveUserIds.add(id));
         }
     }
 
     const allUserIds = Object.keys(users);
-    const inactiveUserIds = allUserIds.filter((id) => !activeUserIds.has(id));
+    const usersToCheck = allUserIds.filter((id) => !trulyActiveUserIds.has(id));
 
-    if (inactiveUserIds.length === 0) {
-        log('SYSTEM', 'KeepAlive', '✅ No idle users to check. All users are active in templates.');
+    if (usersToCheck.length === 0) {
+        log('SYSTEM', 'KeepAlive', '✅ No idle or anti-grief users to check. All users are in active painting cycles.');
         return;
     }
 
-    log('SYSTEM', 'KeepAlive', `Found ${inactiveUserIds.length} idle users to check out of ${allUserIds.length} total users.`);
+    log('SYSTEM', 'KeepAlive', `Found ${usersToCheck.length} idle or anti-grief users to check out of ${allUserIds.length} total users.`);
 
     let successCount = 0;
     let failCount = 0;
 
-    for (const id of inactiveUserIds) {
+    for (const id of usersToCheck) {
         if (users[id].suspendedUntil && Date.now() < users[id].suspendedUntil) {
             log(id, users[id].name, '🚫 Keep-alive check skipped (account suspended).');
             continue;
@@ -2054,7 +2038,7 @@ const diffVer = (v1, v2) => {
     console.log(gradient(["#EF8F20", "#CB3D27", "#A82421"])(`                           ████
                           ▒▒███
  █████ ███ █████ ████████  ▒███   ██████    ██████   ██████  ████████
-▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███▒▒███▒▒███▒▒███
+▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███  ███▒▒███▒▒███
  ▒███ ▒███ ▒███  ▒███ ▒███ ▒███   ███████ ▒███ ▒▒▒ ▒███████  ▒███ ▒▒▒
  ▒▒███████████   ▒███ ▒███ ▒███  ███▒▒███ ▒███  ███▒███▒▒▒   ▒███
   ▒▒████▒████    ▒███████  █████▒▒████████▒▒██████ ▒▒██████  █████
