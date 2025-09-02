@@ -43,6 +43,41 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 1. Finally, go to "Manage Templates" and click "Start" on any template to begin drawing.
    - The script will occasionally refresh one of the active bot windows on [wplace.live](https://wplace.live/). This is required to refresh the Turnstile token needed for painting.
 
+# FAQ and Common Errors 🤔
+### How to get your JWT token:
+Go to [wplace.live](<https://wplace.live>), login, click anywhere on the map, then press `Ctrl` + `Shift` + `i`, go to `Application`, find the `j` column, then copy the value inside
+
+### How to install the extension:
+Go to the manage extensions tab, enable Developer mode, then click load unpacked, select the `LOAD_UNPACKED` folder.
+After that, make sure to click on the extension in wplace.live, and configure your port if you changed it in `.env`
+
+### How to run the bot:
+1. Simply open `start.bat`.
+2. Open a command prompt in the wplacer folder. You can type `cmd` in the address bar in the file explorer to do this.
+run `npm i` in the command prompt, then after run `npm start`.
+  - If you get any errors while running `npm i`, run this: `Set-ExecutionPolicy -Scope CurrentUser Bypass` then you can run `npm i`
+
+### How to add proxies:
+You need to find your own proxy provider, and once you do you must follow this format: `protocol://ip:port` or `protocol://user:pass:ip:port`
+Example: `socks5://127.0.0.1:9050`
+Example: `socks5://user:admin:127.0.0.1:9050`
+
+### Why is it stuck on waiting for a token?
+You must have at least one tab open to [wplace](<https://wplace.live>). You need a macro or something else that will automatically click the turnstile checkboxes.
+
+### I keep getting error 500:
+Two things will cause this, [wplace.live](<https://wplace.live>) being down, or your token is expired.
+- To check if wplace is down, go here: <https://status.wplace.lol/>
+- If its up, re-add your token by doing the first step.
+- If NEITHER are an issue, then its probably something in the code is wrong. Open an issue or tell them in the support server and it should be fixed in future updates.
+
+### Browser:
+- **The best supported browser is Brave, which you can get here: <https://brave.com/download/>**
+- Chrome works, but is not reccomended (zero fingerprint protection - high ban chance)
+- Firefox is not supported
+
+**We will NOT provide support for other forks of this project. Ask the respective developers.**
+
 ## Notes 📝
 
 > [!CAUTION]
@@ -54,43 +89,6 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 - [x] ~~Support for painting between multiple tiles~~
 - [x] ~~Easier multi-account support for one template~~
 - [x] ~~Queueing system for multi-accounts~~
-- [x] ~~Docker support~~
-
-### FAQ 🤔
-# How to get your JWT token:
-Go to [wplace.live](<https://wplace.live>), login, click anywhere on the map, then press `Ctrl` + `Shift` + `i`, go to `Application`, find the `j` column, then copy the value inside
-
-# How to install the extension:
-Go to the manage extensions tab, enable Developer mode, then click load unpacked, select the `LOAD_UNPACKED` folder.
-After that, make sure to click on the extension in wplace.live, and configure your port if you changed it in `.env`
-
-# How to run the bot:
-1. Simply open `start.bat`.
-2. Open a command prompt in the wplacer folder. You can type `cmd` in the address bar in the file explorer to do this.
-run `npm i` in the command prompt, then after run `npm start`.
-  -# - If you get any errors while running `npm i`, run this: `Set-ExecutionPolicy -Scope CurrentUser Bypass` then you can run `npm i`
-
-# How to add proxies:
-You need to find your own proxy provider, and once you do you must follow this format: `protocol://ip:port` or `protocol://user:pass:ip:port`
-Example: `socks5://127.0.0.1:9050`
-Example: `socks5://user:admin:127.0.0.1:9050`
-
-# Why is it stuck on waiting for a token?
-You must have at least one tab open to [wplace](<https://wplace.live>). You need a macro or something else that will automatically click the turnstile checkboxes.
-
-# I keep getting error 500:
-Two things will cause this, [wplace.live](<https://wplace.live>) being down, or your token is expired.
-- To check if wplace is down, go to this: <https://status.wplace.lol/>
-- If its up, re-add your token by doing the first step.
-- If NEITHER are an issue, then its probably something in the code is wrong. Open an issue or tell them in the support server and it should be fixed in future updates.
-
-# Browser:
-- **The best supported browser is Brave, which you can get here: <https://brave.com/download/>**
-- Chrome works, but is not reccomended (zero fingerprint protection - high ban chance)
-- Firefox is not supported
-
--# **We will NOT provide support for other forks of this project. Ask the respective Developers.**
-
 
 ### Credits 🙏
 
