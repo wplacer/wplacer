@@ -134,3 +134,4 @@ if %errorlevel% equ 0 (
 :end
 echo.
 echo All done!
+pause
