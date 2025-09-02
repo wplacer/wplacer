@@ -1078,6 +1078,7 @@ function logUserError(error, id, name, context) {
 
 class TemplateManager {
     constructor({
+        templateId,
         name,
         templateData,
         coords,
@@ -1090,6 +1091,7 @@ class TemplateManager {
         enableAutostart,
         userIds,
     }) {
+        this.templateId = templateId;
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -1241,25 +1243,28 @@ class TemplateManager {
                         acc[color] = (acc[color] || 0) + 1;
                         return acc;
                     }, {});
-
-                    const customOrder = getColorOrderForTemplate(this.id); // You'll need to pass templateId
+                    
+                    const customOrder = getColorOrderForTemplate(this.templateId);
                     let sortedColors = Object.keys(colorCounts).map(Number);
 
-                    // Sort by custom color order if available
                     if (customOrder && customOrder.length > 0) {
+                        // Use custom color ordering
                         const orderMap = new Map(customOrder.map((id, index) => [id, index]));
                         sortedColors.sort((a, b) => {
                             const orderA = orderMap.get(a) ?? 999999;
                             const orderB = orderMap.get(b) ?? 999999;
                             return orderA - orderB;
                         });
+                        console.log(`[${this.name}] Using custom color order:`, customOrder);
+                        console.log(`[${this.name}] Painting order of colors:`, sortedColors);
                     } else {
                         // Fallback to original logic
                         sortedColors.sort((a, b) => {
-                            if (a === 1) return -1;
+                            if (a === 1) return -1; // Black (ID 1) always first
                             if (b === 1) return 1;
-                            return colorCounts[a] - colorCounts[b];
+                            return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
                         });
+                        console.log(`[${this.name}] Using default color order (pixel count). Colors:`, sortedColors);
                     }
 
                     console.log('Painting order of colors:', sortedColors);
@@ -1604,6 +1609,7 @@ const loadColorOrdering = () => {
 const saveColorOrdering = () => {
     const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
     try {
+        console.log('Saving color ordering to:', orderingPath);
         writeFileSync(orderingPath, JSON.stringify(colorOrdering, null, 2));
     } catch (e) {
         console.error('Error saving color ordering:', e.message);
@@ -1780,6 +1786,7 @@ app.post('/templates/import', (req, res) => {
     if (!id || !code) return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'id and code required' });
     const tmpl = templateFromShareCode(code);
     templates[id] = {
+        templateId: id,
         name: name || `Template ${id}`,
         coords: coords || [0, 0],
         canBuyCharges: false,
@@ -1821,6 +1828,7 @@ app.post('/template', (req, res) => {
 
     const templateId = Date.now().toString();
     templates[templateId] = new TemplateManager({
+        templateId: templateId,
         name: templateName,
         templateData: template,
         coords,
@@ -2170,6 +2178,7 @@ const runKeepAlive = async () => {
             const templateData = ensureTemplateData(t.template);
             if (t.userIds.every((uid) => users[uid])) {
                 templates[id] = new TemplateManager({
+                    templateId: id,
                     name: t.name,
                     templateData,
                     coords: t.coords,
