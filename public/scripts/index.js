@@ -420,7 +420,6 @@ const nearestimgdecoder = (imageData, width, height) => {
                     const colorObj = colors[rgb] || colors[closest(rgb)];
                     if (colorObj) {
                         matrix[x][y] = colorObj.id;
-                        if (colorObj.id >= 32) hasPremium = true;
                     } else {
                         matrix[x][y] = 0; // fallback if not found
                     }
@@ -500,7 +499,7 @@ function pastePinCoordinates(text) {
         /^\s*(\d+)[\s,;]+(\d+)[\s,;]+(\d+)[\s,;]+(\d+)\s*$/,
     ];
     for (const p of patterns) {
-        match = p.exec(text);
+        const match = p.exec(text);
         if (match) {
             $('tx').value = match[1];
             $('ty').value = match[2];
@@ -586,7 +585,7 @@ templateForm.addEventListener('submit', async (e) => {
             await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
             showMessage('Success', 'Template updated!');
         } else {
-            await axios.post('/template', data);
+            const response = await axios.post('/template', data);
             showMessage('Success', 'Template created!');
             templateId = response.data.id;
         }
@@ -1314,47 +1313,6 @@ function getAllColors() {
     return Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
 }
 
-function buildColorGrid(colorEntries) {
-    colorGrid.innerHTML = '';
-
-    for (const [rgb, colorData] of colorEntries) {
-        const div = document.createElement('div');
-        div.className = 'color-item';
-        div.setAttribute('draggable', 'true');
-        div.dataset.id = colorData.id;
-        div.dataset.rgb = rgb;
-        div.dataset.name = colorData.name;
-
-        div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
-
-        // Create color swatch
-        const swatch = document.createElement('div');
-        swatch.className = 'color-swatch';
-        swatch.style.background = `rgb(${rgb})`;
-
-        // Create info section
-        const info = document.createElement('div');
-        info.className = 'color-info';
-
-        const prioritySpan = document.createElement('span');
-        prioritySpan.className = 'priority-number';
-        prioritySpan.textContent = getCurrentPriority(div);
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'color-name';
-        nameSpan.textContent = colorData.name;
-
-        info.appendChild(prioritySpan);
-        info.appendChild(nameSpan);
-
-        div.appendChild(swatch);
-        div.appendChild(info);
-        colorGrid.appendChild(div);
-    }
-
-    updateAllPriorities();
-}
-
 function createAndAddColorItem(rgb, colorData) {
     const div = document.createElement('div');
     div.className = 'color-item';
@@ -1638,24 +1596,4 @@ function switchColorContext(templateId = null) {
     currentTemplateId = templateId;
     availableColors.clear();
     initializeGrid(templateId);
-}
-
-async function showColorStats(templateId) {
-    if (!templateId) return;
-    
-    try {
-        const response = await fetch(`/template/${templateId}/stats`);
-        if (!response.ok) return;
-        
-        const stats = await response.json();
-        console.log(`Template: ${stats.templateName}`);
-        console.log(`Total pixels: ${stats.totalPixels}`);
-        console.log(`Unique colors: ${stats.uniqueColors}`);
-        console.log('Color breakdown:', stats.colorStats);
-        
-        // You could display this in the UI somewhere
-        return stats;
-    } catch (error) {
-        console.error('Failed to load color stats:', error);
-    }
 }
