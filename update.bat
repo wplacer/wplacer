@@ -119,7 +119,6 @@ if %errorlevel% equ 0 (
     echo Installing dependencies...
     npm i
     echo.
-    echo Dependencies installed successfully!
 ) else (
     echo.
     echo Error updating the repository.
@@ -135,4 +134,3 @@ if %errorlevel% equ 0 (
 :end
 echo.
 echo All done!
-pause
