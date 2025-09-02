@@ -1171,11 +1171,113 @@ tx.addEventListener('blur', () => {
 /// --- Color Ordering
 const colorGrid = document.getElementById('colorGrid');
 let draggedElement = null;
+let currentTemplateId = null; 
+let availableColors = new Set();
 
 // Initialize the grid
-function initializeGrid() {
-    const allColors = getAllColors();
-    buildColorGrid(allColors);
+function initializeGrid(templateId = null) {
+    currentTemplateId = templateId;
+    loadAndDisplayColors(templateId);
+}
+
+async function loadAndDisplayColors(templateId = null) {
+    try {
+        let colorData;
+        
+        if (templateId) {
+            // Get colors specific to this template
+            const response = await fetch(`/template/${templateId}/colors`);
+            if (response.ok) {
+                const templateColors = await response.json();
+                // Build color map from template-specific colors
+                colorData = {};
+                for (const colorInfo of templateColors.colors) {
+                    // Find the RGB key for this color ID
+                    const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === colorInfo.id);
+                    if (rgbKey) {
+                        colorData[rgbKey] = colors[rgbKey];
+                        availableColors.add(colorInfo.id);
+                    }
+                }
+            } else {
+                console.warn('Failed to load template colors, falling back to all colors');
+                colorData = colors;
+                availableColors = new Set(Object.values(colors).map(c => c.id));
+            }
+        } else {
+            // Show all colors
+            colorData = colors;
+            availableColors = new Set(Object.values(colors).map(c => c.id));
+        }
+        
+        // Load current ordering and apply it
+        await loadColorOrder(templateId);
+        
+    } catch (error) {
+        console.error('Error loading colors:', error);
+        // Fallback to all colors
+        availableColors = new Set(Object.values(colors).map(c => c.id));
+        buildColorGrid(Object.entries(colors));
+    }
+}
+
+// Get colors for current context (all colors or template-specific)
+function getAvailableColors() {
+    if (currentTemplateId && availableColors.size > 0) {
+        // Return only colors present in the current template
+        return Object.entries(colors).filter(([rgb, colorData]) => 
+            availableColors.has(colorData.id)
+        ).sort((a, b) => a[1].id - b[1].id);
+    } else {
+        // Return all colors
+        return Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
+    }
+}
+
+function buildColorGrid(colorEntries) {
+    colorGrid.innerHTML = '';
+
+    for (const [rgb, colorData] of colorEntries) {
+        // Skip colors not available in current context
+        if (currentTemplateId && !availableColors.has(colorData.id)) {
+            continue;
+        }
+        
+        const div = document.createElement('div');
+        div.className = 'color-item';
+        div.setAttribute('draggable', 'true');
+        div.dataset.id = colorData.id;
+        div.dataset.rgb = rgb;
+        div.dataset.name = colorData.name;
+
+        div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
+
+        // Create color swatch
+        const swatch = document.createElement('div');
+        swatch.className = 'color-swatch';
+        swatch.style.background = `rgb(${rgb})`;
+
+        // Create info section
+        const info = document.createElement('div');
+        info.className = 'color-info';
+
+        const prioritySpan = document.createElement('span');
+        prioritySpan.className = 'priority-number';
+        prioritySpan.textContent = getCurrentPriority(div);
+
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'color-name';
+        nameSpan.textContent = colorData.name;
+
+        info.appendChild(prioritySpan);
+        info.appendChild(nameSpan);
+
+        div.appendChild(swatch);
+        div.appendChild(info);
+        colorGrid.appendChild(div);
+    }
+
+    updateAllPriorities();
 }
 
 // Drag and drop event handlers
@@ -1362,44 +1464,11 @@ function handleDragEnd(e) {
 }
 
 function resetOrder() {
-    // Clear current grid
     colorGrid.innerHTML = '';
 
-    // Rebuild in original numeric order with ALL colors
-    const sortedColors = Object.entries(colors).sort((a, b) => a[1].id - b[1].id);
+    const sortedColors = getAvailableColors();
     for (const [rgb, colorData] of sortedColors) {
-        const div = document.createElement('div');
-        div.className = 'color-item';
-        div.setAttribute('draggable', 'true');
-        div.dataset.id = colorData.id;
-        div.dataset.rgb = rgb;
-        div.dataset.name = colorData.name;
-
-        div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
-
-        // Create color swatch
-        const swatch = document.createElement('div');
-        swatch.className = 'color-swatch';
-        swatch.style.background = `rgb(${rgb})`;
-
-        // Create info section
-        const info = document.createElement('div');
-        info.className = 'color-info';
-
-        const prioritySpan = document.createElement('span');
-        prioritySpan.className = 'priority-number';
-        prioritySpan.textContent = getCurrentPriority(div);
-
-        const nameSpan = document.createElement('span');
-        nameSpan.className = 'color-name';
-        nameSpan.textContent = colorData.name;
-
-        info.appendChild(prioritySpan);
-        info.appendChild(nameSpan);
-
-        div.appendChild(swatch);
-        div.appendChild(info);
-        colorGrid.appendChild(div);
+        createColorItem(rgb, colorData);
     }
     updateAllPriorities();
 }
@@ -1414,13 +1483,19 @@ async function loadColorOrder(templateId = null) {
         const data = await response.json();
         
         if (data.order && Array.isArray(data.order)) {
-            applyColorOrder(data.order);
+            // Filter the order to only include available colors
+            const filteredOrder = data.order.filter(colorId => 
+                !currentTemplateId || availableColors.has(colorId)
+            );
+            applyColorOrder(filteredOrder);
+        } else {
+            // Fallback to default order
+            resetOrder();
         }
         
         return data;
     } catch (error) {
         console.error('Failed to load color order:', error);
-        // Fall back to default order
         resetOrder();
         return null;
     }
@@ -1428,13 +1503,14 @@ async function loadColorOrder(templateId = null) {
 
 // Apply a specific color order to the grid
 function applyColorOrder(order) {
-    // Clear current grid
     colorGrid.innerHTML = '';
     
-    // Create a map of color ID to color data
     const colorMap = new Map();
     for (const [rgb, colorData] of Object.entries(colors)) {
-        colorMap.set(colorData.id, { rgb, ...colorData });
+        // Only include colors available in current context
+        if (!currentTemplateId || availableColors.has(colorData.id)) {
+            colorMap.set(colorData.id, { rgb, ...colorData });
+        }
     }
     
     // Add colors in the specified order
@@ -1442,11 +1518,11 @@ function applyColorOrder(order) {
         const colorInfo = colorMap.get(colorId);
         if (colorInfo) {
             createColorItem(colorInfo.rgb, colorInfo);
-            colorMap.delete(colorId); // Remove from map to avoid duplicates
+            colorMap.delete(colorId);
         }
     }
     
-    // Add any remaining colors that weren't in the order (shouldn't happen with a complete order)
+    // Add any remaining colors that weren't in the order
     for (const [colorId, colorInfo] of colorMap) {
         createColorItem(colorInfo.rgb, colorInfo);
     }
@@ -1465,18 +1541,16 @@ function createColorItem(rgb, colorData) {
 
     div.title = `ID ${colorData.id}: ${colorData.name} (${rgb})`;
 
-    // Create color swatch
     const swatch = document.createElement('div');
     swatch.className = 'color-swatch';
     swatch.style.background = `rgb(${rgb})`;
 
-    // Create info section
     const info = document.createElement('div');
     info.className = 'color-info';
 
     const prioritySpan = document.createElement('span');
     prioritySpan.className = 'priority-number';
-    prioritySpan.textContent = ''; // Will be set by updateAllPriorities
+    prioritySpan.textContent = '';
 
     const nameSpan = document.createElement('span');
     nameSpan.className = 'color-name';
@@ -1494,16 +1568,17 @@ function createColorItem(rgb, colorData) {
 async function saveColorOrder(templateId = null) {
     const order = [...colorGrid.querySelectorAll('.color-item')]
         .map(el => parseInt(el.dataset.id))
-        .filter(id => !isNaN(id) && id > 0); // Remove invalid IDs
+        .filter(id => !isNaN(id) && id > 0);
     
     if (order.length === 0) {
         console.error('No valid color IDs found');
         return false;
     }
     
-    // Ensure we have all 63 colors
-    if (order.length !== 63) {
-        console.warn(`Color order incomplete: ${order.length}/63 colors. This may cause issues.`);
+    // For template-specific ordering, we expect fewer colors
+    const expectedCount = currentTemplateId ? availableColors.size : 63;
+    if (order.length !== expectedCount) {
+        console.warn(`Color order count: ${order.length}/${expectedCount} colors`);
     }
     
     const url = templateId ? 
@@ -1523,10 +1598,37 @@ async function saveColorOrder(templateId = null) {
             return false;
         }
         
-        console.log(`Successfully saved color order (${order.length} colors)`);
+        const context = templateId ? `template ${templateId}` : 'global';
+        console.log(`Successfully saved ${context} color order (${order.length} colors)`);
         return true;
     } catch (error) {
         console.error('Error saving color order:', error);
         return false;
+    }
+}
+
+function switchColorContext(templateId = null) {
+    currentTemplateId = templateId;
+    availableColors.clear();
+    initializeGrid(templateId);
+}
+
+async function showColorStats(templateId) {
+    if (!templateId) return;
+    
+    try {
+        const response = await fetch(`/template/${templateId}/stats`);
+        if (!response.ok) return;
+        
+        const stats = await response.json();
+        console.log(`Template: ${stats.templateName}`);
+        console.log(`Total pixels: ${stats.totalPixels}`);
+        console.log(`Unique colors: ${stats.uniqueColors}`);
+        console.log('Color breakdown:', stats.colorStats);
+        
+        // You could display this in the UI somewhere
+        return stats;
+    } catch (error) {
+        console.error('Failed to load color stats:', error);
     }
 }

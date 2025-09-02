@@ -1479,6 +1479,21 @@ let colorOrdering = {
     templates: {} // Per-template color orders
 };
 
+function getColorsInTemplate(templateData) {
+    const uniqueColors = new Set();
+    
+    for (let x = 0; x < templateData.data.length; x++) {
+        for (let y = 0; y < templateData.data[x].length; y++) {
+            const colorId = templateData.data[x][y];
+            if (colorId > 0) { // Only include actual colors, not transparent (0) or clear (-1)
+                uniqueColors.add(colorId);
+            }
+        }
+    }
+    
+    return Array.from(uniqueColors).sort((a, b) => a - b);
+}
+
 // Load color ordering from disk
 const loadColorOrdering = () => {
     const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
@@ -1564,8 +1579,21 @@ const debugColorOrdering = (templateId = null) => {
     console.log('=== END DEBUG ===\n');
 };
 
-// Add this route to test the color ordering
-app.get('/debug/color-ordering/:templateId?', (req, res) => {
+app.get('/debug/color-ordering', (req, res) => {
+    debugColorOrdering();
+    
+    const result = {
+        fileExists: existsSync(path.join(DATA_DIR, 'color_ordering.json')),
+        inMemory: {
+            global: colorOrdering.global,
+            templates: colorOrdering.templates
+        }
+    };
+    
+    res.json(result);
+});
+
+app.get('/debug/color-ordering/:templateId', (req, res) => {
     const { templateId } = req.params;
     debugColorOrdering(templateId);
     
@@ -1575,7 +1603,7 @@ app.get('/debug/color-ordering/:templateId?', (req, res) => {
             global: colorOrdering.global,
             templates: colorOrdering.templates
         },
-        templateResult: templateId ? getColorOrderForTemplate(templateId) : null
+        templateResult: getColorOrderForTemplate(templateId)
     };
     
     res.json(result);
@@ -1926,11 +1954,27 @@ app.get('/canvas', async (req, res) => {
 app.get('/color-ordering', (req, res) => {
     const { templateId } = req.query;
     
-    if (templateId && colorOrdering.templates[templateId]) {
-        res.json({ order: colorOrdering.templates[templateId] });
+    let availableColors;
+    let currentOrder;
+    
+    if (templateId && templates[templateId]) {
+        // Get colors actually present in this template
+        availableColors = getColorsInTemplate(templates[templateId].template);
+        currentOrder = getColorOrderForTemplate(templateId);
+        
+        // Filter the order to only include colors present in the template
+        currentOrder = currentOrder.filter(colorId => availableColors.includes(colorId));
     } else {
-        res.json({ order: colorOrdering.global });
+        // Use global ordering with all colors
+        availableColors = Object.values(pallete);
+        currentOrder = colorOrdering.global;
     }
+    
+    res.json({ 
+        order: currentOrder,
+        availableColors: availableColors,
+        filteredByTemplate: !!templateId
+    });
 });
 
 app.put('/color-ordering/global', (req, res) => {
@@ -2003,18 +2047,29 @@ app.delete('/color-ordering/template/:templateId', (req, res) => {
     res.json({ success: true });
 });
 
-app.get('/colors', (req, res) => {
-    // Return color palette with names for the frontend
-    const colorData = {};
+app.get('/template/:id/colors', (req, res) => {
+    const { id } = req.params;
     
-    for (const [rgb, id] of Object.entries(pallete)) {
-        colorData[rgb] = {
-            id,
-            name: getColorName(rgb)
-        };
+    if (!templates[id]) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Template not found' });
     }
     
-    res.json(colorData);
+    const template = templates[id];
+    const colorsInTemplate = getColorsInTemplate(template.template);
+    
+    // Build response with color info
+    const colorInfo = colorsInTemplate.map(colorId => ({
+        id: colorId,
+        name: COLOR_NAMES[colorId] || `Color ${colorId}`,
+        rgb: Object.keys(pallete).find(key => pallete[key] === colorId) || null
+    }));
+    
+    res.json({
+        templateId: id,
+        templateName: template.name,
+        colors: colorInfo,
+        totalUniqueColors: colorsInTemplate.length
+    });
 });
 
 // ---------- One-time migration: old -> compressed ----------
