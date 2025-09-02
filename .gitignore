@@ -8,3 +8,4 @@ ExtensionTesting/
 *.png
 CONVERTED/
 data/
+bun.lock
