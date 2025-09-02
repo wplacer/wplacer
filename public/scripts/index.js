@@ -71,11 +71,29 @@ const proxyCount = $('proxyCount');
 const reloadProxiesBtn = $('reloadProxiesBtn');
 const logProxyUsage = $('logProxyUsage');
 
+// Logs Viewer
+const openLogsViewer = $('openLogsViewer');
+const logsViewer = $('logsViewer');
+const logsContainer = $('logsContainer');
+const showLogsBtn = $('showLogsBtn');
+const showErrorsBtn = $('showErrorsBtn');
+const clearLogsBtn = $('clearLogsBtn');
+const logsSearchInput = $('logsSearchInput');
+const logsExportBtn = $('logsExportBtn');
+const logsTypeFilter = $('logsTypeFilter');
+
 // --- Global State ---
 let templateUpdateInterval = null;
 let confirmCallback = null;
 let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
+
+
+let logsWs = null;
+let logsMode = 'logs'; // 'logs' or 'errors'
+let allLogLines = [];
+let filterText = '';
+let filterType = '';
 
 const tabs = {
     main,
@@ -83,6 +101,7 @@ const tabs = {
     addTemplate,
     manageTemplates,
     settings,
+    logsViewer,
 };
 
 const showMessage = (title, content) => {
@@ -153,7 +172,170 @@ const changeTab = (tabName) => {
     Object.values(tabs).forEach((tab) => (tab.style.display = 'none'));
     tabs[tabName].style.display = 'block';
     currentTab = tabName;
+    if (tabName === 'logsViewer') {
+        startLogsViewer();
+    } else {
+        stopLogsViewer();
+    }
 };
+
+
+function startLogsViewer() {
+    logsMode = 'logs';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Connecting to log stream...</span>';
+    connectLogsWs();
+}
+
+function stopLogsViewer() {
+    if (logsWs) {
+        logsWs.close();
+        logsWs = null;
+    }
+}
+
+function connectLogsWs() {
+    if (logsWs) logsWs.close();
+    logsContainer.innerHTML = '<span class="logs-placeholder">Connecting to log stream...</span>';
+    let url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws-logs?type=' + logsMode;
+    logsWs = new WebSocket(url);
+    logsContainer.innerHTML = '';
+    allLogLines = [];
+    logsWs.onopen = () => {
+        logsContainer.innerHTML = '<span class="logs-placeholder">Waiting for logs...</span>';
+    };
+    logsWs.onmessage = (event) => {
+        if (logsContainer.querySelector('.logs-placeholder')) logsContainer.innerHTML = '';
+        // If first message is JSON, treat as initial log dump
+        try {
+            const data = JSON.parse(event.data);
+            if (Array.isArray(data.initial)) {
+                allLogLines = data.initial;
+                renderFilteredLogs();
+                return;
+            }
+        } catch {}
+        allLogLines.push(event.data);
+        renderFilteredLogs();
+    };
+    logsWs.onerror = () => {
+        logsContainer.innerHTML = '<span class="logs-placeholder">WebSocket error. Try refreshing.</span>';
+    };
+    logsWs.onclose = () => {
+        logsContainer.innerHTML += '<span class="logs-placeholder">Log stream closed.</span>';
+    };
+}
+
+function renderFilteredLogs() {
+    let filtered = allLogLines;
+    if (filterType) {
+        filtered = filtered.filter(line => {
+            if (filterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
+            if (filterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
+            if (filterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
+            if (filterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
+            return true;
+        });
+    }
+    if (filterText) {
+        const f = filterText.toLowerCase();
+        filtered = filtered.filter(line => line.toLowerCase().includes(f));
+    }
+    logsContainer.innerHTML = filtered.map(renderLogLines).join('\n');
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
+if (logsSearchInput) {
+    logsSearchInput.addEventListener('input', (e) => {
+        filterText = e.target.value;
+        renderFilteredLogs();
+    });
+}
+if (logsTypeFilter) {
+    logsTypeFilter.addEventListener('change', (e) => {
+        filterType = e.target.value;
+        renderFilteredLogs();
+    });
+}
+if (logsExportBtn) {
+    logsExportBtn.addEventListener('click', () => {
+        let filtered = allLogLines;
+        if (filterType) {
+            filtered = filtered.filter(line => {
+                if (filterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
+                if (filterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
+                if (filterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
+                if (filterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
+                return true;
+            });
+        }
+        if (filterText) {
+            const f = filterText.toLowerCase();
+            filtered = filtered.filter(line => line.toLowerCase().includes(f));
+        }
+        // Redact user discriminator: (Name#12345678) => (Name#REDACTED)
+        const redacted = filtered.map(line => line.replace(/\(([^#()]+)#\d{5,}\)/g, '($1#REDACTED)'));
+        const blob = new Blob([redacted.join('\n')], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = logsMode + '-export.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 200);
+    });
+}
+
+function renderLogLines(text) {
+    return text.split(/\r?\n/).filter(Boolean).map(line => {
+        let cls = 'log-line';
+        if (/error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line)) cls += ' error';
+        else if (/warn|deprecated|slow|timeout/i.test(line)) cls += ' warn';
+        else if (/success|started|running|ok|ready|listening|connected/i.test(line)) cls += ' success';
+        else if (/info|log|notice|\bOK\b/i.test(line)) cls += ' info';
+        return `<span class="${cls}">${escapeHtml(line)}</span>`;
+    }).join('\n');
+}
+
+function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, function(tag) {
+        const charsToReplace = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+        return charsToReplace[tag] || tag;
+    });
+}
+
+openLogsViewer.addEventListener('click', () => changeTab('logsViewer'));
+showLogsBtn.addEventListener('click', () => {
+    logsMode = 'logs';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Switching to logs...</span>';
+    connectLogsWs();
+});
+showErrorsBtn.addEventListener('click', () => {
+    logsMode = 'errors';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Switching to errors...</span>';
+    connectLogsWs();
+});
+clearLogsBtn.addEventListener('click', () => {
+    logsContainer.innerHTML = '';
+});
+
+// --- Logs search/filter/export ---
+if (typeof logsSearchInput !== 'undefined' && logsSearchInput) {
+    logsSearchInput.addEventListener('input', (e) => {
+        filterText = e.target.value;
+        renderFilteredLogs();
+    });
+}
+
 
 // users
 const loadUsers = async (f) => {

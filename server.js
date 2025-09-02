@@ -9,6 +9,10 @@ import { Impit } from 'impit';
 import path from 'node:path';
 import cors from 'cors';
 
+// --- WebSocket for logs ---
+import { WebSocketServer } from 'ws';
+import { watch } from 'node:fs';
+
 // ---------- Runtime constants ----------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -78,6 +82,18 @@ const log = async (id, name, data, error) => {
         appendFileSync(path.join(DATA_DIR, 'logs.log'), `[${ts}] ${who} ${data}\n`);
     }
 };
+
+// --- WebSocket broadcast helpers ---
+let wsLogServer = null;
+let wsClients = { logs: new Set(), errors: new Set() };
+
+function broadcastLog(type, line) {
+    for (const ws of wsClients[type]) {
+        if (ws.readyState === ws.OPEN) {
+            ws.send(line);
+        }
+    }
+}
 
 // ---------- Small utilities ----------
 
@@ -1405,6 +1421,41 @@ const processQueue = () => {
 
 // ---------- API ----------
 
+// --- Logs API ---
+import { createReadStream, statSync } from 'node:fs';
+
+// Helper: stream file from offset
+function streamLogFile(res, filePath, lastSize) {
+    try {
+        const stats = statSync(filePath);
+        const size = stats.size;
+        if (lastSize && lastSize < size) {
+            // Send only new data
+            const stream = createReadStream(filePath, { start: lastSize });
+            stream.pipe(res);
+        } else {
+            // Send whole file
+            const stream = createReadStream(filePath);
+            stream.pipe(res);
+        }
+    } catch (e) {
+        res.status(500).end();
+    }
+}
+
+// Simple polling endpoint for logs (returns full file, or new data if client provides lastSize)
+app.get('/logs', (req, res) => {
+    const filePath = path.join(DATA_DIR, 'logs.log');
+    const lastSize = req.query.lastSize ? parseInt(req.query.lastSize, 10) : 0;
+    streamLogFile(res, filePath, lastSize);
+});
+
+app.get('/errors', (req, res) => {
+    const filePath = path.join(DATA_DIR, 'errors.log');
+    const lastSize = req.query.lastSize ? parseInt(req.query.lastSize, 10) : 0;
+    streamLogFile(res, filePath, lastSize);
+});
+
 app.get('/token-needed', (_req, res) => res.json({ needed: TokenManager.isTokenNeeded }));
 app.post('/t', (req, res) => {
     const { t } = req.body || {};
@@ -1902,6 +1953,48 @@ const diffVer = (v1, v2) => {
         }
         const port = probe[idx];
         const server = app.listen(port, APP_HOST);
+            // --- Attach WebSocket server for logs ---
+            if (!wsLogServer) {
+                wsLogServer = new WebSocketServer({ server, path: '/ws-logs' });
+
+                wsLogServer.on('connection', (ws, req) => {
+                    // URL: ws://host/ws-logs?type=logs|errors
+                    const url = new URL(req.url, `http://${req.headers.host}`);
+                    const type = url.searchParams.get('type') === 'errors' ? 'errors' : 'logs';
+                    wsClients[type].add(ws);
+                    // Send initial log history (last 200 lines)
+                    try {
+                        const file = path.join(DATA_DIR, type + '.log');
+                        const data = readFileSync(file, 'utf8');
+                        const lines = data.split(/\r?\n/).filter(Boolean);
+                        ws.send(JSON.stringify({ initial: lines.slice(-200) }));
+                    } catch {}
+                    ws.on('close', () => wsClients[type].delete(ws));
+                });
+
+                // Watch logs.log and errors.log for changes
+                const logFiles = [
+                    { file: path.join(DATA_DIR, 'logs.log'), type: 'logs' },
+                    { file: path.join(DATA_DIR, 'errors.log'), type: 'errors' }
+                ];
+                for (const { file, type } of logFiles) {
+                    let lastSize = 0;
+                    try { lastSize = statSync(file).size; } catch {}
+                    watch(file, { persistent: false }, (event) => {
+                        if (event === 'change') {
+                            try {
+                                const stats = statSync(file);
+                                if (stats.size > lastSize) {
+                                    const fd = readFileSync(file);
+                                    const newData = fd.slice(lastSize).toString();
+                                    newData.split(/\r?\n/).filter(Boolean).forEach(line => broadcastLog(type, line));
+                                    lastSize = stats.size;
+                                }
+                            } catch {}
+                        }
+                    });
+                }
+            }
         server.on('listening', () => {
             const url = `http://localhost:${port}`;
             console.log(`✅ Server listening on ${url}`);

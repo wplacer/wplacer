@@ -98,6 +98,71 @@ p.credits a img {
     height: 1.2em;
 }
 
+/* Logs Viewer */
+.logs-container {
+    background: var(--background-tertiary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 18px 12px 18px 12px;
+    margin: 0 auto 18px auto;
+    max-height: 400px;
+    min-height: 200px;
+    overflow-y: auto;
+    font-family: monospace;
+    font-size: 1.05em;
+    text-align: left;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.10);
+    white-space: pre-wrap;
+}
+.logs-controls {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-start;
+    margin-bottom: 10px;
+}
+.logs-search {
+    flex: 1 1 200px;
+    min-width: 120px;
+    max-width: 300px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--background-tertiary);
+    color: var(--text-primary);
+    font-size: 1em;
+    margin-left: 10px;
+}
+.logs-type-filter {
+    min-width: 90px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--background-tertiary);
+    color: var(--text-primary);
+    font-size: 1em;
+    margin-left: 10px;
+}
+.logs-placeholder {
+    color: var(--text-secondary);
+}
+.log-line {
+    display: block;
+    padding: 0 0 2px 0;
+}
+.log-line.error {
+    color: var(--error-color);
+}
+.log-line.warn {
+    color: var(--warning-color);
+}
+.log-line.success {
+    color: var(--success-color);
+}
+.log-line.info {
+    color: var(--accent-primary);
+}
+
 button {
     font-family: var(--font-family);
     font-weight: 500;
