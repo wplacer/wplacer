@@ -12,7 +12,8 @@
     "express": "^5.1.0",
     "gradient-string": "^3.0.0",
     "impit": "0.5.3",
-    "tough-cookie": "^6.0.0"
+    "tough-cookie": "^6.0.0",
+    "ws": "^8.18.3"
   },
   "engines": {
     "node": ">=22.0.0",
