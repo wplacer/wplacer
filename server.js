@@ -1181,23 +1181,8 @@ class TemplateManager {
             while (this.running) {
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
-                if (isColorMode) {
-                    console.log('Template data structure:', {
-                        width: this.template.width,
-                        height: this.template.height,
-                        dataType: typeof this.template.data,
-                        isArray: Array.isArray(this.template.data),
-                        firstColumn: this.template.data[0]?.slice(0, 5) // First 5 pixels of first column
-                    });
-                    
+                if (isColorMode) {                    
                     const allColors = this.template.data.flat().filter((c) => c > 0);
-                    console.log('All colors found:', allColors.slice(0, 20)); // First 20 colors
-                    console.log('Total pixels with color:', allColors.length);
-                    
-                    if (allColors.length === 0) {
-                        console.log('ERROR: No colors found in template data!');
-                        console.log('Sample of raw data:', this.template.data.slice(0, 3));
-                    }
                         
                     const colorCounts = allColors.reduce((acc, color) => {
                         acc[color] = (acc[color] || 0) + 1;
@@ -1215,8 +1200,6 @@ class TemplateManager {
                             const orderB = orderMap.get(b) ?? 999999;
                             return orderA - orderB;
                         });
-                        console.log(`[${this.name}] Using custom color order:`, customOrder);
-                        console.log(`[${this.name}] Painting order of colors:`, sortedColors);
                     } else {
                         // Fallback to original logic
                         sortedColors.sort((a, b) => {
@@ -1226,8 +1209,6 @@ class TemplateManager {
                         });
                         console.log(`[${this.name}] Using default color order (pixel count). Colors:`, sortedColors);
                     }
-
-                    console.log('Painting order of colors:', sortedColors);
 
                     colorsToPaint = sortedColors;
                     if (this.eraseMode) {
@@ -1470,10 +1451,10 @@ const processQueue = () => {
 
 // --- Color Odering ---
 
-// Default color order (by ID)
+// Default color order sorted by id
 let defaultColorOrder = Object.values(pallete).sort((a, b) => a - b);
 
-// Store custom color orders (can be global or per-template)
+// Store color orders
 let colorOrdering = {
     global: [...defaultColorOrder], // Global color order
     templates: {} // Per-template color orders
@@ -1524,90 +1505,6 @@ const saveColorOrdering = () => {
         console.error('Error saving color ordering:', e.message);
     }
 };
-
-const debugColorOrdering = (templateId = null) => {
-    console.log('\n=== COLOR ORDERING DEBUG ===');
-    
-    // Check file existence
-    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
-    console.log(`Color ordering file exists: ${existsSync(orderingPath)}`);
-    
-    if (existsSync(orderingPath)) {
-        try {
-            const rawData = readFileSync(orderingPath, 'utf8');
-            console.log('Raw file contents:', rawData.substring(0, 200) + '...');
-            
-            const parsedData = JSON.parse(rawData);
-            console.log('Parsed data structure:', {
-                hasGlobal: !!parsedData.global,
-                globalLength: parsedData.global?.length,
-                templateCount: Object.keys(parsedData.templates || {}).length,
-                templateIds: Object.keys(parsedData.templates || {})
-            });
-        } catch (e) {
-            console.log('Error reading/parsing file:', e.message);
-        }
-    }
-    
-    // Check in-memory state
-    console.log('\nIn-memory colorOrdering:', {
-        hasGlobal: !!colorOrdering.global,
-        globalLength: colorOrdering.global?.length,
-        globalFirst10: colorOrdering.global?.slice(0, 10),
-        templateCount: Object.keys(colorOrdering.templates).length,
-        templateIds: Object.keys(colorOrdering.templates)
-    });
-    
-    if (templateId && colorOrdering.templates[templateId]) {
-        console.log(`\nTemplate ${templateId} order:`, {
-            length: colorOrdering.templates[templateId].length,
-            first10: colorOrdering.templates[templateId].slice(0, 10)
-        });
-    }
-    
-    // Check what getColorOrderForTemplate returns
-    if (templateId) {
-        const result = getColorOrderForTemplate(templateId);
-        console.log(`\ngetColorOrderForTemplate(${templateId}) returns:`, {
-            length: result.length,
-            first10: result.slice(0, 10),
-            isGlobal: result === colorOrdering.global,
-            isTemplate: result === colorOrdering.templates[templateId]
-        });
-    }
-    
-    console.log('=== END DEBUG ===\n');
-};
-
-app.get('/debug/color-ordering', (req, res) => {
-    debugColorOrdering();
-    
-    const result = {
-        fileExists: existsSync(path.join(DATA_DIR, 'color_ordering.json')),
-        inMemory: {
-            global: colorOrdering.global,
-            templates: colorOrdering.templates
-        }
-    };
-    
-    res.json(result);
-});
-
-app.get('/debug/color-ordering/:templateId', (req, res) => {
-    const { templateId } = req.params;
-    debugColorOrdering(templateId);
-    
-    const result = {
-        fileExists: existsSync(path.join(DATA_DIR, 'color_ordering.json')),
-        inMemory: {
-            global: colorOrdering.global,
-            templates: colorOrdering.templates
-        },
-        templateResult: getColorOrderForTemplate(templateId)
-    };
-    
-    res.json(result);
-});
 
 // ---------- API ----------
 
@@ -2000,8 +1897,6 @@ app.put('/color-ordering/global', (req, res) => {
     
     colorOrdering.global = validOrder;
     saveColorOrdering();
-    
-    log('SYSTEM', 'color-ordering', `Global color order updated (${validOrder.length} colors)`);
     res.json({ success: true });
 });
 
