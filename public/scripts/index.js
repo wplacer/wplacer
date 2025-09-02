@@ -539,6 +539,10 @@ const resetTemplateForm = () => {
     details.style.display = 'none';
     previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
+
+    currentTemplateId = null;
+    availableColors.clear();
+    initializeGrid(null);
 };
 
 templateForm.addEventListener('submit', async (e) => {
@@ -576,13 +580,26 @@ templateForm.addEventListener('submit', async (e) => {
     }
 
     try {
+        let templateId;
         if (isEditMode) {
+            templateId = templateForm.dataset.editId;
             await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
             showMessage('Success', 'Template updated!');
         } else {
             await axios.post('/template', data);
             showMessage('Success', 'Template created!');
+            templateId = response.data.id;
         }
+
+        // Save the current color ordering for this template
+        const colorOrderSaved = await saveColorOrder(templateId);
+        
+        if (isEditMode) {
+            showMessage('Success', `Template updated! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
+        } else {
+            showMessage('Success', `Template created! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
+        }
+
         resetTemplateForm();
         openManageTemplates.click();
     } catch (error) {
@@ -792,8 +809,8 @@ openAddTemplate.addEventListener('click', () => {
     
 
     // Initialize the grid on load
-    initializeGrid();
-    console.log('Grid initialized for template placement.');
+    initializeGrid(null);
+    console.log('Grid initialized for new template with global color ordering.');
 
     changeTab('addTemplate');
 });
@@ -938,6 +955,10 @@ const createTemplateCard = (t, id) => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);
             });
+
+            // Load template-specific color ordering
+            initializeGrid(id);
+            console.log(`Grid initialized for editing template ${id} with template-specific color ordering.`);
         }, 100);
     });
     actions.appendChild(editBtn);
@@ -1459,6 +1480,12 @@ function handleDragEnd(e) {
 
     // Update all priority numbers after drag ends
     updateAllPriorities();
+
+    // Auto-save the color ordering
+    if (currentTemplateId) {
+        saveColorOrder(currentTemplateId);
+        console.log(`Auto-saved color ordering for template ${currentTemplateId}`);
+    }
 
     draggedElement = null;
 }
