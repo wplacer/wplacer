@@ -546,9 +546,7 @@ const resetTemplateForm = () => {
 
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const isEditMode = !!templateForm.dataset.editId;
-
     if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
         showMessage('Error', 'Please convert an image before creating a template.');
         return;
@@ -560,7 +558,6 @@ templateForm.addEventListener('submit', async (e) => {
         showMessage('Error', 'Please select at least one user.');
         return;
     }
-
     const data = {
         templateName: templateName.value,
         coords: [tx.value, ty.value, px.value, py.value].map(Number),
@@ -573,32 +570,27 @@ templateForm.addEventListener('submit', async (e) => {
         skipPaintedPixels: templateSkipPaintedPixels.checked,
         enableAutostart: enableAutostart.checked,
     };
-
     if (currentTemplate && currentTemplate.width > 0) {
         data.template = currentTemplate;
     }
-
     try {
         let templateId;
-        if (isEditMode) {
-            templateId = templateForm.dataset.editId;
-            await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
-            showMessage('Success', 'Template updated!');
-        } else {
-            const response = await axios.post('/template', data);
-            showMessage('Success', 'Template created!');
-            templateId = response.data.id;
-        }
-
-        // Save the current color ordering for this template
-        const colorOrderSaved = await saveColorOrder(templateId);
+        let colorOrderSaved = false;
         
         if (isEditMode) {
+            templateId = templateForm.dataset.editId;
+            await axios.put(`/template/edit/${templateId}`, data);
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
             showMessage('Success', `Template updated! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
         } else {
+            const response = await axios.post('/template', data);
+            templateId = response.data.id;
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
             showMessage('Success', `Template created! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
         }
-
+        
         resetTemplateForm();
         openManageTemplates.click();
     } catch (error) {
