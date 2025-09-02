@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "5.2.0",
+  "version": "5.2.1",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -10,6 +10,7 @@
     "canvas": "^3.2.0",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "gradient-string": "^3.0.0",
     "impit": "0.5.3",
     "tough-cookie": "^6.0.0"
   },
@@ -21,4 +22,3 @@
     "prettier": "^3.6.2"
   }
 }
-

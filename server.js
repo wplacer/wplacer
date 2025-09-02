@@ -1,12 +1,13 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
-import path from 'node:path';
-import express from 'express';
-import cors from 'cors';
-import { CookieJar } from 'tough-cookie';
-import { Impit } from 'impit';
 import { Image, createCanvas } from 'canvas';
 import { exec } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { CookieJar } from 'tough-cookie';
+import gradient from 'gradient-string';
+import express from 'express';
+import { Impit } from 'impit';
+import path from 'node:path';
+import cors from 'cors';
 
 // ---------- Runtime constants ----------
 
@@ -1325,16 +1326,16 @@ class TemplateManager {
                                         const userInfo = await wplacer.login(users[userId].cookies);
                                         this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
-                                        
+
                                         const paintedNow = await this._performPaintTurn(wplacer, color);
-                                        
+
                                         if (paintedNow > 0) {
                                             foundUserForTurn = true;
                                             // Tile cache is now stale. Reload tiles before re-checking pixels.
-                                            await wplacer.loadTiles(); 
+                                            await wplacer.loadTiles();
                                             allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
                                         }
-                                        
+
                                         await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
                                         this.currentRetryDelay = this.initialRetryDelay;
@@ -1824,11 +1825,34 @@ const runKeepAlive = async () => {
 };
 
 // ---------- Startup ----------
-
+const diffVer = (v1, v2) => {
+  const [a1, b1, c1] = v1.split(".").map(Number);
+  const [a2, b2, c2] = v2.split(".").map(Number);
+  return a1 !== a2 ? (a1 - a2) * 100 : b1 !== b2 ? (b1 - b2) * 10 : c1 - c2;
+};
 (async () => {
     console.clear();
     const version = JSON.parse(readFileSync('package.json', 'utf8')).version;
-    console.log(`\n--- wplacer v${version} ---\n`);
+    console.log(gradient(["#EF8F20", "#CB3D27", "#A82421"])(`                           ████
+                          ▒▒███
+ █████ ███ █████ ████████  ▒███   ██████    ██████   ██████  ████████
+▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███▒▒███▒▒███▒▒███
+ ▒███ ▒███ ▒███  ▒███ ▒███ ▒███   ███████ ▒███ ▒▒▒ ▒███████  ▒███ ▒▒▒
+ ▒▒███████████   ▒███ ▒███ ▒███  ███▒▒███ ▒███  ███▒███▒▒▒   ▒███
+  ▒▒████▒████    ▒███████  █████▒▒████████▒▒██████ ▒▒██████  █████
+   ▒▒▒▒ ▒▒▒▒     ▒███▒▒▒  ▒▒▒▒▒  ▒▒▒▒▒▒▒▒  ▒▒▒▒▒▒   ▒▒▒▒▒▒  ▒▒▒▒▒
+                 ▒███
+                 █████
+                ▒▒▒▒▒                                          v${version}`));
+    // check versions (dont delete this ffs)
+    try {
+        const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+        const githubVersion = (await githubPackage.json()).version;
+        const diff = diffVer(version, githubVersion);
+        if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
+    } catch {
+        console.warn("⚠️ Could not check for updates.");
+    };
 
     migrateOldTemplatesIfNeeded();
 
@@ -1846,11 +1870,11 @@ const runKeepAlive = async () => {
                 data,
                 shareCode: te.shareCode ?? shareCodeFromTemplate({ width: w, height: h, data }),
             };
-        }
+        };
         if (te?.shareCode) {
             const dec = templateFromShareCode(te.shareCode);
             return { width: dec.width, height: dec.height, data: dec.data, shareCode: te.shareCode };
-        }
+        };
         throw new Error('template missing data/shareCode');
     };
 
@@ -1876,18 +1900,14 @@ const runKeepAlive = async () => {
                     userIds: t.userIds,
                 });
                 if (t.enableAutostart) autostartedTemplates.push(id);
-            } else {
-                console.warn(`⚠️ Template "${t.name}" not loaded because assigned user(s) are missing.`);
-            }
+            } else console.warn(`⚠️ Template "${t.name}" not loaded because assigned user(s) are missing.`);
         } catch (e) {
             console.error(`⚠️ Skipping template ${id}: ${e.message}`);
-        }
-    }
+        };
+    };
 
     loadProxies();
-    console.log(
-        `✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`
-    );
+    console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);
 
     const probe = Array.from(new Set([APP_PRIMARY_PORT, ...APP_FALLBACK_PORTS]));
     function tryListen(idx = 0) {
@@ -1901,9 +1921,7 @@ const runKeepAlive = async () => {
             const url = `http://localhost:${port}`;
             console.log(`✅ Server listening on ${url}`);
             console.log('   Open the web UI in your browser to start.');
-            if (currentSettings.openBrowserOnStart) {
-                openBrowser(url);
-            }
+            if (currentSettings.openBrowserOnStart) openBrowser(url);
 
             setInterval(runKeepAlive, currentSettings.keepAliveCooldown);
             log('SYSTEM', 'KeepAlive', `🔄 User session keep-alive started. Interval: ${duration(currentSettings.keepAliveCooldown)}.`);
@@ -1924,8 +1942,8 @@ const runKeepAlive = async () => {
                     } else {
                         manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
                         manager.start().catch((e) => log(id, manager.masterName, 'Error autostarting template', e));
-                    }
-                }
+                    };
+                };
             });
         });
         server.on('error', (err) => {
@@ -1939,8 +1957,8 @@ const runKeepAlive = async () => {
             } else {
                 console.error('❌ Server error:', err);
                 process.exit(1);
-            }
+            };
         });
-    }
+    };
     tryListen(0);
 })();
