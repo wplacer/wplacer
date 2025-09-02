@@ -18,7 +18,6 @@ const convert = $('convert');
 const details = $('details');
 const size = $('size');
 const ink = $('ink');
-const premiumWarning = $('premiumWarning');
 const templateCanvas = $('templateCanvas');
 const previewCanvas = $('previewCanvas');
 const previewCanvasButton = $('previewCanvasButton');
@@ -405,7 +404,6 @@ const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
     let ink = 0;
-    let hasPremium = false;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
@@ -433,7 +431,7 @@ const nearestimgdecoder = (imageData, width, height) => {
             }
         }
     }
-    return { matrix, ink, hasPremium };
+    return { matrix, ink };
 };
 
 const processImageFile = (file, callback) => {
@@ -450,14 +448,13 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink, hasPremium } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
                 data: matrix,
-                hasPremium,
             };
 
             canvas.remove();
@@ -476,13 +473,6 @@ const processEvent = () => {
             drawTemplate(template, templateCanvas);
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
-            if (template.hasPremium) {
-                premiumWarning.innerHTML =
-                    '<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.';
-                premiumWarning.style.display = 'block';
-            } else {
-                premiumWarning.style.display = 'none';
-            }
             templateCanvas.style.display = 'block';
             previewCanvas.style.display = 'none';
             details.style.display = 'block';
@@ -547,7 +537,6 @@ const resetTemplateForm = () => {
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
     details.style.display = 'none';
-    premiumWarning.style.display = 'none';
     previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
 };
