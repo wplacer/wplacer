@@ -149,7 +149,7 @@ const palette = {
     '123,99,82': 56, '156,132,107': 57, '51,57,65': 58, '109,117,141': 59, '179,185,209': 60,
     '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
-const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
+const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
 const COLOR_NAMES = {
     1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
     6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
@@ -157,13 +157,13 @@ const COLOR_NAMES = {
     18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
     23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
     29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
-    32: 'P-Gray', 33: 'P-Maroon', 34: 'P-Salmon', 35: 'P-Burnt Orange', 36: 'P-Tan',
-    37: 'P-Dark Gold', 38: 'P-Gold', 39: 'P-Light Gold', 40: 'P-Olive', 41: 'P-Forest Green',
-    42: 'P-Lime Green', 43: 'P-Dark Aqua', 44: 'P-Cyan', 45: 'P-Sky Blue', 46: 'P-Royal Blue',
-    47: 'P-Navy', 48: 'P-Light Purple', 49: 'P-Lilac', 50: 'P-Ochre', 51: 'P-Terracotta',
-    52: 'P-Peach', 53: 'P-Dark Rose', 54: 'P-Rose', 55: 'P-Light Rose', 56: 'P-Taupe',
-    57: 'P-Light Taupe', 58: 'P-Charcoal', 59: 'P-Slate', 60: 'P-Light Slate', 61: 'P-Khaki',
-    62: 'P-Light Khaki', 63: 'P-Beige'
+    32: '★ Gray', 33: '★ Maroon', 34: '★ Salmon', 35: '★ Burnt Orange', 36: '★ Tan',
+    37: '★ Dark Gold', 38: '★ Gold', 39: '★ Light Gold', 40: '★ Olive', 41: '★ Forest Green',
+    42: '★ Lime Green', 43: '★ Dark Aqua', 44: '★ Cyan', 45: '★ Sky Blue', 46: '★ Royal Blue',
+    47: '★ Navy', 48: '★ Light Purple', 49: '★ Lilac', 50: '★ Ochre', 51: '★ Terracotta',
+    52: '★ Peach', 53: '★ Dark Rose', 54: '★ Rose', 55: '★ Light Rose', 56: '★ Taupe',
+    57: '★ Light Taupe', 58: '★ Charcoal', 59: '★ Slate', 60: '★ Light Slate', 61: '★ Khaki',
+    62: '★ Light Khaki', 63: '★ Beige'
 };
 
 // ---------- Charge prediction cache ----------
