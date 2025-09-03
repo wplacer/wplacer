@@ -1182,9 +1182,8 @@ class TemplateManager {
             while (this.running) {
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
-                if (isColorMode) {                    
-                    const allColors = this.template.data.flat().filter((c) => c > 0);
-                        
+                if (isColorMode) {
+                    const allColors = this.template.data.flat().filter((c) => c > 0);   
                     const colorCounts = allColors.reduce((acc, color) => {
                         acc[color] = (acc[color] || 0) + 1;
                         return acc;
@@ -1204,7 +1203,7 @@ class TemplateManager {
                     } else {
                         // Fallback to original logic
                         sortedColors.sort((a, b) => {
-                            if (a === 1) return -1; // Black (ID 1) always first
+                            if (a === 1) return -1; // Black goes first
                             if (b === 1) return 1;
                             return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
                         });
@@ -1467,7 +1466,7 @@ function getColorsInTemplate(templateData) {
     for (let x = 0; x < templateData.data.length; x++) {
         for (let y = 0; y < templateData.data[x].length; y++) {
             const colorId = templateData.data[x][y];
-            if (colorId > 0) { // Only include actual colors, not transparent (0) or clear (-1)
+            if (colorId > 0) { // Only include actual colors
                 uniqueColors.add(colorId);
             }
         }

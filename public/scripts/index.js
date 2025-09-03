@@ -70,7 +70,6 @@ const proxyRotationMode = $('proxyRotationMode');
 const proxyCount = $('proxyCount');
 const reloadProxiesBtn = $('reloadProxiesBtn');
 const logProxyUsage = $('logProxyUsage');
-const showPaidColors = $('showPaidColors');
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -458,7 +457,8 @@ const processImageFile = (file, callback) => {
                 height: canvas.height,
                 ink,
                 data: matrix,
-                uniqueColors: filteredColors            };
+                uniqueColors: filteredColors
+            };
 
             canvas.remove();
             callback(template);
@@ -602,13 +602,13 @@ templateForm.addEventListener('submit', async (e) => {
             await axios.put(`/template/edit/${templateId}`, data);
             // Save the color ordering for this template
             colorOrderSaved = await saveColorOrder(templateId);
-            showMessage('Success', `Template updated! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
+            showMessage('Success', 'Template updated!');
         } else {
             const response = await axios.post('/template', data);
             templateId = response.data.id;
             // Save the color ordering for this template
             colorOrderSaved = await saveColorOrder(templateId);
-            showMessage('Success', `Template created! ${colorOrderSaved ? 'Color ordering saved.' : 'Note: Color ordering could not be saved.'}`);
+            showMessage('Success', 'Template created!');
         }
         
         resetTemplateForm();

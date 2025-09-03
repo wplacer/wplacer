@@ -559,8 +559,6 @@ input:checked + .slider:before {
     color: var(--text-secondary);
 }
 
-
-
 .color-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, 80px);
@@ -667,15 +665,6 @@ input:checked + .slider:before {
     transform: translateY(-1px);
 }
 
-.instructions {
-    background: var(--background-secondary);
-    padding: 16px;
-    border-radius: 8px;
-    margin-bottom: 20px;
-    border-left: 4px solid var(--accent-primary);
-    color: var(--text-primary);
-}
-
 .instructions strong {
     color: var(--accent-primary);
 }
@@ -685,23 +674,6 @@ input:checked + .slider:before {
     display: flex;
     align-items: center;
     margin-bottom: 10px;
-}
-
-.toggle-label {
-    display: flex;
-    align-items: center;
-    cursor: pointer;
-    font-size: 14px;
-    color: var(--text-primary);
-    gap: 12px;
-}
-
-.toggle-label input[type="checkbox"] {
-    display: none;
-}
-
-.toggle-text {
-    font-weight: 500;
 }
 
 .button-row {
