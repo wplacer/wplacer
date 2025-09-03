@@ -1193,12 +1193,11 @@ class TemplateManager {
     }
 
     async start() {
+        const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
-
-        const isColorMode = currentSettings.drawingOrder === 'color';
 
         try {
             while (this.running) {
