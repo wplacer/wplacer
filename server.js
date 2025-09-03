@@ -9,6 +9,10 @@ import { Impit } from 'impit';
 import path from 'node:path';
 import cors from 'cors';
 
+// --- WebSocket for logs ---
+import { WebSocketServer } from 'ws';
+import { watch } from 'node:fs';
+
 // ---------- Runtime constants ----------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -79,6 +83,18 @@ const log = async (id, name, data, error) => {
     }
 };
 
+// --- WebSocket broadcast helpers ---
+let wsLogServer = null;
+let wsClients = { logs: new Set(), errors: new Set() };
+
+function broadcastLog(type, line) {
+    for (const ws of wsClients[type]) {
+        if (ws.readyState === ws.OPEN) {
+            ws.send(line);
+        }
+    }
+}
+
 // ---------- Small utilities ----------
 
 /** Cross-platform open-in-browser. */
@@ -133,42 +149,22 @@ const palette = {
     '123,99,82': 56, '156,132,107': 57, '51,57,65': 58, '109,117,141': 59, '179,185,209': 60,
     '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
-const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
-
+const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
 const COLOR_NAMES = {
-
     1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
-
     6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
-
     12: 'Dark Green', 13: 'Green', 14: 'Light Green', 15: 'Dark Teal', 16: 'Teal', 17: 'Light Teal',
-
     18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
-
     23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
-
     29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
-
     32: 'P-Gray', 33: 'P-Maroon', 34: 'P-Salmon', 35: 'P-Burnt Orange', 36: 'P-Tan',
-
     37: 'P-Dark Gold', 38: 'P-Gold', 39: 'P-Light Gold', 40: 'P-Olive', 41: 'P-Forest Green',
-
     42: 'P-Lime Green', 43: 'P-Dark Aqua', 44: 'P-Cyan', 45: 'P-Sky Blue', 46: 'P-Royal Blue',
-
     47: 'P-Navy', 48: 'P-Light Purple', 49: 'P-Lilac', 50: 'P-Ochre', 51: 'P-Terracotta',
-
     52: 'P-Peach', 53: 'P-Dark Rose', 54: 'P-Rose', 55: 'P-Light Rose', 56: 'P-Taupe',
-
     57: 'P-Light Taupe', 58: 'P-Charcoal', 59: 'P-Slate', 60: 'P-Light Slate', 61: 'P-Khaki',
-
     62: 'P-Light Khaki', 63: 'P-Beige'
-
 };
-
-function getColorName(rgb) {
-    const id = palette[rgb];
-    return COLOR_NAMES[id] || `Color ${id}`;
-}
 
 // ---------- Charge prediction cache ----------
 
@@ -1543,6 +1539,41 @@ const validateColorIds = (order) => {
 
 // ---------- API ----------
 
+// --- Logs API ---
+import { createReadStream, statSync } from 'node:fs';
+
+// Helper: stream file from offset
+function streamLogFile(res, filePath, lastSize) {
+    try {
+        const stats = statSync(filePath);
+        const size = stats.size;
+        if (lastSize && lastSize < size) {
+            // Send only new data
+            const stream = createReadStream(filePath, { start: lastSize });
+            stream.pipe(res);
+        } else {
+            // Send whole file
+            const stream = createReadStream(filePath);
+            stream.pipe(res);
+        }
+    } catch (e) {
+        res.status(500).end();
+    }
+}
+
+// Simple polling endpoint for logs (returns full file, or new data if client provides lastSize)
+app.get('/logs', (req, res) => {
+    const filePath = path.join(DATA_DIR, 'logs.log');
+    const lastSize = req.query.lastSize ? parseInt(req.query.lastSize, 10) : 0;
+    streamLogFile(res, filePath, lastSize);
+});
+
+app.get('/errors', (req, res) => {
+    const filePath = path.join(DATA_DIR, 'errors.log');
+    const lastSize = req.query.lastSize ? parseInt(req.query.lastSize, 10) : 0;
+    streamLogFile(res, filePath, lastSize);
+});
+
 app.get('/token-needed', (_req, res) => res.json({ needed: TokenManager.isTokenNeeded }));
 app.post('/t', (req, res) => {
     const { t } = req.body || {};
@@ -2152,6 +2183,48 @@ const diffVer = (v1, v2) => {
         }
         const port = probe[idx];
         const server = app.listen(port, APP_HOST);
+            // --- Attach WebSocket server for logs ---
+            if (!wsLogServer) {
+                wsLogServer = new WebSocketServer({ server, path: '/ws-logs' });
+
+                wsLogServer.on('connection', (ws, req) => {
+                    // URL: ws://host/ws-logs?type=logs|errors
+                    const url = new URL(req.url, `http://${req.headers.host}`);
+                    const type = url.searchParams.get('type') === 'errors' ? 'errors' : 'logs';
+                    wsClients[type].add(ws);
+                    // Send initial log history (last 200 lines)
+                    try {
+                        const file = path.join(DATA_DIR, type + '.log');
+                        const data = readFileSync(file, 'utf8');
+                        const lines = data.split(/\r?\n/).filter(Boolean);
+                        ws.send(JSON.stringify({ initial: lines.slice(-200) }));
+                    } catch {}
+                    ws.on('close', () => wsClients[type].delete(ws));
+                });
+
+                // Watch logs.log and errors.log for changes
+                const logFiles = [
+                    { file: path.join(DATA_DIR, 'logs.log'), type: 'logs' },
+                    { file: path.join(DATA_DIR, 'errors.log'), type: 'errors' }
+                ];
+                for (const { file, type } of logFiles) {
+                    let lastSize = 0;
+                    try { lastSize = statSync(file).size; } catch {}
+                    watch(file, { persistent: false }, (event) => {
+                        if (event === 'change') {
+                            try {
+                                const stats = statSync(file);
+                                if (stats.size > lastSize) {
+                                    const fd = readFileSync(file);
+                                    const newData = fd.slice(lastSize).toString();
+                                    newData.split(/\r?\n/).filter(Boolean).forEach(line => broadcastLog(type, line));
+                                    lastSize = stats.size;
+                                }
+                            } catch {}
+                        }
+                    });
+                }
+            }
         server.on('listening', () => {
             const url = `http://localhost:${port}`;
             console.log(`✅ Server listening on ${url}`);

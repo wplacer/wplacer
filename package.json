@@ -1,8 +1,11 @@
 {
   "name": "wplacer",
-  "version": "5.2.1",
+  "version": "5.2.2",
   "main": "server.js",
   "type": "module",
+  "author": "luluwaffless and JinxTheCatto",
+  "license": "AGPL-3.0-only",
+  "funding": "https://ko-fi.com/luluwaffless and https://ko-fi.com/jinxthecat",
   "scripts": {
     "start": "node --env-file=.env ."
   },
@@ -12,7 +15,8 @@
     "express": "^5.1.0",
     "gradient-string": "^3.0.0",
     "impit": "0.5.3",
-    "tough-cookie": "^6.0.0"
+    "tough-cookie": "^6.0.0",
+    "ws": "^8.18.3"
   },
   "engines": {
     "node": ">=22.0.0",

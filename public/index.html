@@ -18,7 +18,28 @@
             <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg" alt="">Manage Users</button>
             <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add Template</button>
             <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg" alt="">Manage Templates</button>
+            <button id="openLogsViewer" class="primary-button"><img src="icons/code.svg" alt="">View Logs</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg" alt="">Settings</button>
+        </div>
+
+        <div id="logsViewer" style="display: none;">
+            <h2>Realtime Logs Viewer</h2>
+            <input id="logsSearchInput" class="logs-search" type="text" placeholder="Search text...">
+            <div class="logs-controls">
+                <button id="showLogsBtn" class="secondary-button">Logs</button>
+                <button id="showErrorsBtn" class="secondary-button">Errors</button>
+                <button id="clearLogsBtn" class="secondary-button">Clear</button>
+                <button id="logsExportBtn" class="secondary-button">Export</button>
+                <select id="logsTypeFilter" class="logs-type-filter">
+                    <option value="">All</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warning</option>
+                    <option value="success">Success</option>
+                    <option value="info">Info</option>
+                </select>
+            </div>
+            <div id="logsContainer" class="logs-container"><span class="logs-placeholder">Loading logs...</span></div>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="manageUsers" style="display: none;">
