@@ -132,9 +132,9 @@ class NetworkError extends Error {
     }
 }
 
-// ---------- Palette ----------
+// ---------- palette ----------
 
-const pallete = {
+const palette = {
     '0,0,0': 1, '60,60,60': 2, '120,120,120': 3, '210,210,210': 4, '255,255,255': 5,
     '96,0,24': 6, '237,28,36': 7, '255,127,39': 8, '246,170,9': 9, '249,221,59': 10,
     '255,250,188': 11, '14,185,104': 12, '19,230,123': 13, '135,255,94': 14, '12,129,110': 15,
@@ -341,6 +341,14 @@ const getNextProxy = () => {
     return proxyUrl;
 };
 
+// Get the color ordoring for a given template, or global default.
+const getColorOrderForTemplate = (templateId) => {
+    if (templateId && colorOrdering.templates[templateId]) {
+        return colorOrdering.templates[templateId];
+    }
+    return colorOrdering.global;
+};
+
 // ---------- HTTP client wrapper ----------
 
 /**
@@ -473,7 +481,7 @@ class WPlacer {
                                     g = d.data[i + 1],
                                     b = d.data[i + 2],
                                     a = d.data[i + 3];
-                                tile.data[x][y] = a === 255 ? pallete[`${r},${g},${b}`] || 0 : 0;
+                                tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
                             }
                         }
                         return tile;
@@ -1040,6 +1048,7 @@ function logUserError(error, id, name, context) {
 
 class TemplateManager {
     constructor({
+        templateId,
         name,
         templateData,
         coords,
@@ -1052,6 +1061,7 @@ class TemplateManager {
         enableAutostart,
         userIds,
     }) {
+        this.templateId = templateId;
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -1183,18 +1193,33 @@ class TemplateManager {
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
                 if (isColorMode) {
-                    const allColors = this.template.data.flat().filter((c) => c > 0);
+                    const allColors = this.template.data.flat().filter((c) => c > 0);   
                     const colorCounts = allColors.reduce((acc, color) => {
                         acc[color] = (acc[color] || 0) + 1;
                         return acc;
                     }, {});
-
+                    
+                    const customOrder = getColorOrderForTemplate(this.templateId);
                     let sortedColors = Object.keys(colorCounts).map(Number);
-                    sortedColors.sort((a, b) => {
-                        if (a === 1) return -1; // Black (ID 1) always first
-                        if (b === 1) return 1;
-                        return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
-                    });
+
+                    if (customOrder && customOrder.length > 0) {
+                        // Use custom color ordering
+                        const orderMap = new Map(customOrder.map((id, index) => [id, index]));
+                        sortedColors.sort((a, b) => {
+                            const orderA = orderMap.get(a) ?? 999999;
+                            const orderB = orderMap.get(b) ?? 999999;
+                            return orderA - orderB;
+                        });
+                    } else {
+                        // Fallback to original logic
+                        sortedColors.sort((a, b) => {
+                            if (a === 1) return -1; // Black goes first
+                            if (b === 1) return 1;
+                            return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
+                        });
+                        console.log(`[${this.name}] Using default color order (pixel count). Colors:`, sortedColors);
+                    }
+
                     colorsToPaint = sortedColors;
                     if (this.eraseMode) {
                         colorsToPaint.push(0); // Add erase pass at the end
@@ -1278,7 +1303,6 @@ class TemplateManager {
                     }
                     if (isColorMode) {
                         const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                        log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} (${colorName}) from density 1/${highestDensityWithPixels}`);
                     }
 
 
@@ -1434,6 +1458,85 @@ const processQueue = () => {
     }
 };
 
+// --- Color Ordering ---
+
+// Default color order sorted by id
+let defaultColorOrder = Object.values(palette).sort((a, b) => a - b);
+
+// Store color orders - initialize from disk
+let colorOrdering = loadColorOrdering();
+
+// Extract unique colors from template data
+function getColorsInTemplate(templateData) {
+    if (!templateData?.data) return [];
+    
+    const uniqueColors = new Set();
+    
+    // Flatten and filter in one pass
+    templateData.data.flat().forEach(colorId => {
+        if (colorId > 0) uniqueColors.add(colorId);
+    });
+    
+    return Array.from(uniqueColors).sort((a, b) => a - b);
+}
+
+// Load color ordering from disk
+function loadColorOrdering() {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
+    if (existsSync(orderingPath)) {
+        try {
+            const data = JSON.parse(readFileSync(orderingPath, 'utf8'));
+            return {
+                global: data.global || [...defaultColorOrder],
+                templates: data.templates || {}
+            };
+        } catch (e) {
+            console.error('Error loading color ordering:', e.message);
+        }
+    }
+    
+    return {
+        global: [...defaultColorOrder],
+        templates: {}
+    };
+}
+
+// Save color ordering to disk
+function saveColorOrdering() {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
+    try {
+        writeFileSync(orderingPath, JSON.stringify(colorOrdering, null, 2));
+        console.log('Color ordering saved successfully');
+    } catch (e) {
+        console.error('Error saving color ordering:', e.message);
+        throw e; // Re-throw so calling code knows it failed
+    }
+}
+
+// Helper to get color order for specific context
+function getColorOrder(templateId = null) {
+    return templateId && colorOrdering.templates[templateId] 
+        ? colorOrdering.templates[templateId]
+        : colorOrdering.global;
+}
+
+// Helper to set color order for specific context  
+function setColorOrder(order, templateId = null) {
+    if (templateId) {
+        colorOrdering.templates[templateId] = [...order];
+    } else {
+        colorOrdering.global = [...order];
+    }
+    saveColorOrdering();
+}
+
+const validateColorIds = (order) => {
+    const validIds = new Set(Object.values(palette));
+    return order.filter(id => Number.isInteger(id) && validIds.has(id));
+};
+
 // ---------- API ----------
 
 // --- Logs API ---
@@ -1585,34 +1688,53 @@ app.post('/users/status', async (_req, res) => {
 });
 
 // Templates
-app.get('/templates', (_req, res) => {
-    const out = {};
+app.get('/templates', (req, res) => {
+    const templateList = {};
+    
     for (const id in templates) {
-        const t = templates[id];
-        const { width, height, data } = t.template;
-        const shareCode = t.template.shareCode || shareCodeFromTemplate({ width, height, data });
-        t.template.shareCode = shareCode; // cache for future saves
-
-        out[id] = {
-            name: t.name,
-            template: { width, height, data }, // no shareCode inside template payload
-            shareCode, // provide separately for UI
-            coords: t.coords,
-            canBuyCharges: t.canBuyCharges,
-            canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode,
-            eraseMode: t.eraseMode,
-            outlineMode: t.outlineMode,
-            skipPaintedPixels: t.skipPaintedPixels,
-            enableAutostart: t.enableAutostart,
-            userIds: t.userIds,
-            running: t.running,
-            status: t.status,
-            pixelsRemaining: t.pixelsRemaining,
-            totalPixels: t.totalPixels,
-        };
+        const manager = templates[id];
+        try {
+            // Create a safe share code
+            let shareCode;
+            try {
+                shareCode = manager.template.shareCode || shareCodeFromTemplate(manager.template);
+            } catch (shareCodeError) {
+                console.warn(`Could not generate share code for template ${id}: ${shareCodeError.message}`);
+                shareCode = null; // Don't include invalid share code
+            }
+            
+            templateList[id] = {
+                id: id,
+                name: manager.name,
+                coords: manager.coords,
+                canBuyCharges: manager.canBuyCharges,
+                canBuyMaxCharges: manager.canBuyMaxCharges,
+                antiGriefMode: manager.antiGriefMode,
+                eraseMode: manager.eraseMode,
+                outlineMode: manager.outlineMode,
+                skipPaintedPixels: manager.skipPaintedPixels,
+                enableAutostart: manager.enableAutostart,
+                userIds: manager.userIds,
+                running: manager.running,
+                status: manager.status,
+                masterId: manager.masterId,
+                masterName: manager.masterName,
+                totalPixels: manager.totalPixels,
+                pixelsRemaining: manager.pixelsRemaining,
+                currentPixelSkip: manager.currentPixelSkip,
+                template: {
+                    width: manager.template.width,
+                    height: manager.template.height,
+                    data: manager.template.data,
+                    shareCode: shareCode
+                }
+            };
+        } catch (error) {
+            console.warn(`Error processing template ${id} for API response: ${error.message}`);
+        }
     }
-    res.json(out);
+    
+    res.json(templateList);
 });
 
 app.post('/templates/import', (req, res) => {
@@ -1620,6 +1742,7 @@ app.post('/templates/import', (req, res) => {
     if (!id || !code) return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'id and code required' });
     const tmpl = templateFromShareCode(code);
     templates[id] = {
+        templateId: id,
         name: name || `Template ${id}`,
         coords: coords || [0, 0],
         canBuyCharges: false,
@@ -1661,6 +1784,7 @@ app.post('/template', (req, res) => {
 
     const templateId = Date.now().toString();
     templates[templateId] = new TemplateManager({
+        templateId: templateId,
         name: templateName,
         templateData: template,
         coords,
@@ -1788,6 +1912,93 @@ app.get('/canvas', async (req, res) => {
     } catch (error) {
         res.status(HTTP_STATUS.SRV_ERR).json({ error: error.message });
     }
+});
+
+// Color ordering endpoints
+// Get color ordering
+app.get('/color-ordering', (req, res) => {
+    const { templateId } = req.query;
+    
+    if (templateId && templates[templateId]) {
+        const availableColors = getColorsInTemplate(templates[templateId].template);
+        const currentOrder = getColorOrder(templateId).filter(id => availableColors.includes(id));
+        res.json({ order: currentOrder, availableColors, filteredByTemplate: true });
+    } else {
+        res.json({ 
+            order: colorOrdering.global, 
+            availableColors: Object.values(palette), 
+            filteredByTemplate: false 
+        });
+    }
+});
+
+// Update global color ordering  
+app.put('/color-ordering/global', (req, res) => {
+    const validOrder = validateColorIds(req.body.order || []);
+    
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
+    }
+    
+    setColorOrder(validOrder);
+    res.json({ success: true });
+});
+
+// Update template-specific color ordering
+app.put('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    const template = templates[templateId];
+    
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
+    }
+    
+    const validOrder = validateColorIds(req.body.order || []);
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
+    }
+    
+    setColorOrder(validOrder, templateId);
+    log('SYSTEM', 'color-ordering', `Template "${template.name}" color order updated (${validOrder.length} colors)`);
+    res.json({ success: true });
+});
+
+// Reset template color ordering
+app.delete('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    
+    if (colorOrdering.templates[templateId]) {
+        delete colorOrdering.templates[templateId];
+        saveColorOrdering();
+        
+        const templateName = templates[templateId]?.name || 'Unknown';
+        log('SYSTEM', 'color-ordering', `Template "${templateName}" color order reset to global`);
+    }
+    
+    res.json({ success: true });
+});
+
+// Get template colors
+app.get('/template/:id/colors', (req, res) => {
+    const template = templates[req.params.id];
+    
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
+    }
+    
+    const colorsInTemplate = getColorsInTemplate(template.template);
+    const colorInfo = colorsInTemplate.map(colorId => ({
+        id: colorId,
+        name: COLOR_NAMES[colorId] || `Color ${colorId}`,
+        rgb: Object.keys(palette).find(key => palette[key] === colorId) || null
+    }));
+    
+    res.json({
+        templateId: req.params.id,
+        templateName: template.name,
+        colors: colorInfo,
+        totalUniqueColors: colorsInTemplate.length
+    });
 });
 
 // ---------- One-time migration: old -> compressed ----------
@@ -1938,6 +2149,7 @@ const diffVer = (v1, v2) => {
             const templateData = ensureTemplateData(t.template);
             if (t.userIds.every((uid) => users[uid])) {
                 templates[id] = new TemplateManager({
+                    templateId: id,
                     name: t.name,
                     templateData,
                     coords: t.coords,
@@ -1956,6 +2168,9 @@ const diffVer = (v1, v2) => {
             console.error(`⚠️ Skipping template ${id}: ${e.message}`);
         };
     };
+
+    //Load color ordering on startup
+    colorOrdering = loadColorOrdering();
 
     loadProxies();
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);
