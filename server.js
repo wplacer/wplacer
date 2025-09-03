@@ -116,9 +116,9 @@ class NetworkError extends Error {
     }
 }
 
-// ---------- Palette ----------
+// ---------- palette ----------
 
-const pallete = {
+const palette = {
     '0,0,0': 1, '60,60,60': 2, '120,120,120': 3, '210,210,210': 4, '255,255,255': 5,
     '96,0,24': 6, '237,28,36': 7, '255,127,39': 8, '246,170,9': 9, '249,221,59': 10,
     '255,250,188': 11, '14,185,104': 12, '19,230,123': 13, '135,255,94': 14, '12,129,110': 15,
@@ -133,7 +133,7 @@ const pallete = {
     '123,99,82': 56, '156,132,107': 57, '51,57,65': 58, '109,117,141': 59, '179,185,209': 60,
     '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
-const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
+const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
 const COLOR_NAMES = {
     1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
     6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
@@ -151,7 +151,7 @@ const COLOR_NAMES = {
 };
 
 function getColorName(rgb) {
-    const id = pallete[rgb];
+    const id = palette[rgb];
     return COLOR_NAMES[id] || `Color ${id}`;
 }
 
@@ -470,7 +470,7 @@ class WPlacer {
                                     g = d.data[i + 1],
                                     b = d.data[i + 2],
                                     a = d.data[i + 3];
-                                tile.data[x][y] = a === 255 ? pallete[`${r},${g},${b}`] || 0 : 0;
+                                tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
                             }
                         }
                         return tile;
@@ -805,7 +805,7 @@ function ensureXMajor(data, w, h) {
     if (data.length === h && data[0].length === w) return transposeToXMajor(data); // transpose
     throw new Error(`matrix dims mismatch: got ${data.length}x${data[0].length}, want ${w}x${h}`);
 }
-function sanitizePalette2D(matrix) {
+function sanitizepalette2D(matrix) {
     for (let x = 0; x < matrix.length; x++) {
         const col = matrix[x];
         if (!Array.isArray(col)) continue;
@@ -851,13 +851,13 @@ function parseShareBytes(u8) {
     }
     if (flat.length !== w * h) throw new Error(`size mismatch ${flat.length} != ${w * h}`);
     const data = reshape_XMajor(flat, w, h);
-    sanitizePalette2D(data);
+    sanitizepalette2D(data);
     return { width: w, height: h, data };
 }
 const shareCodeFromTemplate = (t) => Base64URL.enc(buildShareBytes(t.width, t.height, t.data));
 const templateFromShareCode = (code) => {
     const decoded = parseShareBytes(new Uint8Array(Base64URL.dec(code)));
-    sanitizePalette2D(decoded.data);
+    sanitizepalette2D(decoded.data);
     return decoded;
 };
 
@@ -2081,7 +2081,7 @@ const diffVer = (v1, v2) => {
                 h = Number(te.height) >>> 0;
             if (!w || !h) throw new Error('invalid template dimensions');
             const data = ensureXMajor(te.data, w, h);
-            sanitizePalette2D(data);
+            sanitizepalette2D(data);
             return {
                 width: w,
                 height: h,
