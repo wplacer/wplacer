@@ -665,10 +665,6 @@ input:checked + .slider:before {
     transform: translateY(-1px);
 }
 
-.instructions strong {
-    color: var(--accent-primary);
-}
-
 
 .toggle-container {
     display: flex;

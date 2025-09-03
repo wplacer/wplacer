@@ -1193,7 +1193,7 @@ tx.addEventListener('blur', () => {
     });
 });
 
-// --- Color Ordering (Condensed)
+// --- Color Ordering
 const colorGrid = document.getElementById('colorGrid');
 let draggedElement = null;
 let currentTemplateId = null; 

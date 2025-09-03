@@ -1449,35 +1449,32 @@ const processQueue = () => {
     }
 };
 
-// --- Color Odering ---
+// --- Color Ordering ---
 
 // Default color order sorted by id
-let defaultColorOrder = Object.values(pallete).sort((a, b) => a - b);
+let defaultColorOrder = Object.values(palette).sort((a, b) => a - b);
 
-// Store color orders
-let colorOrdering = {
-    global: [...defaultColorOrder], // Global color order
-    templates: {} // Per-template color orders
-};
+// Store color orders - initialize from disk
+let colorOrdering = loadColorOrdering();
 
+// Extract unique colors from template data
 function getColorsInTemplate(templateData) {
+    if (!templateData?.data) return [];
+    
     const uniqueColors = new Set();
     
-    for (let x = 0; x < templateData.data.length; x++) {
-        for (let y = 0; y < templateData.data[x].length; y++) {
-            const colorId = templateData.data[x][y];
-            if (colorId > 0) { // Only include actual colors
-                uniqueColors.add(colorId);
-            }
-        }
-    }
+    // Flatten and filter in one pass
+    templateData.data.flat().forEach(colorId => {
+        if (colorId > 0) uniqueColors.add(colorId);
+    });
     
     return Array.from(uniqueColors).sort((a, b) => a - b);
 }
 
 // Load color ordering from disk
-const loadColorOrdering = () => {
+function loadColorOrdering() {
     const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
     if (existsSync(orderingPath)) {
         try {
             const data = JSON.parse(readFileSync(orderingPath, 'utf8'));
@@ -1489,21 +1486,46 @@ const loadColorOrdering = () => {
             console.error('Error loading color ordering:', e.message);
         }
     }
+    
     return {
         global: [...defaultColorOrder],
         templates: {}
     };
-};
+}
 
 // Save color ordering to disk
-const saveColorOrdering = () => {
+function saveColorOrdering() {
     const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
     try {
-        console.log('Saving color ordering to:', orderingPath);
         writeFileSync(orderingPath, JSON.stringify(colorOrdering, null, 2));
+        console.log('Color ordering saved successfully');
     } catch (e) {
         console.error('Error saving color ordering:', e.message);
+        throw e; // Re-throw so calling code knows it failed
     }
+}
+
+// Helper to get color order for specific context
+function getColorOrder(templateId = null) {
+    return templateId && colorOrdering.templates[templateId] 
+        ? colorOrdering.templates[templateId]
+        : colorOrdering.global;
+}
+
+// Helper to set color order for specific context  
+function setColorOrder(order, templateId = null) {
+    if (templateId) {
+        colorOrdering.templates[templateId] = [...order];
+    } else {
+        colorOrdering.global = [...order];
+    }
+    saveColorOrdering();
+}
+
+const validateColorIds = (order) => {
+    const validIds = new Set(Object.values(palette));
+    return order.filter(id => Number.isInteger(id) && validIds.has(id));
 };
 
 // ---------- API ----------
@@ -1848,86 +1870,56 @@ app.get('/canvas', async (req, res) => {
     }
 });
 
+// Color ordering endpoints
+// Get color ordering
 app.get('/color-ordering', (req, res) => {
     const { templateId } = req.query;
     
-    let availableColors;
-    let currentOrder;
-    
     if (templateId && templates[templateId]) {
-        // Get colors actually present in this template
-        availableColors = getColorsInTemplate(templates[templateId].template);
-        currentOrder = getColorOrderForTemplate(templateId);
-        
-        // Filter the order to only include colors present in the template
-        currentOrder = currentOrder.filter(colorId => availableColors.includes(colorId));
+        const availableColors = getColorsInTemplate(templates[templateId].template);
+        const currentOrder = getColorOrder(templateId).filter(id => availableColors.includes(id));
+        res.json({ order: currentOrder, availableColors, filteredByTemplate: true });
     } else {
-        // Use global ordering with all colors
-        availableColors = Object.values(pallete);
-        currentOrder = colorOrdering.global;
+        res.json({ 
+            order: colorOrdering.global, 
+            availableColors: Object.values(palette), 
+            filteredByTemplate: false 
+        });
     }
-    
-    res.json({ 
-        order: currentOrder,
-        availableColors: availableColors,
-        filteredByTemplate: !!templateId
-    });
 });
 
+// Update global color ordering  
 app.put('/color-ordering/global', (req, res) => {
-    const { order } = req.body;
+    const validOrder = validateColorIds(req.body.order || []);
     
-    if (!Array.isArray(order) || order.length === 0) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid order array' });
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
     }
     
-    // Validate that all color IDs are valid and remove any invalid ones
-    const validIds = new Set(Object.values(pallete));
-    const validOrder = order.filter(id => {
-        const isValid = Number.isInteger(id) && validIds.has(id);
-        if (!isValid) {
-            console.warn(`Invalid color ID filtered out: ${id}`);
-        }
-        return isValid;
-    });
-    
-    if (validOrder.length === 0) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'No valid color IDs in order' });
-    }
-    
-    colorOrdering.global = validOrder;
-    saveColorOrdering();
+    setColorOrder(validOrder);
     res.json({ success: true });
 });
 
+// Update template-specific color ordering
 app.put('/color-ordering/template/:templateId', (req, res) => {
     const { templateId } = req.params;
-    const { order } = req.body;
+    const template = templates[templateId];
     
-    if (!templates[templateId]) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Template not found' });
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
     }
     
-    if (!Array.isArray(order) || order.length === 0) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid order array' });
+    const validOrder = validateColorIds(req.body.order || []);
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
     }
     
-    // Validate that all color IDs are valid
-    const validIds = new Set(Object.values(pallete));
-    for (const id of order) {
-        if (!validIds.has(id)) {
-            return res.status(HTTP_STATUS.BAD_REQ).json({ error: `Invalid color ID: ${id}` });
-        }
-    }
-    
-    colorOrdering.templates[templateId] = [...order];
-    saveColorOrdering();
-    
-    const templateName = templates[templateId].name;
-    log('SYSTEM', 'color-ordering', `Template "${templateName}" color order updated (${order.length} colors)`);
+    setColorOrder(validOrder, templateId);
+    log('SYSTEM', 'color-ordering', `Template "${template.name}" color order updated (${validOrder.length} colors)`);
     res.json({ success: true });
 });
 
+// Reset template color ordering
 app.delete('/color-ordering/template/:templateId', (req, res) => {
     const { templateId } = req.params;
     
@@ -1942,25 +1934,23 @@ app.delete('/color-ordering/template/:templateId', (req, res) => {
     res.json({ success: true });
 });
 
+// Get template colors
 app.get('/template/:id/colors', (req, res) => {
-    const { id } = req.params;
+    const template = templates[req.params.id];
     
-    if (!templates[id]) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Template not found' });
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
     }
     
-    const template = templates[id];
     const colorsInTemplate = getColorsInTemplate(template.template);
-    
-    // Build response with color info
     const colorInfo = colorsInTemplate.map(colorId => ({
         id: colorId,
         name: COLOR_NAMES[colorId] || `Color ${colorId}`,
-        rgb: Object.keys(pallete).find(key => pallete[key] === colorId) || null
+        rgb: Object.keys(palette).find(key => palette[key] === colorId) || null
     }));
     
     res.json({
-        templateId: id,
+        templateId: req.params.id,
         templateName: template.name,
         colors: colorInfo,
         totalUniqueColors: colorsInTemplate.length
