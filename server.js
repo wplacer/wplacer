@@ -1240,15 +1240,24 @@ class TemplateManager {
     }
 
     async start() {
+        const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
+
         try {
             while (this.running) {
                 this.status = 'Checking for pixels...';
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
+                // --- Find a working user and get mismatched pixels ---
+                const checkResult = await this._findWorkingUserAndCheckPixels();
+                if (!checkResult) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ❌ No working users found for pixel check. Retrying in 30s.`);
+                    await this.cancellableSleep(30_000);
+                    continue;
+                }
                 let colorsToPaint;
                 const isColorMode = currentSettings.drawingOrder === 'color';
                 if (isColorMode) {
