@@ -623,3 +623,122 @@ input:checked + .slider:before {
     border: 1px solid var(--warning-color);
     color: var(--text-secondary);
 }
+
+.color-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 80px);
+    gap: 12px;
+    max-width: 800px;
+    margin: 0 auto 20px auto;
+    justify-content: center;
+}
+
+.color-item {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    border: 2px solid var(--border-color);
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    font-weight: bold;
+    user-select: none;
+    transition: all 0.2s ease;
+    background-color: var(--background-secondary);
+    position: relative;
+    overflow: hidden;
+}
+
+.color-item:hover {
+    transform: scale(1.05);
+    border-color: var(--accent-primary);
+}
+
+.color-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg) scale(1.1);
+    z-index: 1000;
+    border-color: var(--accent-primary);
+}
+
+.color-item.drag-over {
+    border: 3px solid var(--accent-hover);
+    transform: scale(1.1);
+}
+
+.color-swatch {
+    width: 100%;
+    height: 50px;
+    border-radius: 6px 6px 0 0;
+}
+
+.color-info {
+    padding: 4px;
+    text-align: center;
+    line-height: 1.2;
+    color: var(--text-primary);
+    background: var(--background-secondary);
+    width: 100%;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    font-size: 9px;
+}
+
+.priority-number {
+    font-weight: bold;
+    color: var(--accent-primary);
+}
+
+.color-name {
+    color: var(--text-secondary);
+    font-size: 8px;
+    margin-top: 2px;
+}
+
+.btn-primary {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-primary:hover {
+    background: hsl(145, 63%, 38%);
+    transform: translateY(-1px);
+}
+
+.btn-danger {
+    background: var(--error-color);
+    color: white;
+}
+
+.btn-danger:hover {
+    background: hsl(0, 65%, 47%);
+    transform: translateY(-1px);
+}
+
+.btn-info {
+    background: hsl(210, 79%, 46%);
+    color: white;
+}
+
+.btn-info:hover {
+    background: hsl(210, 79%, 42%);
+    transform: translateY(-1px);
+}
+
+
+.toggle-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.button-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}

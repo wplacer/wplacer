@@ -154,9 +154,9 @@ class NetworkError extends Error {
     }
 }
 
-// ---------- Palette ----------
+// ---------- palette ----------
 
-const pallete = {
+const palette = {
     '0,0,0': 1, '60,60,60': 2, '120,120,120': 3, '210,210,210': 4, '255,255,255': 5,
     '96,0,24': 6, '237,28,36': 7, '255,127,39': 8, '246,170,9': 9, '249,221,59': 10,
     '255,250,188': 11, '14,185,104': 12, '19,230,123': 13, '135,255,94': 14, '12,129,110': 15,
@@ -171,7 +171,7 @@ const pallete = {
     '123,99,82': 56, '156,132,107': 57, '51,57,65': 58, '109,117,141': 59, '179,185,209': 60,
     '109,100,63': 61, '148,140,107': 62, '205,197,158': 63,
 };
-const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(pallete)]);
+const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
 const COLOR_NAMES = {
     1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
     6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
@@ -179,13 +179,13 @@ const COLOR_NAMES = {
     18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
     23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
     29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
-    32: 'P-Gray', 33: 'P-Maroon', 34: 'P-Salmon', 35: 'P-Burnt Orange', 36: 'P-Tan',
-    37: 'P-Dark Gold', 38: 'P-Gold', 39: 'P-Light Gold', 40: 'P-Olive', 41: 'P-Forest Green',
-    42: 'P-Lime Green', 43: 'P-Dark Aqua', 44: 'P-Cyan', 45: 'P-Sky Blue', 46: 'P-Royal Blue',
-    47: 'P-Navy', 48: 'P-Light Purple', 49: 'P-Lilac', 50: 'P-Ochre', 51: 'P-Terracotta',
-    52: 'P-Peach', 53: 'P-Dark Rose', 54: 'P-Rose', 55: 'P-Light Rose', 56: 'P-Taupe',
-    57: 'P-Light Taupe', 58: 'P-Charcoal', 59: 'P-Slate', 60: 'P-Light Slate', 61: 'P-Khaki',
-    62: 'P-Light Khaki', 63: 'P-Beige'
+    32: '★ Gray', 33: '★ Maroon', 34: '★ Salmon', 35: '★ Burnt Orange', 36: '★ Tan',
+    37: '★ Dark Gold', 38: '★ Gold', 39: '★ Light Gold', 40: '★ Olive', 41: '★ Forest Green',
+    42: '★ Lime Green', 43: '★ Dark Aqua', 44: '★ Cyan', 45: '★ Sky Blue', 46: '★ Royal Blue',
+    47: '★ Navy', 48: '★ Light Purple', 49: '★ Lilac', 50: '★ Ochre', 51: '★ Terracotta',
+    52: '★ Peach', 53: '★ Dark Rose', 54: '★ Rose', 55: '★ Light Rose', 56: '★ Taupe',
+    57: '★ Light Taupe', 58: '★ Charcoal', 59: '★ Slate', 60: '★ Light Slate', 61: '★ Khaki',
+    62: '★ Light Khaki', 63: '★ Beige'
 };
 
 // ---------- Charge prediction cache ----------
@@ -363,6 +363,14 @@ const getNextProxy = () => {
     return proxyUrl;
 };
 
+// Get the color ordoring for a given template, or global default.
+const getColorOrderForTemplate = (templateId) => {
+    if (templateId && colorOrdering.templates[templateId]) {
+        return colorOrdering.templates[templateId];
+    }
+    return colorOrdering.global;
+};
+
 // ---------- HTTP client wrapper ----------
 
 /**
@@ -495,7 +503,7 @@ class WPlacer {
                                     g = d.data[i + 1],
                                     b = d.data[i + 2],
                                     a = d.data[i + 3];
-                                tile.data[x][y] = a === 255 ? pallete[`${r},${g},${b}`] || 0 : 0;
+                                tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
                             }
                         }
                         return tile;
@@ -1062,6 +1070,7 @@ function logUserError(error, id, name, context) {
 
 class TemplateManager {
     constructor({
+        templateId,
         name,
         templateData,
         coords,
@@ -1074,6 +1083,7 @@ class TemplateManager {
         enableAutostart,
         userIds,
     }) {
+        this.templateId = templateId;
         this.name = name;
         this.template = templateData;
         this.coords = coords;
@@ -1192,6 +1202,43 @@ class TemplateManager {
         return paintedTotal;
     }
 
+    async _findWorkingUserAndCheckPixels() {
+        // Iterate through all users in the queue to find one that works.
+        for (let i = 0; i < this.userQueue.length; i++) {
+            const userId = this.userQueue.shift();
+            this.userQueue.push(userId); // Immediately cycle user to the back of the queue.
+
+            if (!users[userId] || (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil)) {
+                continue; // Skip suspended or non-existent users.
+            }
+
+            const wplacer = new WPlacer({
+                template: this.template,
+                coords: this.coords,
+                globalSettings: currentSettings,
+                templateSettings: {
+                    eraseMode: this.eraseMode,
+                    outlineMode: this.outlineMode,
+                    skipPaintedPixels: this.skipPaintedPixels,
+                },
+                templateName: this.name,
+            });
+
+            try {
+                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
+                await wplacer.login(users[userId].cookies);
+                await wplacer.loadTiles();
+                const mismatchedPixels = wplacer._getMismatchedPixels(1, null); // Check all pixels, no skip, no color filter.
+                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels.`);
+                return { wplacer, mismatchedPixels }; // Success
+            } catch (error) {
+                logUserError(error, userId, users[userId].name, 'cycle pixel check');
+                // This user failed, loop will continue to the next one.
+            }
+        }
+        return null; // No working users were found in the entire queue.
+    }
+
     async start() {
         const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
@@ -1201,21 +1248,37 @@ class TemplateManager {
 
         try {
             while (this.running) {
+                this.status = 'Checking for pixels...';
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
                 if (isColorMode) {
-                    const allColors = this.template.data.flat().filter((c) => c > 0);
+                    const allColors = this.template.data.flat().filter((c) => c > 0);   
                     const colorCounts = allColors.reduce((acc, color) => {
                         acc[color] = (acc[color] || 0) + 1;
                         return acc;
                     }, {});
-
+                    
+                    const customOrder = getColorOrderForTemplate(this.templateId);
                     let sortedColors = Object.keys(colorCounts).map(Number);
-                    sortedColors.sort((a, b) => {
-                        if (a === 1) return -1; // Black (ID 1) always first
-                        if (b === 1) return 1;
-                        return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
-                    });
+
+                    if (customOrder && customOrder.length > 0) {
+                        // Use custom color ordering
+                        const orderMap = new Map(customOrder.map((id, index) => [id, index]));
+                        sortedColors.sort((a, b) => {
+                            const orderA = orderMap.get(a) ?? 999999;
+                            const orderB = orderMap.get(b) ?? 999999;
+                            return orderA - orderB;
+                        });
+                    } else {
+                        // Fallback to original logic
+                        sortedColors.sort((a, b) => {
+                            if (a === 1) return -1; // Black goes first
+                            if (b === 1) return 1;
+                            return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
+                        });
+                        console.log(`[${this.name}] Using default color order (pixel count). Colors:`, sortedColors);
+                    }
+
                     colorsToPaint = sortedColors;
                     if (this.eraseMode) {
                         colorsToPaint.push(0); // Add erase pass at the end
@@ -1224,110 +1287,71 @@ class TemplateManager {
                     colorsToPaint = [null]; // A single loop for non-color mode
                 }
 
+                this.pixelsRemaining = checkResult.mismatchedPixels.length;
+
+                // --- COMPLETION & ANTI-GRIEF CHECK ---
+                if (this.pixelsRemaining === 0) {
+                    if (this.antiGriefMode) {
+                        this.status = 'Monitoring for changes.';
+                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
+                        await this.cancellableSleep(currentSettings.antiGriefStandby);
+                        continue; // Restart the while loop to re-check for changes.
+                    } else {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
+                        this.status = 'Finished.';
+                        this.running = false;
+                        break; // Exit the main while loop.
+                    }
+                }
+
+                // If we reached here, there are pixels to paint. Reset retry delay.
+                this.currentRetryDelay = this.initialRetryDelay;
+                const isColorMode = currentSettings.drawingOrder === 'color';
+
+                // --- PAINTING LOGIC ---
+                // Determine which colors need to be painted based on the check results.
+                if (isColorMode) {
+                    const mismatchedColors = new Set(checkResult.mismatchedPixels.map(p => p.color));
+                    const allColors = this.template.data.flat().filter((c) => c > 0);
+                    const colorCounts = allColors.reduce((acc, color) => ({ ...acc, [color]: (acc[color] || 0) + 1 }), {});
+                    
+                    let sortedColors = Object.keys(colorCounts).map(Number).sort((a, b) => (a === 1 ? -1 : b === 1 ? 1 : colorCounts[a] - colorCounts[b]));
+                    
+                    colorsToPaint = sortedColors.filter(c => mismatchedColors.has(c));
+                    if (this.eraseMode && mismatchedColors.has(0)) {
+                        colorsToPaint.push(0);
+                    }
+                } else {
+                    colorsToPaint = [null]; // A single loop for non-color mode.
+                }
 
                 for (const color of colorsToPaint) {
                     if (!this.running) break;
-
-                    // --- OPTIMIZED CHECK ---
-                    let allMismatchedForColor = [];
-                    let checkWplacer = null;
-
-                    // 1. Find a working user and perform a single check for the current color
-                    for (let i = 0; i < this.userQueue.length; i++) {
-                        const checkUserId = this.userQueue.shift();
-                        if (!users[checkUserId] || (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)) {
-                            this.userQueue.push(checkUserId);
-                            continue;
-                        }
-                        const wplacer = new WPlacer({
-                            template: this.template, coords: this.coords, globalSettings: currentSettings,
-                            templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
-                            templateName: this.name,
-                        });
-                        try {
-                            await wplacer.login(users[checkUserId].cookies);
-                            await wplacer.loadTiles();
-                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
-                            this.pixelsRemaining = (await wplacer._getMismatchedPixels(1, null)).length;
-                            checkWplacer = wplacer;
-                            this.userQueue.push(checkUserId);
-                            break;
-                        } catch (error) {
-                            logUserError(error, checkUserId, users[checkUserId].name, 'initial pixel check');
-                            this.userQueue.push(checkUserId);
-                        }
-                    }
-
-                    if (!checkWplacer) {
-                        log('SYSTEM', 'wplacer', `[${this.name}] ❌ All users failed initial check. Retrying in ${duration(this.currentRetryDelay)}.`);
-                        await sleep(this.currentRetryDelay);
-                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                        continue; // Retry the entire color loop
-                    }
-
-                    // --- ANTI-GRIEF FIX ---
-                    if (this.pixelsRemaining === 0) {
-                        if (this.antiGriefMode) {
-                            this.status = 'Monitoring for changes.';
-                            log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
-                            await this.cancellableSleep(currentSettings.antiGriefStandby);
-                            continue; // Continue the main `while (this.running)` loop to re-check later
-                        } else {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
-                            this.status = 'Finished.';
-                            this.running = false;
-                            break; // Break the `for (const color of colorsToPaint)` loop
-                        }
-                    }
-                    if (!this.running) break; // Check running status after potential break
-
-                    if (allMismatchedForColor.length === 0) {
-                        if (isColorMode) {
-                            const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ No pixels remaining for color ID ${color} (${colorName}).`);
-                        }
-                        continue; // Skip to the next color
-                    }
-
-                    // 2. Determine the highest density that has pixels to paint
+                    
                     let highestDensityWithPixels = 1;
                     for (let density = currentSettings.pixelSkip; density > 1; density /= 2) {
-                        if (allMismatchedForColor.some(p => (p.localX + p.localY) % density === 0)) {
+                        if (checkResult.mismatchedPixels.some(p => (color === null || p.color === color) && (p.localX + p.localY) % density === 0)) {
                             highestDensityWithPixels = density;
                             break;
                         }
                     }
                     if (isColorMode) {
                         const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                        log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} (${colorName}) from density 1/${highestDensityWithPixels}`);
                     }
 
-
-                    // 3. Loop from the determined highest density down to 1
                     for (this.currentPixelSkip = highestDensityWithPixels; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                         if (!this.running) break;
-                        log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
-
+                        log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip}) for color ${isColorMode ? (COLOR_NAMES[color] || 'Erase') : 'All'}`);
+                        
                         let passComplete = false;
                         while (this.running && !passComplete) {
-                            // The check is now synchronous and uses the pre-fetched data
-                            const pixelsForThisPass = allMismatchedForColor.filter(p => (p.localX + p.localY) % this.currentPixelSkip === 0);
-
-                            if (pixelsForThisPass.length === 0) {
-                                log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                                passComplete = true;
-                                continue;
-                            }
-
-                            if (!this.running) break;
-
                             if (this.userQueue.length === 0) {
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
-                                await sleep(5000);
+                                await this.cancellableSleep(5000);
                                 this.userQueue = [...this.userIds];
                                 continue;
                             }
-
+                            
                             let foundUserForTurn = false;
                             const queueSize = this.userQueue.length;
                             for (let i = 0; i < queueSize; i++) {
@@ -1343,53 +1367,50 @@ class TemplateManager {
                                     if (!activeBrowserUsers.has(userId)) {
                                         activeBrowserUsers.add(userId);
                                         const w = new WPlacer({});
-                                        try { await w.login(users[userId].cookies); }
-                                        catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); }
-                                        finally { activeBrowserUsers.delete(userId); }
+                                        try { await w.login(users[userId].cookies); } catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); } finally { activeBrowserUsers.delete(userId); }
                                     }
                                 }
-
+                                
                                 const predicted = ChargeCache.predict(userId, now);
                                 const threshold = predicted ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold)) : Infinity;
-
+                                
                                 if (predicted && Math.floor(predicted.count) >= threshold) {
                                     activeBrowserUsers.add(userId);
-                                    const wplacer = new WPlacer({
-                                        template: this.template, coords: this.coords, globalSettings: currentSettings,
-                                        templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
-                                        templateName: this.name,
-                                    });
+                                    const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
                                     try {
                                         const userInfo = await wplacer.login(users[userId].cookies);
-                                        this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
+                                        this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
                                         
-                                        const paintedNow = await this._performPaintTurn(wplacer, color);
+                                        await this._performPaintTurn(wplacer, color);
                                         
-                                        if (paintedNow > 0) {
-                                            foundUserForTurn = true;
-                                            // Tile cache is now stale. Reload tiles before re-checking pixels.
-                                            await wplacer.loadTiles(); 
-                                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
-                                        }
-                                        
+                                        // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
+                                        foundUserForTurn = true;
                                         await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
-                                        this.currentRetryDelay = this.initialRetryDelay;
                                     } catch (error) {
                                         if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
                                     } finally {
                                         activeBrowserUsers.delete(userId);
                                         this.userQueue.push(userId);
                                     }
-                                    if (foundUserForTurn) break;
+                                    if (foundUserForTurn) break; 
                                 } else {
                                     this.userQueue.push(userId);
                                 }
                             }
 
                             if (foundUserForTurn) {
-                                if (this.running && currentSettings.accountCooldown > 0) {
+                                // Check if the pass is complete after a successful turn
+                                const postPaintCheck = await this._findWorkingUserAndCheckPixels();
+                                if(postPaintCheck){
+                                    const passPixels = postPaintCheck.mismatchedPixels.filter(p => (color === null || p.color === color) && (p.localX + p.localY) % this.currentPixelSkip === 0);
+                                    if(passPixels.length === 0) {
+                                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
+                                        passComplete = true;
+                                    }
+                                }
+                                if (this.running && !passComplete && currentSettings.accountCooldown > 0) {
                                     log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
                                     await this.cancellableSleep(currentSettings.accountCooldown);
                                 }
@@ -1405,24 +1426,21 @@ class TemplateManager {
                                 this.status = 'Waiting for charges.';
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
-                                log('SYSTEM', 'wplacer', `[${this.name}] 🌞 Woke up after waiting. Re-evaluating users...`);
+                                log('SYSTEM', 'wplacer', `[${this.name}] 🫃 Woke up. Re-evaluating...`);
                             }
                         }
                     }
                 }
-
-                if (!this.running) break;
             }
         } finally {
             activePaintingTasks--;
             if (this.status !== 'Finished.') this.status = 'Stopped.';
-            if (!this.antiGriefMode) {
-                this.userIds.forEach((id) => activeTemplateUsers.delete(id));
-                processQueue();
-            }
+            this.userIds.forEach((id) => activeTemplateUsers.delete(id));
+            processQueue();
         }
     }
 }
+
 
 // ---------- Express setup ----------
 
@@ -1453,6 +1471,85 @@ const processQueue = () => {
             break;
         }
     }
+};
+
+// --- Color Ordering ---
+
+// Default color order sorted by id
+let defaultColorOrder = Object.values(palette).sort((a, b) => a - b);
+
+// Store color orders - initialize from disk
+let colorOrdering = loadColorOrdering();
+
+// Extract unique colors from template data
+function getColorsInTemplate(templateData) {
+    if (!templateData?.data) return [];
+    
+    const uniqueColors = new Set();
+    
+    // Flatten and filter in one pass
+    templateData.data.flat().forEach(colorId => {
+        if (colorId > 0) uniqueColors.add(colorId);
+    });
+    
+    return Array.from(uniqueColors).sort((a, b) => a - b);
+}
+
+// Load color ordering from disk
+function loadColorOrdering() {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
+    if (existsSync(orderingPath)) {
+        try {
+            const data = JSON.parse(readFileSync(orderingPath, 'utf8'));
+            return {
+                global: data.global || [...defaultColorOrder],
+                templates: data.templates || {}
+            };
+        } catch (e) {
+            console.error('Error loading color ordering:', e.message);
+        }
+    }
+    
+    return {
+        global: [...defaultColorOrder],
+        templates: {}
+    };
+}
+
+// Save color ordering to disk
+function saveColorOrdering() {
+    const orderingPath = path.join(DATA_DIR, 'color_ordering.json');
+    
+    try {
+        writeFileSync(orderingPath, JSON.stringify(colorOrdering, null, 2));
+        console.log('Color ordering saved successfully');
+    } catch (e) {
+        console.error('Error saving color ordering:', e.message);
+        throw e; // Re-throw so calling code knows it failed
+    }
+}
+
+// Helper to get color order for specific context
+function getColorOrder(templateId = null) {
+    return templateId && colorOrdering.templates[templateId] 
+        ? colorOrdering.templates[templateId]
+        : colorOrdering.global;
+}
+
+// Helper to set color order for specific context  
+function setColorOrder(order, templateId = null) {
+    if (templateId) {
+        colorOrdering.templates[templateId] = [...order];
+    } else {
+        colorOrdering.global = [...order];
+    }
+    saveColorOrdering();
+}
+
+const validateColorIds = (order) => {
+    const validIds = new Set(Object.values(palette));
+    return order.filter(id => Number.isInteger(id) && validIds.has(id));
 };
 
 // ---------- API ----------
@@ -1606,34 +1703,53 @@ app.post('/users/status', async (_req, res) => {
 });
 
 // Templates
-app.get('/templates', (_req, res) => {
-    const out = {};
+app.get('/templates', (req, res) => {
+    const templateList = {};
+    
     for (const id in templates) {
-        const t = templates[id];
-        const { width, height, data } = t.template;
-        const shareCode = t.template.shareCode || shareCodeFromTemplate({ width, height, data });
-        t.template.shareCode = shareCode; // cache for future saves
-
-        out[id] = {
-            name: t.name,
-            template: { width, height, data }, // no shareCode inside template payload
-            shareCode, // provide separately for UI
-            coords: t.coords,
-            canBuyCharges: t.canBuyCharges,
-            canBuyMaxCharges: t.canBuyMaxCharges,
-            antiGriefMode: t.antiGriefMode,
-            eraseMode: t.eraseMode,
-            outlineMode: t.outlineMode,
-            skipPaintedPixels: t.skipPaintedPixels,
-            enableAutostart: t.enableAutostart,
-            userIds: t.userIds,
-            running: t.running,
-            status: t.status,
-            pixelsRemaining: t.pixelsRemaining,
-            totalPixels: t.totalPixels,
-        };
+        const manager = templates[id];
+        try {
+            // Create a safe share code
+            let shareCode;
+            try {
+                shareCode = manager.template.shareCode || shareCodeFromTemplate(manager.template);
+            } catch (shareCodeError) {
+                console.warn(`Could not generate share code for template ${id}: ${shareCodeError.message}`);
+                shareCode = null; // Don't include invalid share code
+            }
+            
+            templateList[id] = {
+                id: id,
+                name: manager.name,
+                coords: manager.coords,
+                canBuyCharges: manager.canBuyCharges,
+                canBuyMaxCharges: manager.canBuyMaxCharges,
+                antiGriefMode: manager.antiGriefMode,
+                eraseMode: manager.eraseMode,
+                outlineMode: manager.outlineMode,
+                skipPaintedPixels: manager.skipPaintedPixels,
+                enableAutostart: manager.enableAutostart,
+                userIds: manager.userIds,
+                running: manager.running,
+                status: manager.status,
+                masterId: manager.masterId,
+                masterName: manager.masterName,
+                totalPixels: manager.totalPixels,
+                pixelsRemaining: manager.pixelsRemaining,
+                currentPixelSkip: manager.currentPixelSkip,
+                template: {
+                    width: manager.template.width,
+                    height: manager.template.height,
+                    data: manager.template.data,
+                    shareCode: shareCode
+                }
+            };
+        } catch (error) {
+            console.warn(`Error processing template ${id} for API response: ${error.message}`);
+        }
     }
-    res.json(out);
+    
+    res.json(templateList);
 });
 
 app.post('/templates/import', (req, res) => {
@@ -1641,6 +1757,7 @@ app.post('/templates/import', (req, res) => {
     if (!id || !code) return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'id and code required' });
     const tmpl = templateFromShareCode(code);
     templates[id] = {
+        templateId: id,
         name: name || `Template ${id}`,
         coords: coords || [0, 0],
         canBuyCharges: false,
@@ -1682,6 +1799,7 @@ app.post('/template', (req, res) => {
 
     const templateId = Date.now().toString();
     templates[templateId] = new TemplateManager({
+        templateId: templateId,
         name: templateName,
         templateData: template,
         coords,
@@ -1811,6 +1929,93 @@ app.get('/canvas', async (req, res) => {
     }
 });
 
+// Color ordering endpoints
+// Get color ordering
+app.get('/color-ordering', (req, res) => {
+    const { templateId } = req.query;
+    
+    if (templateId && templates[templateId]) {
+        const availableColors = getColorsInTemplate(templates[templateId].template);
+        const currentOrder = getColorOrder(templateId).filter(id => availableColors.includes(id));
+        res.json({ order: currentOrder, availableColors, filteredByTemplate: true });
+    } else {
+        res.json({ 
+            order: colorOrdering.global, 
+            availableColors: Object.values(palette), 
+            filteredByTemplate: false 
+        });
+    }
+});
+
+// Update global color ordering  
+app.put('/color-ordering/global', (req, res) => {
+    const validOrder = validateColorIds(req.body.order || []);
+    
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
+    }
+    
+    setColorOrder(validOrder);
+    res.json({ success: true });
+});
+
+// Update template-specific color ordering
+app.put('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    const template = templates[templateId];
+    
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
+    }
+    
+    const validOrder = validateColorIds(req.body.order || []);
+    if (!validOrder.length) {
+        return res.status(400).json({ error: 'No valid color IDs provided' });
+    }
+    
+    setColorOrder(validOrder, templateId);
+    log('SYSTEM', 'color-ordering', `Template "${template.name}" color order updated (${validOrder.length} colors)`);
+    res.json({ success: true });
+});
+
+// Reset template color ordering
+app.delete('/color-ordering/template/:templateId', (req, res) => {
+    const { templateId } = req.params;
+    
+    if (colorOrdering.templates[templateId]) {
+        delete colorOrdering.templates[templateId];
+        saveColorOrdering();
+        
+        const templateName = templates[templateId]?.name || 'Unknown';
+        log('SYSTEM', 'color-ordering', `Template "${templateName}" color order reset to global`);
+    }
+    
+    res.json({ success: true });
+});
+
+// Get template colors
+app.get('/template/:id/colors', (req, res) => {
+    const template = templates[req.params.id];
+    
+    if (!template) {
+        return res.status(400).json({ error: 'Template not found' });
+    }
+    
+    const colorsInTemplate = getColorsInTemplate(template.template);
+    const colorInfo = colorsInTemplate.map(colorId => ({
+        id: colorId,
+        name: COLOR_NAMES[colorId] || `Color ${colorId}`,
+        rgb: Object.keys(palette).find(key => palette[key] === colorId) || null
+    }));
+    
+    res.json({
+        templateId: req.params.id,
+        templateName: template.name,
+        colors: colorInfo,
+        totalUniqueColors: colorsInTemplate.length
+    });
+});
+
 // ---------- One-time migration: old -> compressed ----------
 
 function migrateOldTemplatesIfNeeded() {
@@ -1908,7 +2113,7 @@ const diffVer = (v1, v2) => {
     console.log(gradient(["#EF8F20", "#CB3D27", "#A82421"])(`                           ████
                           ▒▒███
  █████ ███ █████ ████████  ▒███   ██████    ██████   ██████  ████████
-▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███  ███▒▒███▒▒███
+▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███▒▒███▒▒███▒▒███
  ▒███ ▒███ ▒███  ▒███ ▒███ ▒███   ███████ ▒███ ▒▒▒ ▒███████  ▒███ ▒▒▒
  ▒▒███████████   ▒███ ▒███ ▒███  ███▒▒███ ▒███  ███▒███▒▒▒   ▒███
   ▒▒████▒████    ▒███████  █████▒▒████████▒▒██████ ▒▒██████  █████
@@ -1959,6 +2164,7 @@ const diffVer = (v1, v2) => {
             const templateData = ensureTemplateData(t.template);
             if (t.userIds.every((uid) => users[uid])) {
                 templates[id] = new TemplateManager({
+                    templateId: id,
                     name: t.name,
                     templateData,
                     coords: t.coords,
@@ -1977,6 +2183,9 @@ const diffVer = (v1, v2) => {
             console.error(`⚠️ Skipping template ${id}: ${e.message}`);
         };
     };
+
+    //Load color ordering on startup
+    colorOrdering = loadColorOrdering();
 
     loadProxies();
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);

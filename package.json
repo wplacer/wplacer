@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "5.2.2",
+  "version": "5.2.4",
   "main": "server.js",
   "type": "module",
   "author": "luluwaffless and JinxTheCatto",
