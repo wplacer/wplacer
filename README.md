@@ -32,7 +32,7 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 1. Download the repository using [git](https://git-scm.com/downloads) (`git clone https://github.com/luluwaffless/wplacer.git`) or download the ZIP directly from GitHub (not recommended).
 1. In the terminal, navigate to the project directory and install the dependencies with `npm i`.
 1. Install the extension on each browser window with an account you want to be used by wplacer and to automatically solve Turnstiles (CAPTCHAs) by going to the extensions page of your browser, turning on developer mode, pressing load unpacked, and then selecting the LOAD_UNPACKED folder included with wplacer.
-- If you'd like, you can change the host and port of the local server by creating a `.env` file.
+- If you'd like, you can change the host and port of the local server by changing the `.env` file.
 ### Usage:
 1. To start the bot, run `npm start` in the terminal.
 1. Open the URL printed in the console (usually `http://127.0.0.1/`) in your browser.
@@ -44,6 +44,11 @@ A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
    - The script will occasionally refresh one of the active bot windows on [wplace.live](https://wplace.live/). This is required to refresh the Turnstile token needed for painting.
 
 # FAQ and Common Errors 🤔
+### Browser:
+- **The best supported browser is Brave, which you can get here: <https://brave.com/download/>**
+- Chrome works, but is not reccomended. (zero fingerprint protection - high ban chance)
+- Firefox is not supported.
+  
 ### How to get your JWT token:
 Go to [wplace.live](<https://wplace.live>), login, click anywhere on the map, then press `Ctrl` + `Shift` + `i`, go to `Application`, find the `j` column, then copy the value inside
 
@@ -53,8 +58,7 @@ After that, make sure to click on the extension in wplace.live, and configure yo
 
 ### How to run the bot:
 1. Simply open `start.bat`.
-2. Open a command prompt in the wplacer folder. You can type `cmd` in the address bar in the file explorer to do this.
-run `npm i` in the command prompt, then after run `npm start`.
+2. Open a command prompt in the wplacer folder. You can type `cmd` in the address bar in the file explorer to do this. Run `npm i` in the command prompt, then after run `npm start`.
   - If you get any errors while running `npm i`, run this: `Set-ExecutionPolicy -Scope CurrentUser Bypass` then you can run `npm i`
 
 ### How to add proxies:
@@ -71,10 +75,8 @@ Two things will cause this, [wplace.live](<https://wplace.live>) being down, or 
 - If its up, re-add your token by doing the first step.
 - If NEITHER are an issue, then its probably something in the code is wrong. Open an issue or tell them in the support server and it should be fixed in future updates.
 
-### Browser:
-- **The best supported browser is Brave, which you can get here: <https://brave.com/download/>**
-- Chrome works, but is not reccomended (zero fingerprint protection - high ban chance)
-- Firefox is not supported
+### ERR_MODULE_NOT_FOUND:
+One of your modules are missing. To install them, simply use `npm i`.
 
 **We will NOT provide support for other forks of this project. Ask the respective developers.**
 
