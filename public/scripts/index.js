@@ -225,21 +225,29 @@ function connectLogsWs() {
     };
 }
 
-function renderFilteredLogs() {
+function getFilteredLogs() {
     let filtered = allLogLines;
-    if (filterType) {
+    const currentFilterType = filterType;
+    const currentFilterText = filterText;
+
+    if (currentFilterType) {
         filtered = filtered.filter(line => {
-            if (filterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
-            if (filterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
-            if (filterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
-            if (filterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
+            if (currentFilterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
+            if (currentFilterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
+            if (currentFilterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
+            if (currentFilterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
             return true;
         });
     }
-    if (filterText) {
-        const f = filterText.toLowerCase();
+    if (currentFilterText) {
+        const f = currentFilterText.toLowerCase();
         filtered = filtered.filter(line => line.toLowerCase().includes(f));
     }
+    return filtered;
+}
+
+function renderFilteredLogs() {
+    const filtered = getFilteredLogs();
     logsContainer.innerHTML = filtered.map(renderLogLines).join('\n');
     logsContainer.scrollTop = logsContainer.scrollHeight;
 }
@@ -258,20 +266,7 @@ if (logsTypeFilter) {
 }
 if (logsExportBtn) {
     logsExportBtn.addEventListener('click', () => {
-        let filtered = allLogLines;
-        if (filterType) {
-            filtered = filtered.filter(line => {
-                if (filterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
-                if (filterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
-                if (filterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
-                if (filterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
-                return true;
-            });
-        }
-        if (filterText) {
-            const f = filterText.toLowerCase();
-            filtered = filtered.filter(line => line.toLowerCase().includes(f));
-        }
+        const filtered = getFilteredLogs();
         // Redact user discriminator: (Name#12345678) => (Name#REDACTED)
         const redacted = filtered.map(line => line.replace(/\(([^#()]+)#\d{5,}\)/g, '($1#REDACTED)'));
         const blob = new Blob([redacted.join('\n')], { type: 'text/plain' });
@@ -969,7 +964,12 @@ openAddTemplate.addEventListener('click', () => {
 });
 
 selectAllUsers.addEventListener('click', () => {
-    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach((cb) => (cb.checked = true));
+    const checkboxes = document.querySelectorAll('#userSelectList input[type="checkbox"]');
+    if (checkboxes.length === 0) return;
+
+    const allSelected = Array.from(checkboxes).every(cb => cb.checked);
+    const targetState = !allSelected;
+    checkboxes.forEach(cb => cb.checked = targetState);
 });
 
 const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {

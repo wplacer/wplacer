@@ -1170,143 +1170,126 @@ class TemplateManager {
         return paintedTotal;
     }
 
+    async _findWorkingUserAndCheckPixels() {
+        // Iterate through all users in the queue to find one that works.
+        for (let i = 0; i < this.userQueue.length; i++) {
+            const userId = this.userQueue.shift();
+            this.userQueue.push(userId); // Immediately cycle user to the back of the queue.
+
+            if (!users[userId] || (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil)) {
+                continue; // Skip suspended or non-existent users.
+            }
+
+            const wplacer = new WPlacer({
+                template: this.template,
+                coords: this.coords,
+                globalSettings: currentSettings,
+                templateSettings: {
+                    eraseMode: this.eraseMode,
+                    outlineMode: this.outlineMode,
+                    skipPaintedPixels: this.skipPaintedPixels,
+                },
+                templateName: this.name,
+            });
+
+            try {
+                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
+                await wplacer.login(users[userId].cookies);
+                await wplacer.loadTiles();
+                const mismatchedPixels = wplacer._getMismatchedPixels(1, null); // Check all pixels, no skip, no color filter.
+                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels.`);
+                return { wplacer, mismatchedPixels }; // Success
+            } catch (error) {
+                logUserError(error, userId, users[userId].name, 'cycle pixel check');
+                // This user failed, loop will continue to the next one.
+            }
+        }
+        return null; // No working users were found in the entire queue.
+    }
+
     async start() {
         this.running = true;
         this.status = 'Started.';
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
-        const isColorMode = currentSettings.drawingOrder === 'color';
-
         try {
             while (this.running) {
+                this.status = 'Checking for pixels...';
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
-                let colorsToPaint;
-                if (isColorMode) {
-                    const allColors = this.template.data.flat().filter((c) => c > 0);
-                    const colorCounts = allColors.reduce((acc, color) => {
-                        acc[color] = (acc[color] || 0) + 1;
-                        return acc;
-                    }, {});
 
-                    let sortedColors = Object.keys(colorCounts).map(Number);
-                    sortedColors.sort((a, b) => {
-                        if (a === 1) return -1; // Black (ID 1) always first
-                        if (b === 1) return 1;
-                        return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
-                    });
-                    colorsToPaint = sortedColors;
-                    if (this.eraseMode) {
-                        colorsToPaint.push(0); // Add erase pass at the end
-                    }
-                } else {
-                    colorsToPaint = [null]; // A single loop for non-color mode
+                const checkResult = await this._findWorkingUserAndCheckPixels();
+
+                if (!checkResult) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ❌ All users failed the check cycle. Retrying in ${duration(this.currentRetryDelay)}.`);
+                    await this.cancellableSleep(this.currentRetryDelay);
+                    this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
+                    continue; // Restart the while loop to try checking again.
                 }
 
+                this.pixelsRemaining = checkResult.mismatchedPixels.length;
+
+                // --- COMPLETION & ANTI-GRIEF CHECK ---
+                if (this.pixelsRemaining === 0) {
+                    if (this.antiGriefMode) {
+                        this.status = 'Monitoring for changes.';
+                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
+                        await this.cancellableSleep(currentSettings.antiGriefStandby);
+                        continue; // Restart the while loop to re-check for changes.
+                    } else {
+                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
+                        this.status = 'Finished.';
+                        this.running = false;
+                        break; // Exit the main while loop.
+                    }
+                }
+
+                // If we reached here, there are pixels to paint. Reset retry delay.
+                this.currentRetryDelay = this.initialRetryDelay;
+                const isColorMode = currentSettings.drawingOrder === 'color';
+
+                // --- PAINTING LOGIC ---
+                // Determine which colors need to be painted based on the check results.
+                let colorsToPaint;
+                if (isColorMode) {
+                    const mismatchedColors = new Set(checkResult.mismatchedPixels.map(p => p.color));
+                    const allColors = this.template.data.flat().filter((c) => c > 0);
+                    const colorCounts = allColors.reduce((acc, color) => ({ ...acc, [color]: (acc[color] || 0) + 1 }), {});
+                    
+                    let sortedColors = Object.keys(colorCounts).map(Number).sort((a, b) => (a === 1 ? -1 : b === 1 ? 1 : colorCounts[a] - colorCounts[b]));
+                    
+                    colorsToPaint = sortedColors.filter(c => mismatchedColors.has(c));
+                    if (this.eraseMode && mismatchedColors.has(0)) {
+                        colorsToPaint.push(0);
+                    }
+                } else {
+                    colorsToPaint = [null]; // A single loop for non-color mode.
+                }
 
                 for (const color of colorsToPaint) {
                     if (!this.running) break;
-
-                    // --- OPTIMIZED CHECK ---
-                    let allMismatchedForColor = [];
-                    let checkWplacer = null;
-
-                    // 1. Find a working user and perform a single check for the current color
-                    for (let i = 0; i < this.userQueue.length; i++) {
-                        const checkUserId = this.userQueue.shift();
-                        if (!users[checkUserId] || (users[checkUserId].suspendedUntil && Date.now() < users[checkUserId].suspendedUntil)) {
-                            this.userQueue.push(checkUserId);
-                            continue;
-                        }
-                        const wplacer = new WPlacer({
-                            template: this.template, coords: this.coords, globalSettings: currentSettings,
-                            templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
-                            templateName: this.name,
-                        });
-                        try {
-                            await wplacer.login(users[checkUserId].cookies);
-                            await wplacer.loadTiles();
-                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
-                            this.pixelsRemaining = (await wplacer._getMismatchedPixels(1, null)).length;
-                            checkWplacer = wplacer;
-                            this.userQueue.push(checkUserId);
-                            break;
-                        } catch (error) {
-                            logUserError(error, checkUserId, users[checkUserId].name, 'initial pixel check');
-                            this.userQueue.push(checkUserId);
-                        }
-                    }
-
-                    if (!checkWplacer) {
-                        log('SYSTEM', 'wplacer', `[${this.name}] ❌ All users failed initial check. Retrying in ${duration(this.currentRetryDelay)}.`);
-                        await sleep(this.currentRetryDelay);
-                        this.currentRetryDelay = Math.min(this.currentRetryDelay * 2, this.maxRetryDelay);
-                        continue; // Retry the entire color loop
-                    }
-
-                    // --- ANTI-GRIEF FIX ---
-                    if (this.pixelsRemaining === 0) {
-                        if (this.antiGriefMode) {
-                            this.status = 'Monitoring for changes.';
-                            log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
-                            await this.cancellableSleep(currentSettings.antiGriefStandby);
-                            continue; // Continue the main `while (this.running)` loop to re-check later
-                        } else {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
-                            this.status = 'Finished.';
-                            this.running = false;
-                            break; // Break the `for (const color of colorsToPaint)` loop
-                        }
-                    }
-                    if (!this.running) break; // Check running status after potential break
-
-                    if (allMismatchedForColor.length === 0) {
-                        if (isColorMode) {
-                            const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ No pixels remaining for color ID ${color} (${colorName}).`);
-                        }
-                        continue; // Skip to the next color
-                    }
-
-                    // 2. Determine the highest density that has pixels to paint
+                    
                     let highestDensityWithPixels = 1;
                     for (let density = currentSettings.pixelSkip; density > 1; density /= 2) {
-                        if (allMismatchedForColor.some(p => (p.localX + p.localY) % density === 0)) {
+                        if (checkResult.mismatchedPixels.some(p => (color === null || p.color === color) && (p.localX + p.localY) % density === 0)) {
                             highestDensityWithPixels = density;
                             break;
                         }
                     }
-                    if (isColorMode) {
-                        const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                        log('SYSTEM', 'wplacer', `[${this.name}] Starting passes for color ID ${color} (${colorName}) from density 1/${highestDensityWithPixels}`);
-                    }
 
-
-                    // 3. Loop from the determined highest density down to 1
                     for (this.currentPixelSkip = highestDensityWithPixels; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                         if (!this.running) break;
-                        log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip})`);
-
+                        log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip}) for color ${isColorMode ? (COLOR_NAMES[color] || 'Erase') : 'All'}`);
+                        
                         let passComplete = false;
                         while (this.running && !passComplete) {
-                            // The check is now synchronous and uses the pre-fetched data
-                            const pixelsForThisPass = allMismatchedForColor.filter(p => (p.localX + p.localY) % this.currentPixelSkip === 0);
-
-                            if (pixelsForThisPass.length === 0) {
-                                log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
-                                passComplete = true;
-                                continue;
-                            }
-
-                            if (!this.running) break;
-
                             if (this.userQueue.length === 0) {
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
-                                await sleep(5000);
+                                await this.cancellableSleep(5000);
                                 this.userQueue = [...this.userIds];
                                 continue;
                             }
-
+                            
                             let foundUserForTurn = false;
                             const queueSize = this.userQueue.length;
                             for (let i = 0; i < queueSize; i++) {
@@ -1322,53 +1305,50 @@ class TemplateManager {
                                     if (!activeBrowserUsers.has(userId)) {
                                         activeBrowserUsers.add(userId);
                                         const w = new WPlacer({});
-                                        try { await w.login(users[userId].cookies); }
-                                        catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); }
-                                        finally { activeBrowserUsers.delete(userId); }
+                                        try { await w.login(users[userId].cookies); } catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); } finally { activeBrowserUsers.delete(userId); }
                                     }
                                 }
-
+                                
                                 const predicted = ChargeCache.predict(userId, now);
                                 const threshold = predicted ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold)) : Infinity;
-
+                                
                                 if (predicted && Math.floor(predicted.count) >= threshold) {
                                     activeBrowserUsers.add(userId);
-                                    const wplacer = new WPlacer({
-                                        template: this.template, coords: this.coords, globalSettings: currentSettings,
-                                        templateSettings: { eraseMode: this.eraseMode, outlineMode: this.outlineMode, skipPaintedPixels: this.skipPaintedPixels },
-                                        templateName: this.name,
-                                    });
+                                    const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
                                     try {
                                         const userInfo = await wplacer.login(users[userId].cookies);
-                                        this.status = `Running user ${userInfo.name}#${userInfo.id} | Pass (1/${this.currentPixelSkip})`;
+                                        this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
                                         
-                                        const paintedNow = await this._performPaintTurn(wplacer, color);
+                                        await this._performPaintTurn(wplacer, color);
                                         
-                                        if (paintedNow > 0) {
-                                            foundUserForTurn = true;
-                                            // Tile cache is now stale. Reload tiles before re-checking pixels.
-                                            await wplacer.loadTiles(); 
-                                            allMismatchedForColor = await wplacer._getMismatchedPixels(1, color);
-                                        }
-                                        
+                                        // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
+                                        foundUserForTurn = true;
                                         await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
-                                        this.currentRetryDelay = this.initialRetryDelay;
                                     } catch (error) {
                                         if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
                                     } finally {
                                         activeBrowserUsers.delete(userId);
                                         this.userQueue.push(userId);
                                     }
-                                    if (foundUserForTurn) break;
+                                    if (foundUserForTurn) break; 
                                 } else {
                                     this.userQueue.push(userId);
                                 }
                             }
 
                             if (foundUserForTurn) {
-                                if (this.running && currentSettings.accountCooldown > 0) {
+                                // Check if the pass is complete after a successful turn
+                                const postPaintCheck = await this._findWorkingUserAndCheckPixels();
+                                if(postPaintCheck){
+                                    const passPixels = postPaintCheck.mismatchedPixels.filter(p => (color === null || p.color === color) && (p.localX + p.localY) % this.currentPixelSkip === 0);
+                                    if(passPixels.length === 0) {
+                                        log('SYSTEM', 'wplacer', `[${this.name}] ✅ Pass (1/${this.currentPixelSkip}) complete.`);
+                                        passComplete = true;
+                                    }
+                                }
+                                if (this.running && !passComplete && currentSettings.accountCooldown > 0) {
                                     log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
                                     await this.cancellableSleep(currentSettings.accountCooldown);
                                 }
@@ -1384,24 +1364,21 @@ class TemplateManager {
                                 this.status = 'Waiting for charges.';
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
-                                log('SYSTEM', 'wplacer', `[${this.name}] 🌞 Woke up after waiting. Re-evaluating users...`);
+                                log('SYSTEM', 'wplacer', `[${this.name}] 🫃 Woke up. Re-evaluating...`);
                             }
                         }
                     }
                 }
-
-                if (!this.running) break;
             }
         } finally {
             activePaintingTasks--;
             if (this.status !== 'Finished.') this.status = 'Stopped.';
-            if (!this.antiGriefMode) {
-                this.userIds.forEach((id) => activeTemplateUsers.delete(id));
-                processQueue();
-            }
+            this.userIds.forEach((id) => activeTemplateUsers.delete(id));
+            processQueue();
         }
     }
 }
+
 
 // ---------- Express setup ----------
 
@@ -1887,7 +1864,7 @@ const diffVer = (v1, v2) => {
     console.log(gradient(["#EF8F20", "#CB3D27", "#A82421"])(`                           ████
                           ▒▒███
  █████ ███ █████ ████████  ▒███   ██████    ██████   ██████  ████████
-▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███  ███▒▒███▒▒███
+▒▒███ ▒███▒▒███ ▒▒███▒▒███ ▒███  ▒▒▒▒▒███  ███▒▒███ ███▒▒███▒▒███▒▒███
  ▒███ ▒███ ▒███  ▒███ ▒███ ▒███   ███████ ▒███ ▒▒▒ ▒███████  ▒███ ▒▒▒
  ▒▒███████████   ▒███ ▒███ ▒███  ███▒▒███ ▒███  ███▒███▒▒▒   ▒███
   ▒▒████▒████    ▒███████  █████▒▒████████▒▒██████ ▒▒██████  █████
