@@ -1199,51 +1199,91 @@ let draggedElement = null;
 let currentTemplateId = null; 
 let availableColors = new Set();
 
-// Initialize grid with template or all colors
+// Single initialization function that handles both template and global cases
 async function initializeGrid(templateId = null) {
     currentTemplateId = templateId;
-    let colorData = colors;
-    availableColors = new Set(Object.values(colors).map(c => c.id));
+    let colorEntries;
 
     if (templateId) {
+        // Load template-specific colors
         try {
             const response = await fetch(`/template/${templateId}/colors`);
             if (response.ok) {
-                const templateColors = await response.json();
-                colorData = {};
-                availableColors.clear();
-                
-                templateColors.colors.forEach(colorInfo => {
-                    const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === colorInfo.id);
-                    if (rgbKey) {
-                        colorData[rgbKey] = colors[rgbKey];
-                        availableColors.add(colorInfo.id);
-                    }
-                });
+                const { colors: templateColors } = await response.json();
+                availableColors = new Set(templateColors.map(c => c.id));
+                colorEntries = templateColors
+                    .map(c => {
+                        const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === c.id);
+                        return rgbKey ? [rgbKey, colors[rgbKey]] : null;
+                    })
+                    .filter(Boolean);
+            } else {
+                throw new Error('Failed to load template colors');
             }
         } catch (error) {
             console.error('Error loading template colors:', error);
+            // Fallback to all colors
+            availableColors = new Set(Object.values(colors).map(c => c.id));
+            colorEntries = Object.entries(colors);
         }
+    } else {
+        // Use all colors
+        availableColors = new Set(Object.values(colors).map(c => c.id));
+        colorEntries = Object.entries(colors);
     }
     
-    buildGrid(Object.entries(colorData)
-        .filter(([_, data]) => availableColors.has(data.id))
-        .sort((a, b) => a[1].id - b[1].id));
-    
-    await loadColorOrder(templateId);
+    await buildGridWithOrder(colorEntries, templateId);
 }
 
-// Build grid from color entries
-function buildGrid(colorEntries) {
-    colorGrid.innerHTML = '';
-    colorEntries.forEach(([rgb, data]) => {
-        colorGrid.appendChild(createColorItem(rgb, data));
-    });
-    updatePriorities();
+// Build grid and apply saved order in one step
+async function buildGridWithOrder(colorEntries, templateId = null) {
+    try {
+        // Load saved order
+        const url = templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`;
+        const response = await fetch(url);
+        const data = await response.json();
+        
+        if (data.order?.length) {
+            // Create lookup map for O(1) access
+            const colorMap = new Map(colorEntries.map(([rgb, data]) => [data.id, { rgb, ...data }]));
+            
+            colorGrid.innerHTML = '';
+            
+            // Add ordered colors first
+            data.order.forEach((id, index) => {
+                const colorInfo = colorMap.get(id);
+                if (colorInfo) {
+                    colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, index + 1));
+                    colorMap.delete(id);
+                }
+            });
+            
+            // Add remaining colors
+            let nextPriority = data.order.length + 1;
+            colorMap.forEach((colorInfo) => {
+                colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, nextPriority++));
+            });
+        } else {
+            // No saved order, use default ID sorting
+            colorEntries.sort((a, b) => a[1].id - b[1].id);
+            colorGrid.innerHTML = '';
+            colorEntries.forEach(([rgb, data], index) => {
+                colorGrid.appendChild(createColorItem(rgb, data, index + 1));
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load color order:', error);
+        // Fallback to default order
+        colorEntries.sort((a, b) => a[1].id - b[1].id);
+        colorGrid.innerHTML = '';
+        colorEntries.forEach(([rgb, data], index) => {
+            colorGrid.appendChild(createColorItem(rgb, data, index + 1));
+        });
+    }
 }
 
-// Create single color item element
-function createColorItem(rgb, colorData) {
+// Create color item with priority number set immediately
+function createColorItem(rgb, colorData, priority) {
     const div = document.createElement('div');
     div.className = 'color-item';
     div.draggable = true;
@@ -1255,7 +1295,7 @@ function createColorItem(rgb, colorData) {
     div.innerHTML = `
         <div class="color-swatch" style="background: rgb(${rgb})"></div>
         <div class="color-info">
-            <span class="priority-number"></span>
+            <span class="priority-number">${priority}</span>
             <span class="color-name">${colorData.name}</span>
         </div>
     `;
@@ -1263,14 +1303,15 @@ function createColorItem(rgb, colorData) {
     return div;
 }
 
-// Update all priority numbers
+// Lightweight priority update - only update visible numbers
 function updatePriorities() {
-    [...colorGrid.children].forEach((item, index) => {
-        item.querySelector('.priority-number').textContent = index + 1;
-    });
+    const items = colorGrid.children;
+    for (let i = 0; i < items.length; i++) {
+        items[i].querySelector('.priority-number').textContent = i + 1;
+    }
 }
 
-// Drag and drop handlers
+// Consolidated drag and drop handler
 colorGrid.addEventListener('dragstart', e => {
     const item = e.target.closest('.color-item');
     if (!item) return;
@@ -1283,17 +1324,14 @@ colorGrid.addEventListener('dragstart', e => {
 colorGrid.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-});
-
-colorGrid.addEventListener('dragenter', e => {
+    
+    // Handle drag over highlighting
     const item = e.target.closest('.color-item');
     if (item && item !== draggedElement) {
+        // Clear previous highlights
+        [...colorGrid.children].forEach(el => el.classList.remove('drag-over'));
         item.classList.add('drag-over');
     }
-});
-
-colorGrid.addEventListener('dragleave', e => {
-    e.target.closest('.color-item')?.classList.remove('drag-over');
 });
 
 colorGrid.addEventListener('drop', e => {
@@ -1305,88 +1343,45 @@ colorGrid.addEventListener('drop', e => {
         const draggedIndex = items.indexOf(draggedElement);
         const dropIndex = items.indexOf(dropTarget);
         
-        draggedElement.remove();
-        
+        // More efficient DOM manipulation
         if (dropIndex < draggedIndex) {
             colorGrid.insertBefore(draggedElement, dropTarget);
         } else {
             const nextSibling = dropTarget.nextElementSibling;
-            nextSibling ? colorGrid.insertBefore(draggedElement, nextSibling) 
-                       : colorGrid.appendChild(draggedElement);
+            colorGrid.insertBefore(draggedElement, nextSibling);
+        }
+        
+        updatePriorities();
+        
+        if (currentTemplateId) {
+            saveColorOrder(currentTemplateId);
         }
     }
 });
 
-colorGrid.addEventListener('dragend', e => {
+colorGrid.addEventListener('dragend', () => {
+    // Clean up all drag states
     [...colorGrid.children].forEach(item => {
         item.classList.remove('dragging', 'drag-over');
     });
-    
-    updatePriorities();
-    
-    if (currentTemplateId) {
-        saveColorOrder(currentTemplateId);
-    }
-    
     draggedElement = null;
 });
 
-// Reset to default order
+// Simplified reset function
 function resetOrder() {
-    const availableEntries = Object.entries(colors)
+    const entries = Object.entries(colors)
         .filter(([_, data]) => !currentTemplateId || availableColors.has(data.id))
         .sort((a, b) => a[1].id - b[1].id);
     
-    buildGrid(availableEntries);
+    colorGrid.innerHTML = '';
+    entries.forEach(([rgb, data], index) => {
+        colorGrid.appendChild(createColorItem(rgb, data, index + 1));
+    });
 }
 
-// Load saved color order
-async function loadColorOrder(templateId = null) {
-    try {
-        const url = templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`;
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        if (data.order?.length) {
-            const filteredOrder = data.order.filter(id => !currentTemplateId || availableColors.has(id));
-            colorGrid.innerHTML = '';
-            
-            const colorMap = new Map();
-            Object.entries(colors).forEach(([rgb, data]) => {
-                if (!currentTemplateId || availableColors.has(data.id)) {
-                    colorMap.set(data.id, { rgb, ...data });
-                }
-            });
-            
-            // Add ordered colors first
-            filteredOrder.forEach(id => {
-                const colorInfo = colorMap.get(id);
-                if (colorInfo) {
-                    colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo));
-                    colorMap.delete(id);
-                }
-            });
-            
-            // Add remaining colors
-            colorMap.forEach((colorInfo, id) => {
-                colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo));
-            });
-            
-            updatePriorities();
-        } else {
-            resetOrder();
-        }
-    } catch (error) {
-        console.error('Failed to load color order:', error);
-        resetOrder();
-    }
-}
-
-// Save color order
+// Optimized save function
 async function saveColorOrder(templateId = null) {
-    const order = [...colorGrid.children]
-        .map(el => parseInt(el.dataset.id))
-        .filter(id => !isNaN(id) && id > 0);
+    const order = [...colorGrid.children].map(el => parseInt(el.dataset.id));
     
     if (!order.length) return false;
     
@@ -1406,8 +1401,10 @@ async function saveColorOrder(templateId = null) {
     }
 }
 
-// Update grid for specific image colors
+// Simplified function for image-specific colors
 function updateColorGridForImage(imageColorIds) {
+    availableColors = new Set(imageColorIds);
+    
     const imageColors = imageColorIds
         .map(id => {
             const rgbKey = Object.keys(colors).find(rgb => colors[rgb].id === id);
@@ -1416,5 +1413,8 @@ function updateColorGridForImage(imageColorIds) {
         .filter(Boolean)
         .sort((a, b) => a[1].id - b[1].id);
     
-    buildGrid(imageColors);
+    colorGrid.innerHTML = '';
+    imageColors.forEach(([rgb, data], index) => {
+        colorGrid.appendChild(createColorItem(rgb, data, index + 1));
+    });
 }
