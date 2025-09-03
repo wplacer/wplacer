@@ -1250,6 +1250,7 @@ class TemplateManager {
                 this.status = 'Checking for pixels...';
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
                 let colorsToPaint;
+                const isColorMode = currentSettings.drawingOrder === 'color';
                 if (isColorMode) {
                     const allColors = this.template.data.flat().filter((c) => c > 0);   
                     const colorCounts = allColors.reduce((acc, color) => {
@@ -1305,7 +1306,6 @@ class TemplateManager {
 
                 // If we reached here, there are pixels to paint. Reset retry delay.
                 this.currentRetryDelay = this.initialRetryDelay;
-                const isColorMode = currentSettings.drawingOrder === 'color';
 
                 // --- PAINTING LOGIC ---
                 // Determine which colors need to be painted based on the check results.
