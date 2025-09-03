@@ -805,7 +805,7 @@ function ensureXMajor(data, w, h) {
     if (data.length === h && data[0].length === w) return transposeToXMajor(data); // transpose
     throw new Error(`matrix dims mismatch: got ${data.length}x${data[0].length}, want ${w}x${h}`);
 }
-function sanitizepalette2D(matrix) {
+function sanitizePalette2D(matrix) {
     for (let x = 0; x < matrix.length; x++) {
         const col = matrix[x];
         if (!Array.isArray(col)) continue;
@@ -851,13 +851,13 @@ function parseShareBytes(u8) {
     }
     if (flat.length !== w * h) throw new Error(`size mismatch ${flat.length} != ${w * h}`);
     const data = reshape_XMajor(flat, w, h);
-    sanitizepalette2D(data);
+    sanitizePalette2D(data);
     return { width: w, height: h, data };
 }
 const shareCodeFromTemplate = (t) => Base64URL.enc(buildShareBytes(t.width, t.height, t.data));
 const templateFromShareCode = (code) => {
     const decoded = parseShareBytes(new Uint8Array(Base64URL.dec(code)));
-    sanitizepalette2D(decoded.data);
+    sanitizePalette2D(decoded.data);
     return decoded;
 };
 
@@ -2081,7 +2081,7 @@ const diffVer = (v1, v2) => {
                 h = Number(te.height) >>> 0;
             if (!w || !h) throw new Error('invalid template dimensions');
             const data = ensureXMajor(te.data, w, h);
-            sanitizepalette2D(data);
+            sanitizePalette2D(data);
             return {
                 width: w,
                 height: h,
