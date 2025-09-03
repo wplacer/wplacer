@@ -69,6 +69,16 @@ const HTTP_STATUS = {
 // ---------- FS bootstrap ----------
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+// Ensure logs.log and errors.log exist
+const logFiles = [
+    path.join(DATA_DIR, 'logs.log'),
+    path.join(DATA_DIR, 'errors.log')
+];
+for (const file of logFiles) {
+    if (!existsSync(file)) {
+        writeFileSync(file, '', { flag: 'w' });
+    }
+}
 
 /** Structured logger. Errors to errors.log, info to logs.log. */
 const log = async (id, name, data, error) => {
