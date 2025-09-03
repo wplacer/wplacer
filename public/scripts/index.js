@@ -377,74 +377,73 @@ userForm.addEventListener('submit', async (e) => {
     }
 });
 
-// templates
 const colors = {
-    '0,0,0': 1,
-    '60,60,60': 2,
-    '120,120,120': 3,
-    '210,210,210': 4,
-    '255,255,255': 5,
-    '96,0,24': 6,
-    '237,28,36': 7,
-    '255,127,39': 8,
-    '246,170,9': 9,
-    '249,221,59': 10,
-    '255,250,188': 11,
-    '14,185,104': 12,
-    '19,230,123': 13,
-    '135,255,94': 14,
-    '12,129,110': 15,
-    '16,174,166': 16,
-    '19,225,190': 17,
-    '40,80,158': 18,
-    '64,147,228': 19,
-    '96,247,242': 20,
-    '107,80,246': 21,
-    '153,177,251': 22,
-    '120,12,153': 23,
-    '170,56,185': 24,
-    '224,159,249': 25,
-    '203,0,122': 26,
-    '236,31,128': 27,
-    '243,141,169': 28,
-    '104,70,52': 29,
-    '149,104,42': 30,
-    '248,178,119': 31,
-    '170,170,170': 32,
-    '165,14,30': 33,
-    '250,128,114': 34,
-    '228,92,26': 35,
-    '214,181,148': 36,
-    '156,132,49': 37,
-    '197,173,49': 38,
-    '232,212,95': 39,
-    '74,107,58': 40,
-    '90,148,74': 41,
-    '132,197,115': 42,
-    '15,121,159': 43,
-    '187,250,242': 44,
-    '125,199,255': 45,
-    '77,49,184': 46,
-    '74,66,132': 47,
-    '122,113,196': 48,
-    '181,174,241': 49,
-    '219,164,99': 50,
-    '209,128,81': 51,
-    '255,197,165': 52,
-    '155,82,73': 53,
-    '209,128,120': 54,
-    '250,182,164': 55,
-    '123,99,82': 56,
-    '156,132,107': 57,
-    '51,57,65': 58,
-    '109,117,141': 59,
-    '179,185,209': 60,
-    '109,100,63': 61,
-    '148,140,107': 62,
-    '205,197,158': 63,
+    '0,0,0': { id: 1, name: 'Black' },
+    '60,60,60': { id: 2, name: 'Dark Gray' },
+    '120,120,120': { id: 3, name: 'Gray' },
+    '210,210,210': { id: 4, name: 'Light Gray' },
+    '255,255,255': { id: 5, name: 'White' },
+    '96,0,24': { id: 6, name: 'Dark Red' },
+    '237,28,36': { id: 7, name: 'Red' },
+    '255,127,39': { id: 8, name: 'Orange' },
+    '246,170,9': { id: 9, name: 'Dark Orange' },
+    '249,221,59': { id: 10, name: 'Yellow' },
+    '255,250,188': { id: 11, name: 'Light Yellow' },
+    '14,185,104': { id: 12, name: 'Green' },
+    '19,230,123': { id: 13, name: 'Light Green' },
+    '135,255,94': { id: 14, name: 'Bright Green' },
+    '12,129,110': { id: 15, name: 'Teal' },
+    '16,174,166': { id: 16, name: 'Cyan' },
+    '19,225,190': { id: 17, name: 'Light Cyan' },
+    '40,80,158': { id: 18, name: 'Dark Blue' },
+    '64,147,228': { id: 19, name: 'Blue' },
+    '96,247,242': { id: 20, name: 'Light Blue' },
+    '107,80,246': { id: 21, name: 'Purple' },
+    '153,177,251': { id: 22, name: 'Light Purple' },
+    '120,12,153': { id: 23, name: 'Dark Purple' },
+    '170,56,185': { id: 24, name: 'Magenta' },
+    '224,159,249': { id: 25, name: 'Light Magenta' },
+    '203,0,122': { id: 26, name: 'Dark Pink' },
+    '236,31,128': { id: 27, name: 'Pink' },
+    '243,141,169': { id: 28, name: 'Light Pink' },
+    '104,70,52': { id: 29, name: 'Brown' },
+    '149,104,42': { id: 30, name: 'Dark Brown' },
+    '248,178,119': { id: 31, name: 'Tan' },
+    '170,170,170': { id: 32, name: 'Medium Gray' },
+    '165,14,30': { id: 33, name: 'Maroon' },
+    '250,128,114': { id: 34, name: 'Salmon' },
+    '228,92,26': { id: 35, name: 'Red Orange' },
+    '214,181,148': { id: 36, name: 'Beige' },
+    '156,132,49': { id: 37, name: 'Olive' },
+    '197,173,49': { id: 38, name: 'Yellow Green' },
+    '232,212,95': { id: 39, name: 'Pale Yellow' },
+    '74,107,58': { id: 40, name: 'Forest Green' },
+    '90,148,74': { id: 41, name: 'Moss Green' },
+    '132,197,115': { id: 42, name: 'Mint Green' },
+    '15,121,159': { id: 43, name: 'Steel Blue' },
+    '187,250,242': { id: 44, name: 'Aqua' },
+    '125,199,255': { id: 45, name: 'Sky Blue' },
+    '77,49,184': { id: 46, name: 'Indigo' },
+    '74,66,132': { id: 47, name: 'Navy Blue' },
+    '122,113,196': { id: 48, name: 'Slate Blue' },
+    '181,174,241': { id: 49, name: 'Periwinkle' },
+    '219,164,99': { id: 50, name: 'Peach' },
+    '209,128,81': { id: 51, name: 'Bronze' },
+    '255,197,165': { id: 52, name: 'Light Peach' },
+    '155,82,73': { id: 53, name: 'Rust' },
+    '209,128,120': { id: 54, name: 'Rose' },
+    '250,182,164': { id: 55, name: 'Blush' },
+    '123,99,82': { id: 56, name: 'Coffee' },
+    '156,132,107': { id: 57, name: 'Taupe' },
+    '51,57,65': { id: 58, name: 'Charcoal' },
+    '109,117,141': { id: 59, name: 'Slate' },
+    '179,185,209': { id: 60, name: 'Lavender' },
+    '109,100,63': { id: 61, name: 'Khaki' },
+    '148,140,107': { id: 62, name: 'Sand' },
+    '205,197,158': { id: 63, name: 'Cream' },
 };
 
-const colorById = (id) => Object.keys(colors).find((key) => colors[key] === id);
+const colorById = (id) => Object.keys(colors).find((key) => colors[key].id === id);
 const closest = (color) => {
     const [tr, tg, tb] = color.split(',').map(Number);
     return Object.keys(colors).reduce((closestKey, currentKey) => {
@@ -480,7 +479,7 @@ const drawTemplate = (template, canvas) => {
                 continue;
             }
 
-            const key = Object.keys(colors).find((k) => colors[k] === color);
+            const key = Object.keys(colors).find((k) => colors[k].id === color);
             if (!key) {
                 // Unknown color id. Skip to avoid `.split` crash.
                 // Optional: console.warn('Unknown color id:', color);
@@ -580,6 +579,7 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    const uniqueColors = new Set();
     let ink = 0;
 
     for (let y = 0; y < height; y++) {
@@ -594,8 +594,13 @@ const nearestimgdecoder = (imageData, width, height) => {
                 if (rgb == '158,189,255') {
                     matrix[x][y] = -1;
                 } else {
-                    const id = colors[rgb] || colors[closest(rgb)];
-                    matrix[x][y] = id;
+                    const colorObj = colors[rgb] || colors[closest(rgb)];
+                    if (colorObj) {
+                        matrix[x][y] = colorObj.id;
+                        uniqueColors.add(colorObj.id);
+                    } else {
+                        matrix[x][y] = 0; // fallback if not found
+                    }
                 }
                 ink++;
             } else {
@@ -603,7 +608,7 @@ const nearestimgdecoder = (imageData, width, height) => {
             }
         }
     }
-    return { matrix, ink };
+    return { matrix, ink, uniqueColors };
 };
 
 const processImageFile = (file, callback) => {
@@ -620,13 +625,16 @@ const processImageFile = (file, callback) => {
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink , uniqueColors } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+
+            const filteredColors = Array.from(uniqueColors).filter(id => id !== 0 && id !== -1);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
                 data: matrix,
+                uniqueColors: filteredColors
             };
 
             canvas.remove();
@@ -648,6 +656,22 @@ const processEvent = () => {
             templateCanvas.style.display = 'block';
             previewCanvas.style.display = 'none';
             details.style.display = 'block';
+
+            // Update the color grid to show only colors in this image
+            if (template.uniqueColors && template.uniqueColors.length > 0) {
+                // Clear current available colors and set to image colors
+                availableColors.clear();
+                template.uniqueColors.forEach(colorId => availableColors.add(colorId));
+                
+                // Update the color grid with image-specific colors
+                updateColorGridForImage(template.uniqueColors);
+                
+            } else {
+                // Fallback to all colors if no unique colors found
+                console.warn('No unique colors found in image, showing all colors');
+                availableColors = new Set(Object.values(colors).map(c => c.id));
+                resetOrder();
+            }
         });
     }
 };
@@ -672,7 +696,7 @@ function pastePinCoordinates(text) {
         /^\s*(\d+)[\s,;]+(\d+)[\s,;]+(\d+)[\s,;]+(\d+)\s*$/,
     ];
     for (const p of patterns) {
-        match = p.exec(text);
+        const match = p.exec(text);
         if (match) {
             $('tx').value = match[1];
             $('ty').value = match[2];
@@ -711,13 +735,15 @@ const resetTemplateForm = () => {
     details.style.display = 'none';
     previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
+
+    currentTemplateId = null;
+    availableColors.clear();
+    initializeGrid(null);
 };
 
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const isEditMode = !!templateForm.dataset.editId;
-
     if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
         showMessage('Error', 'Please convert an image before creating a template.');
         return;
@@ -729,7 +755,6 @@ templateForm.addEventListener('submit', async (e) => {
         showMessage('Error', 'Please select at least one user.');
         return;
     }
-
     const data = {
         templateName: templateName.value,
         coords: [tx.value, ty.value, px.value, py.value].map(Number),
@@ -742,19 +767,27 @@ templateForm.addEventListener('submit', async (e) => {
         skipPaintedPixels: templateSkipPaintedPixels.checked,
         enableAutostart: enableAutostart.checked,
     };
-
     if (currentTemplate && currentTemplate.width > 0) {
         data.template = currentTemplate;
     }
-
     try {
+        let templateId;
+        let colorOrderSaved = false;
+        
         if (isEditMode) {
-            await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
+            templateId = templateForm.dataset.editId;
+            await axios.put(`/template/edit/${templateId}`, data);
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
             showMessage('Success', 'Template updated!');
         } else {
-            await axios.post('/template', data);
+            const response = await axios.post('/template', data);
+            templateId = response.data.id;
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
             showMessage('Success', 'Template created!');
         }
+        
         resetTemplateForm();
         openManageTemplates.click();
     } catch (error) {
@@ -960,6 +993,7 @@ openAddTemplate.addEventListener('click', () => {
             userSelectList.appendChild(userDiv);
         }
     });
+
     changeTab('addTemplate');
 });
 
@@ -1108,6 +1142,9 @@ const createTemplateCard = (t, id) => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);
             });
+
+            // Load grid
+            initializeGrid(id);
         }, 100);
     });
     actions.appendChild(editBtn);
@@ -1337,3 +1374,118 @@ tx.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
+
+// --- Color Ordering
+const colorGrid = document.getElementById('colorGrid');
+let currentTemplateId = null;
+let availableColors = new Set();
+
+// Single function handles all initialization
+async function initializeGrid(templateId = null) {
+    currentTemplateId = templateId;
+    let colorEntries = Object.entries(colors);
+    
+    if (templateId) {
+        try {
+            const { colors: templateColors } = await (await fetch(`/template/${templateId}/colors`)).json();
+            availableColors = new Set(templateColors.map(c => c.id));
+            colorEntries = templateColors.map(c => [Object.keys(colors).find(rgb => colors[rgb].id === c.id), colors[Object.keys(colors).find(rgb => colors[rgb].id === c.id)]]).filter(([rgb]) => rgb);
+        } catch {
+            availableColors = new Set(Object.values(colors).map(c => c.id));
+        }
+    } else {
+        availableColors = new Set(Object.values(colors).map(c => c.id));
+    }
+    
+    await buildGrid(colorEntries, templateId);
+}
+
+// Build grid with saved order applied
+async function buildGrid(colorEntries, templateId = null) {
+    try {
+        const { order = [] } = await (await fetch(templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`)).json();
+        const colorMap = new Map(colorEntries.map(([rgb, data]) => [data.id, { rgb, ...data }]));
+        
+        colorGrid.innerHTML = '';
+        let priority = 1;
+        
+        // Add ordered colors first
+        order.forEach(id => {
+            const colorInfo = colorMap.get(id);
+            if (colorInfo) {
+                colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, priority++));
+                colorMap.delete(id);
+            }
+        });
+        
+        // Add remaining colors
+        [...colorMap.values()].sort((a, b) => a.id - b.id).forEach(colorInfo => {
+            colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, priority++));
+        });
+    } catch {
+        colorEntries.sort((a, b) => a[1].id - b[1].id);
+        colorGrid.innerHTML = '';
+        colorEntries.forEach(([rgb, data], i) => colorGrid.appendChild(createColorItem(rgb, data, i + 1)));
+    }
+}
+
+// Create color item element
+const createColorItem = (rgb, { id, name }, priority) => {
+    const div = document.createElement('div');
+    div.className = 'color-item';
+    div.draggable = true;
+    Object.assign(div.dataset, { id, rgb, name });
+    div.title = `ID ${id}: ${name} (${rgb})`;
+    div.innerHTML = `<div class="color-swatch" style="background:rgb(${rgb})"></div><div class="color-info"><span class="priority-number">${priority}</span><span class="color-name">${name}</span></div>`;
+    return div;
+};
+
+// Drag and drop with single event listener
+let draggedElement = null;
+colorGrid.addEventListener('mousedown', e => e.target.closest('.color-item')?.setAttribute('draggable', 'true'));
+
+colorGrid.addEventListener('dragstart', e => {
+    draggedElement = e.target.closest('.color-item');
+    draggedElement?.classList.add('dragging');
+});
+
+colorGrid.addEventListener('dragover', e => {
+    e.preventDefault();
+    const item = e.target.closest('.color-item');
+    [...colorGrid.children].forEach(el => el.classList.toggle('drag-over', el === item && el !== draggedElement));
+});
+
+colorGrid.addEventListener('drop', e => {
+    const dropTarget = e.target.closest('.color-item');
+    if (dropTarget && dropTarget !== draggedElement && draggedElement) {
+        const items = [...colorGrid.children];
+        const [dragIdx, dropIdx] = [items.indexOf(draggedElement), items.indexOf(dropTarget)];
+        colorGrid.insertBefore(draggedElement, dropIdx < dragIdx ? dropTarget : dropTarget.nextSibling);
+        
+        // Update priorities and save
+        [...colorGrid.children].forEach((item, i) => item.querySelector('.priority-number').textContent = i + 1);
+        if (currentTemplateId) saveColorOrder(currentTemplateId);
+    }
+});
+
+colorGrid.addEventListener('dragend', () => {
+    [...colorGrid.children].forEach(item => item.classList.remove('dragging', 'drag-over'));
+    draggedElement = null;
+});
+
+// Save color order
+const saveColorOrder = async (templateId = null) => {
+    const order = [...colorGrid.children].map(el => parseInt(el.dataset.id));
+    const url = templateId ? `/color-ordering/template/${templateId}` : `/color-ordering/global`;
+    try {
+        return (await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) })).ok;
+    } catch { return false; }
+};
+
+// Quick reset and image color functions
+const resetOrder = () => buildGrid(Object.entries(colors).filter(([_, data]) => !currentTemplateId || availableColors.has(data.id)));
+const updateColorGridForImage = (imageColorIds) => {
+    availableColors = new Set(imageColorIds);
+    const imageColors = imageColorIds.map(id => [Object.keys(colors).find(rgb => colors[rgb].id === id), colors[Object.keys(colors).find(rgb => colors[rgb].id === id)]]).filter(([rgb]) => rgb);
+    buildGrid(imageColors);
+};
