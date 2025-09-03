@@ -1246,10 +1246,18 @@ class TemplateManager {
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
+
         try {
             while (this.running) {
                 this.status = 'Checking for pixels...';
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
+                // --- Find a working user and get mismatched pixels ---
+                const checkResult = await this._findWorkingUserAndCheckPixels();
+                if (!checkResult) {
+                    log('SYSTEM', 'wplacer', `[${this.name}] ❌ No working users found for pixel check. Retrying in 30s.`);
+                    await this.cancellableSleep(30_000);
+                    continue;
+                }
                 let colorsToPaint;
                 if (isColorMode) {
                     const allColors = this.template.data.flat().filter((c) => c > 0);   
@@ -1306,7 +1314,6 @@ class TemplateManager {
 
                 // If we reached here, there are pixels to paint. Reset retry delay.
                 this.currentRetryDelay = this.initialRetryDelay;
-                const isColorMode = currentSettings.drawingOrder === 'color';
 
                 // --- PAINTING LOGIC ---
                 // Determine which colors need to be painted based on the check results.
