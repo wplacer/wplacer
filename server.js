@@ -1309,7 +1309,6 @@ class TemplateManager {
 
                 // --- PAINTING LOGIC ---
                 // Determine which colors need to be painted based on the check results.
-                let colorsToPaint;
                 if (isColorMode) {
                     const mismatchedColors = new Set(checkResult.mismatchedPixels.map(p => p.color));
                     const allColors = this.template.data.flat().filter((c) => c > 0);
