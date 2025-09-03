@@ -1,3 +1,15 @@
+// --- Global error handler for listen EACCES ---
+process.on('uncaughtException', (err) => {
+    if (err && err.code === 'EACCES' && /listen/i.test(err.message)) {
+        // Try to extract port from error message
+        let port = '';
+        const match = err.message.match(/:(\d+)/);
+        if (match) port = match[1];
+        console.error(`\n❌ Permission denied for port${port ? ' ' + port : ''}.\nYou do not have permission to bind to this port.${port ? ' (' + port + ')' : ''}\nPlease use a different port (e.g., 3000) or run with elevated privileges.\n`);
+        process.exit(1);
+    }
+    throw err;
+});
 import { existsSync, readFileSync, writeFileSync, mkdirSync, appendFileSync } from 'node:fs';
 import { Image, createCanvas } from 'canvas';
 import { exec } from 'node:child_process';
