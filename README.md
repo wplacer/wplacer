@@ -1,3 +1,6 @@
+> [!WARNING]
+> The bot is currently patched due to [new security measures](https://github.com/luluwaffless/wplacer/issues/282#issuecomment-3259294080). The developers are working on it, but in the mean time, using the bot is not reccomended.  
+
 <h1 align="center"><p style="display: inline-flex; align-items: center; gap: 0.25em"><img style="width: 1.5em; height: 1.5em;" src="public/icons/favicon.png">wplacer</p></h1>
 
 <p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
