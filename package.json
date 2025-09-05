@@ -1,6 +1,6 @@
 {
   "name": "wplacer",
-  "version": "5.2.4",
+  "version": "5.2.5",
   "main": "server.js",
   "type": "module",
   "author": "luluwaffless and JinxTheCatto",
@@ -25,4 +25,5 @@
   "devDependencies": {
     "prettier": "^3.6.2"
   }
+
 }
