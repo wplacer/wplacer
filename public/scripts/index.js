@@ -1112,11 +1112,11 @@ const createTemplateCard = (t, id) => {
     shareBtn.className = 'secondary-button';
     shareBtn.innerHTML = '<img src="icons/open.svg">Share';
     shareBtn.addEventListener('click', async () => {
-        if (!t.shareCode) {
+        if (!t.template.shareCode) {
             showMessage('Error', 'No share code available for this template.');
             return;
         }
-        await navigator.clipboard.writeText(t.shareCode);
+        await navigator.clipboard.writeText(t.template.shareCode);
         showMessage('Copied!', 'Share code copied to clipboard.');
     });
     actions.appendChild(shareBtn);
