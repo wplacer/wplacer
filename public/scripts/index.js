@@ -71,13 +71,20 @@ const proxyCount = $('proxyCount');
 const reloadProxiesBtn = $('reloadProxiesBtn');
 const logProxyUsage = $('logProxyUsage');
 
-// --- START: STEALTH MODE ELEMENTS ---
-const stealthModeEnabled = $('stealthModeEnabled');
-const stealthModeContainer = $('stealthModeContainer');
-const stealthMinDelay = $('stealthMinDelay');
-const stealthMaxDelay = $('stealthMaxDelay');
-const stealthMaxPixelsPercentage = $('stealthMaxPixelsPercentage');
-// --- END: STEALTH MODE ELEMENTS ---
+// --- START: DETAILED STEALTH MODE ELEMENTS (RESTORED) ---
+const stealthMode = $("stealthMode");
+const stealthOptions = $("stealthOptions");
+const stealthChargeThresholdFluctuation = $("stealthChargeThresholdFluctuation");
+const stealthCooldownMinPercent = $("stealthCooldownMinPercent");
+const stealthCooldownMaxPercent = $("stealthCooldownMaxPercent");
+const stealthBurstMinPercent = $("stealthBurstMinPercent");
+const stealthBurstMaxPercent = $("stealthBurstMaxPercent");
+const stealthBreakChancePercent = $("stealthBreakChancePercent");
+const stealthBreakMinMinutes = $("stealthBreakMinMinutes");
+const stealthBreakMaxMinutes = $("stealthBreakMaxMinutes");
+const stealthTileDelayMinMs = $("stealthTileDelayMinMs");
+const stealthTileDelayMaxMs = $("stealthTileDelayMaxMs");
+// --- END: DETAILED STEALTH MODE ELEMENTS (RESTORED) ---
 
 // Logs Viewer
 const openLogsViewer = $('openLogsViewer');
@@ -1282,32 +1289,40 @@ openManageTemplates.addEventListener('click', () => {
 openSettings.addEventListener('click', async () => {
     try {
         const response = await axios.get('/settings');
-        const currentSettings = response.data;
-        openBrowserOnStart.checked = currentSettings.openBrowserOnStart;
-        drawingDirectionSelect.value = currentSettings.drawingDirection;
-        drawingOrderSelect.value = currentSettings.drawingOrder;
-        pixelSkipSelect.value = currentSettings.pixelSkip;
+        const s = response.data;
+        openBrowserOnStart.checked = s.openBrowserOnStart;
+        drawingDirectionSelect.value = s.drawingDirection;
+        drawingOrderSelect.value = s.drawingOrder;
+        pixelSkipSelect.value = s.pixelSkip;
 
-        proxyEnabled.checked = currentSettings.proxyEnabled;
-        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
-        logProxyUsage.checked = currentSettings.logProxyUsage;
-        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
+        proxyEnabled.checked = s.proxyEnabled;
+        proxyRotationMode.value = s.proxyRotationMode || 'sequential';
+        logProxyUsage.checked = s.logProxyUsage;
+        proxyCount.textContent = `${s.proxyCount} proxies loaded from file.`;
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
 
-        accountCooldown.value = currentSettings.accountCooldown / 1000;
-        purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
-        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
-        dropletReserve.value = currentSettings.dropletReserve;
-        antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
-        chargeThreshold.value = currentSettings.chargeThreshold * 100;
+        accountCooldown.value = s.accountCooldown / 1000;
+        purchaseCooldown.value = s.purchaseCooldown / 1000;
+        accountCheckCooldown.value = s.accountCheckCooldown / 1000;
+        dropletReserve.value = s.dropletReserve;
+        antiGriefStandby.value = s.antiGriefStandby / 60000;
+        chargeThreshold.value = s.chargeThreshold * 100;
         
-        // --- START: STEALTH MODE ---
-        stealthModeEnabled.checked = currentSettings.stealthModeEnabled;
-        stealthMinDelay.value = currentSettings.stealthMinDelay;
-        stealthMaxDelay.value = currentSettings.stealthMaxDelay;
-        stealthMaxPixelsPercentage.value = currentSettings.stealthMaxPixelsPercentage;
-        stealthModeContainer.style.display = stealthModeEnabled.checked ? 'block' : 'none';
-        // --- END: STEALTH MODE ---
+        // --- START: DETAILED STEALTH MODE SETTINGS (RESTORED) ---
+        stealthMode.checked = s.stealthMode;
+        stealthOptions.style.display = s.stealthMode ? 'block' : 'none';
+        
+        stealthChargeThresholdFluctuation.value = s.stealthChargeThresholdFluctuation;
+        stealthCooldownMinPercent.value = s.stealthCooldownMinPercent;
+        stealthCooldownMaxPercent.value = s.stealthCooldownMaxPercent;
+        stealthBurstMinPercent.value = s.stealthBurstMinPercent;
+        stealthBurstMaxPercent.value = s.stealthBurstMaxPercent;
+        stealthBreakChancePercent.value = s.stealthBreakChancePercent;
+        stealthBreakMinMinutes.value = s.stealthBreakMinMinutes;
+        stealthBreakMaxMinutes.value = s.stealthBreakMaxMinutes;
+        stealthTileDelayMinMs.value = s.stealthTileDelayMinMs;
+        stealthTileDelayMaxMs.value = s.stealthTileDelayMaxMs;
+        // --- END: DETAILED STEALTH MODE SETTINGS (RESTORED) ---
 
     } catch (error) {
         handleError(error);
@@ -1356,31 +1371,36 @@ reloadProxiesBtn.addEventListener('click', async () => {
     }
 });
 
-// --- START: STEALTH MODE EVENT LISTENERS ---
-stealthModeEnabled.addEventListener('change', () => {
-    const isEnabled = stealthModeEnabled.checked;
-    stealthModeContainer.style.display = isEnabled ? 'block' : 'none';
-    saveSetting({ stealthModeEnabled: isEnabled });
+// --- START: DETAILED STEALTH MODE EVENT LISTENERS (RESTORED) ---
+const setupSettingListener = (element, key, isInt = true) => {
+    element.addEventListener('change', () => {
+        let value = element.value;
+        if (isInt) {
+            value = parseInt(value, 10);
+            if (isNaN(value)) return;
+        }
+        saveSetting({ [key]: value });
+    });
+};
+
+stealthMode.addEventListener('change', () => {
+    const isEnabled = stealthMode.checked;
+    stealthOptions.style.display = isEnabled ? 'block' : 'none';
+    saveSetting({ stealthMode: isEnabled });
 });
 
-stealthMinDelay.addEventListener('change', () => {
-    const value = parseInt(stealthMinDelay.value, 10);
-    if (isNaN(value) || value < 0) return;
-    saveSetting({ stealthMinDelay: value });
-});
+setupSettingListener(stealthChargeThresholdFluctuation, 'stealthChargeThresholdFluctuation');
+setupSettingListener(stealthCooldownMinPercent, 'stealthCooldownMinPercent');
+setupSettingListener(stealthCooldownMaxPercent, 'stealthCooldownMaxPercent');
+setupSettingListener(stealthBurstMinPercent, 'stealthBurstMinPercent');
+setupSettingListener(stealthBurstMaxPercent, 'stealthBurstMaxPercent');
+setupSettingListener(stealthBreakChancePercent, 'stealthBreakChancePercent');
+setupSettingListener(stealthBreakMinMinutes, 'stealthBreakMinMinutes');
+setupSettingListener(stealthBreakMaxMinutes, 'stealthBreakMaxMinutes');
+setupSettingListener(stealthTileDelayMinMs, 'stealthTileDelayMinMs');
+setupSettingListener(stealthTileDelayMaxMs, 'stealthTileDelayMaxMs');
+// --- END: DETAILED STEALTH MODE EVENT LISTENERS (RESTORED) ---
 
-stealthMaxDelay.addEventListener('change', () => {
-    const value = parseInt(stealthMaxDelay.value, 10);
-    if (isNaN(value) || value < 0) return;
-    saveSetting({ stealthMaxDelay: value });
-});
-
-stealthMaxPixelsPercentage.addEventListener('change', () => {
-    const value = parseInt(stealthMaxPixelsPercentage.value, 10);
-    if (isNaN(value) || value < 1 || value > 100) return;
-    saveSetting({ stealthMaxPixelsPercentage: value });
-});
-// --- END: STEALTH MODE EVENT LISTENERS ---
 
 accountCooldown.addEventListener('change', () => {
     const value = parseInt(accountCooldown.value, 10) * 1000;
