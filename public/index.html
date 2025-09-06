@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
@@ -12,14 +12,34 @@
 
 <body>
     <div class="container">
-        <h1><img src="icons/favicon.png">wplacer</h1>
+        <h1><img src="icons/favicon.png" alt="wplacer logo">wplacer</h1>
 
         <div id="main">
-            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg">Manage Users</button>
-            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg">Manage
-                Templates</button>
-            <button id="openSettings" class="primary-button"><img src="icons/settings.svg">Settings</button>
+            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg" alt="">Manage Users</button>
+            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add Template</button>
+            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg" alt="">Manage Templates</button>
+            <button id="openLogsViewer" class="primary-button"><img src="icons/code.svg" alt="">View Logs</button>
+            <button id="openSettings" class="primary-button"><img src="icons/settings.svg" alt="">Settings</button>
+        </div>
+
+        <div id="logsViewer" style="display: none;">
+            <h2>Realtime Logs Viewer</h2>
+            <input id="logsSearchInput" class="logs-search" type="text" placeholder="Search text...">
+            <div class="logs-controls">
+                <button id="showLogsBtn" class="secondary-button">Logs</button>
+                <button id="showErrorsBtn" class="secondary-button">Errors</button>
+                <button id="clearLogsBtn" class="secondary-button">Clear</button>
+                <button id="logsExportBtn" class="secondary-button">Export</button>
+                <select id="logsTypeFilter" class="logs-type-filter">
+                    <option value="">All</option>
+                    <option value="error">Error</option>
+                    <option value="warn">Warning</option>
+                    <option value="success">Success</option>
+                    <option value="info">Info</option>
+                </select>
+            </div>
+            <div id="logsContainer" class="logs-container"><span class="logs-placeholder">Loading logs...</span></div>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="manageUsers" style="display: none;">
@@ -29,8 +49,7 @@
                 <input type="password" id="jcookie" required>
                 <label for="scookie">Session Cookie (s) [optional]</label>
                 <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg">Add
-                    User</button>
+                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg" alt="">Add User</button>
             </form>
 
             <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
@@ -39,10 +58,10 @@
                 <b>Total Droplets:</b> <span id="totalDroplets">?</span> |
                 <b>PPH:</b> <span id="totalPPH">?</span>
             </div>
-            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg">Check Account Status</button>
+            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg" alt="">Check Account Status</button>
             <div id="userList"></div>
 
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="addTemplate" style="display: none;">
@@ -50,10 +69,9 @@
             <div class="info-box">
                 <b>Tip:</b> For best results, process your image through the <a href="https://pepoafonso.github.io/color_converter_wplace/" target="_blank" rel="noopener noreferrer">wplace color converter</a> first!
             </div>
-            <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg">Convert Image</button>
+            <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg" alt="">Convert Image</button>
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
-                <div id="premiumWarning" class="warning-box" style="display: none;"></div>
                 <canvas id="templateCanvas"></canvas>
                 <div class="preview-controls">
                     <button id="previewCanvasButton" class="secondary-button">Preview Canvas</button>
@@ -75,7 +93,7 @@
                 </div>
                 <label for="userSelectList">Users</label>
                 <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg">Select All</button>
+                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg" alt="">Select All</button>
 
                 <div class="setting-toggle">
                     <label for="canBuyMaxCharges">Buy Max Charge Upgrades</label>
@@ -99,7 +117,7 @@
                     </label>
                 </div>
                 <div class="setting-toggle">
-                    <label for="eraseMode">Erase Unknown Pixels</label>
+                    <label for="eraseMode">Paint Transparent Pixels</label>
                     <label class="switch">
                         <input id="eraseMode" name="eraseMode" type="checkbox">
                         <span class="slider"></span>
@@ -126,24 +144,36 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                <h3>Reorder Colors</h3>
+                <div class="color-grid" id="colorGrid"></div>
+                
+                <button class="btn-danger" onclick="resetOrder()">Reset to Default</button>
 
-                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg">Add Template</button>
+                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add Template</button>
             </form>
-            <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
             <h2>Manage Templates</h2>
             <div class="template-actions-all">
-                <button id="startAll" class="primary-button"><img src="icons/playAll.svg">Start All</button>
-                <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg">Stop All</button>
+                <button id="startAll" class="primary-button"><img src="icons/playAll.svg" alt="">Start All</button>
+                <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg" alt="">Stop All</button>
             </div>
             <div id="templateList"></div>
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="settings" style="display: none;">
             <h2>Settings</h2>
+
+            <div class="setting-toggle">
+                <label for="openBrowserOnStart">Open Browser on Startup</label>
+                <label class="switch">
+                    <input id="openBrowserOnStart" name="openBrowserOnStart" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
 
             <label for="drawingDirectionSelect">Drawing Direction</label>
             <select id="drawingDirectionSelect">
@@ -152,12 +182,12 @@
                 <option value="ltr">Left to Right</option>
                 <option value="rtl">Right to Left</option>
                 <option value="center_out">Center Out</option>
+                <option value="random">Random Pixels</option>
             </select>
 
             <label for="drawingOrderSelect">Drawing Order</label>
             <select id="drawingOrderSelect">
                 <option value="linear">Linear</option>
-                <option value="random">Random Pixels</option>
                 <option value="randomColor">Random Color</option>
                 <option value="color">Color by Color</option>
             </select>
@@ -187,44 +217,6 @@
             <label for="chargeThreshold">Charge Threshold (%)</label>
             <input type="number" id="chargeThreshold" min="0" max="100" value="50">
             
-            <h2 class="section-title">Stealth Settings</h2>
-            <div class="info-box" style="text-align: left;">
-                <b>Advanced Stealth Mode:</b> When enabled, this mode randomizes various timings and thresholds to make bot activity appear more human-like and less predictable in logs. This helps reduce the risk of detection.
-            </div>
-            <div class="setting-toggle">
-                <label for="stealthMode">Enable Stealth Mode</label>
-                <label class="switch">
-                    <input id="stealthMode" name="stealthMode" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div id="stealthOptions" style="display: none;">
-                <label for="stealthChargeThresholdFluctuation">Charge Threshold Fluctuation (±%)</label>
-                <input type="number" id="stealthChargeThresholdFluctuation" min="0" max="50" value="15">
-                <label>Cooldown Fluctuation (%)</label>
-                <div class="coordinate-grid">
-                    <input type="number" id="stealthCooldownMinPercent" placeholder="Min %" min="50" max="100" value="75">
-                    <input type="number" id="stealthCooldownMaxPercent" placeholder="Max %" min="100" max="150" value="125">
-                </div>
-                <label>Burst Painting (%)</label>
-                <div class="coordinate-grid">
-                    <input type="number" id="stealthBurstMinPercent" placeholder="Min %" min="10" max="100" value="60">
-                    <input type="number" id="stealthBurstMaxPercent" placeholder="Max %" min="10" max="100" value="100">
-                </div>
-                <label for="stealthBreakChancePercent">Long Break Chance (%)</label>
-                <input type="number" id="stealthBreakChancePercent" min="0" max="100" value="5">
-                <label>Long Break Duration (minutes)</label>
-                <div class="coordinate-grid">
-                    <input type="number" id="stealthBreakMinMinutes" placeholder="Min" min="1" value="1">
-                    <input type="number" id="stealthBreakMaxMinutes" placeholder="Max" min="1" value="3">
-                </div>
-                <label>Inter-Tile Delay (ms)</label>
-                <div class="coordinate-grid">
-                    <input type="number" id="stealthTileDelayMinMs" placeholder="Min" min="0" value="50">
-                    <input type="number" id="stealthTileDelayMaxMs" placeholder="Max" min="0" value="250">
-                </div>
-            </div>
-
             <h2 class="section-title">Proxy Settings</h2>
             <div class="setting-toggle">
                 <label for="proxyEnabled">Enable Rotating Proxies</label>
@@ -251,10 +243,32 @@
                 <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
             </div>
 
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg">Return</button>
+            <h2 class="section-title">Stealth Mode</h2>
+            <div class="setting-toggle">
+                <label for="stealthModeEnabled">Enable Stealth Mode</label>
+                <label class="switch">
+                    <input id="stealthModeEnabled" name="stealthModeEnabled" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="stealthModeContainer" style="display: none;">
+                <p class="info-box" style="text-align: left;">
+                    Stealth Mode makes bot activity appear more human-like by introducing random delays and variable pixel placement counts. This may reduce painting speed but can help avoid detection.
+                </p>
+                <label for="stealthMinDelay">Minimum Delay Between Turns (seconds)</label>
+                <input type="number" id="stealthMinDelay" min="0" value="15">
+                
+                <label for="stealthMaxDelay">Maximum Delay Between Turns (seconds)</label>
+                <input type="number" id="stealthMaxDelay" min="0" value="60">
+            
+                <label for="stealthMaxPixelsPercentage">Max Pixels to Use per Turn (%)</label>
+                <input type="number" id="stealthMaxPixelsPercentage" min="1" max="100" value="85">
+            </div>
+
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
         </div>
 
-        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"></a>
+        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg" alt="GitHub"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg" alt="GitHub"></a>
         </p>
     </div>
 
