@@ -389,6 +389,7 @@ class WPlacer {
         this.userInfo = null;
         this.tiles = new Map();
         this.token = null;
+        this.pawtect = null;
     }
 
     async _fetch(url, options) {
@@ -457,9 +458,11 @@ class WPlacer {
     }
 
     async post(url, body) {
+        const headers = { Accept: '*/*', 'Content-Type': 'text/plain;charset=UTF-8', Referer: 'https://wplace.live/' };
+        if (this.pawtect) headers['x-pawtect-token'] = this.pawtect;
         const req = await this._fetch(url, {
             method: 'POST',
-            headers: { Accept: '*/*', 'Content-Type': 'text/plain;charset=UTF-8', Referer: 'https://wplace.live/' },
+            headers,
             body: JSON.stringify(body),
         });
         const data = await req.json();
@@ -726,6 +729,7 @@ class WPlacer {
         for (const k in byTile) {
             const [tx, ty] = k.split(',').map(Number);
             const body = { ...byTile[k], t: this.token };
+            if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
             const r = await this._executePaint(tx, ty, body);
             total += r.painted;
         }
@@ -1179,6 +1183,8 @@ class TemplateManager {
         while (!done && this.running) {
             try {
                 wplacer.token = await TokenManager.getToken(this.name);
+                // Pull latest pawtect token if available
+                wplacer.pawtect = globalThis.__wplacer_last_pawtect || null;
                 const painted = await wplacer.paint(this.currentPixelSkip, colorFilter);
                 paintedTotal += painted;
                 done = true;
@@ -1600,9 +1606,19 @@ app.get('/errors', (req, res) => {
 
 app.get('/token-needed', (_req, res) => res.json({ needed: TokenManager.isTokenNeeded }));
 app.post('/t', (req, res) => {
-    const { t } = req.body || {};
+    const { t, pawtect, fp } = req.body || {};
     if (!t) return res.sendStatus(HTTP_STATUS.BAD_REQ);
+    // Store Turnstile token as usual
     TokenManager.setToken(t);
+    // Also keep latest pawtect in memory for pairing with paints
+    try {
+        if (pawtect && typeof pawtect === 'string') {
+            globalThis.__wplacer_last_pawtect = pawtect;
+        }
+        if (fp && typeof fp === 'string') {
+            globalThis.__wplacer_last_fp = fp;
+        }
+    } catch {}
     res.sendStatus(HTTP_STATUS.OK);
 });
 
