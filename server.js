@@ -25,6 +25,22 @@ import cors from 'cors';
 import { WebSocketServer } from 'ws';
 import { watch } from 'node:fs';
 
+// ---------- START: ADVANCED STEALTH MODE HELPER FUNCTIONS (RESTORED) ----------
+const getBellRandomizedValue = (base, min, max, fluctuation) => {
+    const range = fluctuation * 2;
+    // Simple approximation of a bell curve using the average of two random numbers
+    const randomFactor = (Math.random() + Math.random()) / 2; 
+    const value = base - fluctuation + (randomFactor * range);
+    return Math.max(min, Math.min(max, value));
+};
+
+const getRandomizedCooldown = (baseCooldown, minPercent, maxPercent) => {
+    const min = baseCooldown * (minPercent / 100);
+    const max = baseCooldown * (maxPercent / 100);
+    return Math.floor(Math.random() * (max - min + 1) + min);
+};
+// ---------- END: ADVANCED STEALTH MODE HELPER FUNCTIONS (RESTORED) ----------
+
 // ---------- Runtime constants ----------
 
 const __filename = fileURLToPath(import.meta.url);
@@ -693,38 +709,50 @@ class WPlacer {
                 mismatched.sort((a, b) => d2(a) - d2(b));
                 break;
             }
-            case 'random': {
-                for (let i = mismatched.length - 1; i > 0; i--) {
-                    const j = Math.floor(Math.random() * (i + 1));
-                    [mismatched[i], mismatched[j]] = [mismatched[j], mismatched[i]];
-                }
-                break;
-            }
             case 'ttb':
             default:
                 mismatched.sort((a, b) => a.localY - b.localY);
                 break;
         }
 
-        // order (only applies if not using a color-based direction)
-        if (this.globalSettings.drawingOrder === 'color') {
-            const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
-            const colors = Object.keys(buckets);
-            mismatched = colors.flatMap((c) => buckets[c]);
+        // order (now also includes 'random' and 'randomColor')
+        switch (this.globalSettings.drawingOrder) {
+            case 'random':
+                for (let i = mismatched.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [mismatched[i], mismatched[j]] = [mismatched[j], mismatched[i]];
+                }
+                break;
+            case 'color': case 'randomColor': {
+                const buckets = mismatched.reduce((acc, p) => ((acc[p.color] ??= []).push(p), acc), {});
+                const colors = Object.keys(buckets);
+                if (this.globalSettings.drawingOrder === 'randomColor') {
+                    for (let i = colors.length - 1; i > 0; i--) {
+                        const j = Math.floor(Math.random() * (i + 1));
+                        [colors[i], colors[j]] = [colors[j], colors[i]];
+                    }
+                }
+                mismatched = colors.flatMap(c => buckets[c]);
+                break;
+            }
+            case 'linear': default: break;
         }
 
-        // --- STEALTH MODE LOGIC ---
-        let chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
-        let pixelsToPaintCount = chargesNow;
+        // --- STEALTH MODE LOGIC (RESTORED) ---
+        const chargesNow = Math.floor(this.userInfo?.charges?.count ?? 0);
+        let paintCount = chargesNow;
 
-        if (this.globalSettings.stealthModeEnabled) {
-            const maxAllowedByStealth = Math.floor(chargesNow * (this.globalSettings.stealthMaxPixelsPercentage / 100));
-            // Paint a random number of pixels from 1 to the max allowed percentage
-            pixelsToPaintCount = Math.max(1, Math.floor(Math.random() * maxAllowedByStealth));
+        if (this.globalSettings.stealthMode) {
+            const { stealthBurstMinPercent, stealthBurstMaxPercent } = this.globalSettings;
+            const burstFactor = (Math.random() * (stealthBurstMaxPercent - stealthBurstMinPercent) + stealthBurstMinPercent) / 100;
+            paintCount = Math.floor(chargesNow * burstFactor);
+            if (paintCount < chargesNow) {
+                 log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] 🥷 Stealth Burst: Using ${paintCount}/${chargesNow} charges.`);
+            }
         }
     
-        const todo = mismatched.slice(0, pixelsToPaintCount);
-        // --- END STEALTH MODE LOGIC ---
+        const todo = mismatched.slice(0, paintCount);
+        // --- END STEALTH MODE LOGIC (RESTORED) ---
 
 
         // group per tile
@@ -738,6 +766,12 @@ class WPlacer {
 
         let total = 0;
         for (const k in byTile) {
+            // Inter-tile delay for stealth mode
+            if (this.globalSettings.stealthMode && total > 0) {
+                const { stealthTileDelayMinMs, stealthTileDelayMaxMs } = this.globalSettings;
+                await sleep(Math.random() * (stealthTileDelayMaxMs - stealthTileDelayMinMs) + stealthTileDelayMinMs);
+            }
+
             const [tx, ty] = k.split(',').map(Number);
             const body = { ...byTile[k], t: this.token };
             if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
@@ -993,10 +1027,18 @@ let currentSettings = {
     proxyRotationMode: 'sequential', // 'sequential' | 'random'
     logProxyUsage: false,
     openBrowserOnStart: true,
-    stealthModeEnabled: false,
-    stealthMinDelay: 15, // seconds
-    stealthMaxDelay: 60, // seconds
-    stealthMaxPixelsPercentage: 85, // %
+    // --- Detailed Stealth Settings (Restored) ---
+    stealthMode: false,
+    stealthChargeThresholdFluctuation: 10,
+    stealthCooldownMinPercent: 75,
+    stealthCooldownMaxPercent: 125,
+    stealthBurstMinPercent: 85,
+    stealthBurstMaxPercent: 100,
+    stealthBreakChancePercent: 5,
+    stealthBreakMinMinutes: 1,
+    stealthBreakMaxMinutes: 4,
+    stealthTileDelayMinMs: 50,
+    stealthTileDelayMaxMs: 150,
 };
 if (existsSync(SETTINGS_FILE)) {
     currentSettings = { ...currentSettings, ...loadJSON(SETTINGS_FILE) };
@@ -1165,7 +1207,10 @@ class TemplateManager {
         if (amountToBuy > 0) {
             try {
                 await wplacer.buyProduct(70, amountToBuy);
-                await sleep(currentSettings.purchaseCooldown);
+                const cooldown = currentSettings.stealthMode 
+                    ? getRandomizedCooldown(currentSettings.purchaseCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
+                    : currentSettings.purchaseCooldown;
+                await sleep(cooldown);
                 await wplacer.loadUserInfo();
             } catch (error) {
                 logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, 'purchase max charge upgrades');
@@ -1183,7 +1228,10 @@ class TemplateManager {
             if (amountToBuy > 0) {
                 try {
                     await wplacer.buyProduct(80, amountToBuy);
-                    await sleep(currentSettings.purchaseCooldown);
+                    const cooldown = currentSettings.stealthMode 
+                        ? getRandomizedCooldown(currentSettings.purchaseCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent)
+                        : currentSettings.purchaseCooldown;
+                    await sleep(cooldown);
                     await wplacer.loadUserInfo();
                 } catch (error) {
                     logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, 'purchase charges');
@@ -1281,7 +1329,8 @@ class TemplateManager {
                     continue;
                 }
                 let colorsToPaint;
-                const isColorMode = currentSettings.drawingOrder === 'color';
+                const isColorMode = ['color', 'randomColor'].includes(currentSettings.drawingOrder);
+
                 if (isColorMode) {
                     const allColors = this.template.data.flat().filter((c) => c > 0);
                     const colorCounts = allColors.reduce((acc, color) => {
@@ -1293,7 +1342,6 @@ class TemplateManager {
                     let sortedColors = Object.keys(colorCounts).map(Number);
 
                     if (customOrder && customOrder.length > 0) {
-                        // Use custom color ordering
                         const orderMap = new Map(customOrder.map((id, index) => [id, index]));
                         sortedColors.sort((a, b) => {
                             const orderA = orderMap.get(a) ?? 999999;
@@ -1301,21 +1349,25 @@ class TemplateManager {
                             return orderA - orderB;
                         });
                     } else {
-                        // Fallback to original logic
                         sortedColors.sort((a, b) => {
-                            if (a === 1) return -1; // Black goes first
+                            if (a === 1) return -1;
                             if (b === 1) return 1;
-                            return colorCounts[a] - colorCounts[b]; // Sort by pixel count ascending
+                            return colorCounts[a] - colorCounts[b];
                         });
-                        console.log(`[${this.name}] Using default color order (pixel count). Colors:`, sortedColors);
+                    }
+                    if (currentSettings.drawingOrder === 'randomColor') {
+                         for (let i = sortedColors.length - 1; i > 0; i--) {
+                            const j = Math.floor(Math.random() * (i + 1));
+                            [sortedColors[i], sortedColors[j]] = [sortedColors[j], sortedColors[i]];
+                        }
                     }
 
                     colorsToPaint = sortedColors;
                     if (this.eraseMode) {
-                        colorsToPaint.push(0); // Add erase pass at the end
+                        colorsToPaint.push(0);
                     }
                 } else {
-                    colorsToPaint = [null]; // A single loop for non-color mode
+                    colorsToPaint = [null];
                 }
 
                 this.pixelsRemaining = checkResult.mismatchedPixels.length;
@@ -1324,35 +1376,25 @@ class TemplateManager {
                 if (this.pixelsRemaining === 0) {
                     if (this.antiGriefMode) {
                         this.status = 'Monitoring for changes.';
-                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
-                        await this.cancellableSleep(currentSettings.antiGriefStandby);
-                        continue; // Restart the while loop to re-check for changes.
+                        const standbyTime = currentSettings.stealthMode 
+                            ? getRandomizedCooldown(currentSettings.antiGriefStandby, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
+                            : currentSettings.antiGriefStandby;
+                        log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(standbyTime)}.`);
+                        await this.cancellableSleep(standbyTime);
+                        continue;
                     } else {
                         log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
                         this.status = 'Finished.';
                         this.running = false;
-                        break; // Exit the main while loop.
+                        break;
                     }
                 }
 
-                // If we reached here, there are pixels to paint. Reset retry delay.
                 this.currentRetryDelay = this.initialRetryDelay;
 
-                // --- PAINTING LOGIC ---
-                // Determine which colors need to be painted based on the check results.
                 if (isColorMode) {
                     const mismatchedColors = new Set(checkResult.mismatchedPixels.map(p => p.color));
-                    const allColors = this.template.data.flat().filter((c) => c > 0);
-                    const colorCounts = allColors.reduce((acc, color) => ({ ...acc, [color]: (acc[color] || 0) + 1 }), {});
-
-                    let sortedColors = Object.keys(colorCounts).map(Number).sort((a, b) => (a === 1 ? -1 : b === 1 ? 1 : colorCounts[a] - colorCounts[b]));
-
-                    colorsToPaint = sortedColors.filter(c => mismatchedColors.has(c));
-                    if (this.eraseMode && mismatchedColors.has(0)) {
-                        colorsToPaint.push(0);
-                    }
-                } else {
-                    colorsToPaint = [null]; // A single loop for non-color mode.
+                    colorsToPaint = colorsToPaint.filter(c => mismatchedColors.has(c));
                 }
 
                 for (const color of colorsToPaint) {
@@ -1365,10 +1407,7 @@ class TemplateManager {
                             break;
                         }
                     }
-                    if (isColorMode) {
-                        const colorName = color === 0 ? 'Erase' : (COLOR_NAMES[color] || 'Unknown');
-                    }
-
+                    
                     for (this.currentPixelSkip = highestDensityWithPixels; this.currentPixelSkip >= 1; this.currentPixelSkip /= 2) {
                         if (!this.running) break;
                         log('SYSTEM', 'wplacer', `[${this.name}] Starting pass (1/${this.currentPixelSkip}) for color ${isColorMode ? (COLOR_NAMES[color] || 'Erase') : 'All'}`);
@@ -1402,19 +1441,18 @@ class TemplateManager {
                                 }
 
                                 const predicted = ChargeCache.predict(userId, now);
-                                const threshold = predicted ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold)) : Infinity;
+                                const threshold = currentSettings.stealthMode 
+                                    ? getBellRandomizedValue(currentSettings.chargeThreshold, 0.1, 1.0, currentSettings.stealthChargeThresholdFluctuation / 100)
+                                    : currentSettings.chargeThreshold;
 
-                                if (predicted && Math.floor(predicted.count) >= threshold) {
+                                if (predicted && Math.floor(predicted.count) >= Math.max(1, Math.floor(predicted.max * threshold))) {
                                     activeBrowserUsers.add(userId);
                                     const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
                                     try {
                                         const userInfo = await wplacer.login(users[userId].cookies);
                                         this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
-
                                         await this._performPaintTurn(wplacer, color);
-
-                                        // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
                                         foundUserForTurn = true;
                                         await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
@@ -1431,7 +1469,6 @@ class TemplateManager {
                             }
 
                             if (foundUserForTurn) {
-                                // Check if the pass is complete after a successful turn
                                 const postPaintCheck = await this._findWorkingUserAndCheckPixels();
                                 if(postPaintCheck){
                                     const passPixels = postPaintCheck.mismatchedPixels.filter(p => (color === null || p.color === color) && (p.localX + p.localY) % this.currentPixelSkip === 0);
@@ -1440,20 +1477,22 @@ class TemplateManager {
                                         passComplete = true;
                                     }
                                 }
-                                // --- STEALTH MODE / COOLDOWN LOGIC ---
+                                
                                 if (this.running && !passComplete) {
-                                    if (currentSettings.stealthModeEnabled) {
-                                        const minMs = currentSettings.stealthMinDelay * 1000;
-                                        const maxMs = currentSettings.stealthMaxDelay * 1000;
-                                        const randomDelay = Math.floor(Math.random() * (maxMs - minMs + 1)) + minMs;
-                                        log('SYSTEM', 'wplacer', `[${this.name}] 🕶️ Stealth mode active. Waiting for a random delay of ${duration(randomDelay)}.`);
-                                        await this.cancellableSleep(randomDelay);
-                                    } else if (currentSettings.accountCooldown > 0) {
-                                        log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
-                                        await this.cancellableSleep(currentSettings.accountCooldown);
+                                     const cooldown = currentSettings.stealthMode 
+                                        ? getRandomizedCooldown(currentSettings.accountCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
+                                        : currentSettings.accountCooldown;
+                                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(cooldown)}).`);
+                                    await this.cancellableSleep(cooldown);
+                                    
+                                    if (currentSettings.stealthMode && Math.random() < (currentSettings.stealthBreakChancePercent / 100)) {
+                                        const minBreak = currentSettings.stealthBreakMinMinutes * 60 * 1000;
+                                        const maxBreak = currentSettings.stealthBreakMaxMinutes * 60 * 1000;
+                                        const longPause = Math.floor(Math.random() * (maxBreak - minBreak + 1) + minBreak);
+                                        log('SYSTEM', 'wplacer', `[${this.name}] 🥷 Stealth pause: Taking a longer break for ${duration(longPause)}.`);
+                                        await this.cancellableSleep(longPause);
                                     }
                                 }
-                                // --- END COOLDOWN LOGIC ---
                             } else {
                                 const now = Date.now();
                                 const cooldowns = this.userQueue.map((id) => {
