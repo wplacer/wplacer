@@ -188,6 +188,7 @@
             <label for="drawingOrderSelect">Drawing Order</label>
             <select id="drawingOrderSelect">
                 <option value="linear">Linear</option>
+                <option value="random">Random Pixels</option>
                 <option value="randomColor">Random Color</option>
                 <option value="color">Color by Color</option>
             </select>
@@ -217,6 +218,46 @@
             <label for="chargeThreshold">Charge Threshold (%)</label>
             <input type="number" id="chargeThreshold" min="0" max="100" value="50">
             
+            <!-- === START: DETAILED STEALTH SETTINGS (RESTORED) === -->
+            <h2 class="section-title">Stealth Settings</h2>
+            <div class="info-box" style="text-align: left;">
+                <b>Advanced Stealth Mode:</b> When enabled, this mode randomizes various timings and thresholds to make bot activity appear more human-like and less predictable. This helps reduce the risk of detection.
+            </div>
+            <div class="setting-toggle">
+                <label for="stealthMode">Enable Advanced Stealth Mode</label>
+                <label class="switch">
+                    <input id="stealthMode" name="stealthMode" type="checkbox">
+                    <span class="slider"></span>
+                </label>
+            </div>
+            <div id="stealthOptions" style="display: none;">
+                <label for="stealthChargeThresholdFluctuation">Charge Threshold Fluctuation (±%)</label>
+                <input type="number" id="stealthChargeThresholdFluctuation" min="0" max="50" value="15">
+                <label>Cooldown Fluctuation (%)</label>
+                <div class="coordinate-grid">
+                    <input type="number" id="stealthCooldownMinPercent" placeholder="Min %" min="50" max="100" value="75">
+                    <input type="number" id="stealthCooldownMaxPercent" placeholder="Max %" min="100" max="150" value="125">
+                </div>
+                <label>Burst Painting (% of available charges)</label>
+                <div class="coordinate-grid">
+                    <input type="number" id="stealthBurstMinPercent" placeholder="Min %" min="10" max="100" value="60">
+                    <input type="number" id="stealthBurstMaxPercent" placeholder="Max %" min="10" max="100" value="100">
+                </div>
+                <label for="stealthBreakChancePercent">Long Break Chance (%)</label>
+                <input type="number" id="stealthBreakChancePercent" min="0" max="100" value="5">
+                <label>Long Break Duration (minutes)</label>
+                <div class="coordinate-grid">
+                    <input type="number" id="stealthBreakMinMinutes" placeholder="Min" min="1" value="1">
+                    <input type="number" id="stealthBreakMaxMinutes" placeholder="Max" min="1" value="3">
+                </div>
+                <label>Inter-Tile Delay (ms)</label>
+                <div class="coordinate-grid">
+                    <input type="number" id="stealthTileDelayMinMs" placeholder="Min" min="0" value="50">
+                    <input type="number" id="stealthTileDelayMaxMs" placeholder="Max" min="0" value="250">
+                </div>
+            </div>
+            <!-- === END: DETAILED STEALTH SETTINGS (RESTORED) === -->
+            
             <h2 class="section-title">Proxy Settings</h2>
             <div class="setting-toggle">
                 <label for="proxyEnabled">Enable Rotating Proxies</label>
@@ -241,28 +282,6 @@
                 </select>
                 <div id="proxyCount" class="info-box" style="text-align: center; margin-top: 10px;"></div>
                 <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
-            </div>
-
-            <h2 class="section-title">Stealth Mode</h2>
-            <div class="setting-toggle">
-                <label for="stealthModeEnabled">Enable Stealth Mode</label>
-                <label class="switch">
-                    <input id="stealthModeEnabled" name="stealthModeEnabled" type="checkbox">
-                    <span class="slider"></span>
-                </label>
-            </div>
-            <div id="stealthModeContainer" style="display: none;">
-                <p class="info-box" style="text-align: left;">
-                    Stealth Mode makes bot activity appear more human-like by introducing random delays and variable pixel placement counts. This may reduce painting speed but can help avoid detection.
-                </p>
-                <label for="stealthMinDelay">Minimum Delay Between Turns (seconds)</label>
-                <input type="number" id="stealthMinDelay" min="0" value="15">
-                
-                <label for="stealthMaxDelay">Maximum Delay Between Turns (seconds)</label>
-                <input type="number" id="stealthMaxDelay" min="0" value="60">
-            
-                <label for="stealthMaxPixelsPercentage">Max Pixels to Use per Turn (%)</label>
-                <input type="number" id="stealthMaxPixelsPercentage" min="1" max="100" value="85">
             </div>
 
             <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
