@@ -1,90 +1,94 @@
 // elements
 const $ = (id) => document.getElementById(id);
-const main = $("main");
-const openManageUsers = $("openManageUsers");
-const openAddTemplate = $("openAddTemplate");
-const openManageTemplates = $("openManageTemplates");
-const openSettings = $("openSettings");
-const userForm = $("userForm");
-const scookie = $("scookie");
-const jcookie = $("jcookie");
-const submitUser = $("submitUser");
-const manageUsers = $("manageUsers");
-const manageUsersTitle = $("manageUsersTitle");
-const userList = $("userList");
-const checkUserStatus = $("checkUserStatus");
-const addTemplate = $("addTemplate");
-const convert = $("convert");
-const details = $("details");
-const size = $("size");
-const ink = $("ink");
-const premiumWarning = $("premiumWarning");
-const templateCanvas = $("templateCanvas");
-const previewCanvas = $("previewCanvas");
-const previewCanvasButton = $("previewCanvasButton");
-const previewBorder = $("previewBorder");
-const templateForm = $("templateForm");
-const templateFormTitle = $("templateFormTitle");
-const convertInput = $("convertInput");
-const templateName = $("templateName");
-const tx = $("tx");
-const ty = $("ty");
-const px = $("px");
-const py = $("py");
-const userSelectList = $("userSelectList");
-const selectAllUsers = $("selectAllUsers");
-const canBuyMaxCharges = $("canBuyMaxCharges");
-const canBuyCharges = $("canBuyCharges");
-const antiGriefMode = $("antiGriefMode");
-const eraseMode = $("eraseMode");
-const templateOutlineMode = $("templateOutlineMode");
-const templateSkipPaintedPixels = $("templateSkipPaintedPixels");
-const enableAutostart = $("enableAutostart");
-const submitTemplate = $("submitTemplate");
-const manageTemplates = $("manageTemplates");
-const templateList = $("templateList");
-const startAll = $("startAll");
-const stopAll = $("stopAll");
-const settings = $("settings");
-const drawingDirectionSelect = $("drawingDirectionSelect");
-const drawingOrderSelect = $("drawingOrderSelect");
-const pixelSkipSelect = $("pixelSkipSelect");
-const accountCooldown = $("accountCooldown");
-const purchaseCooldown = $("purchaseCooldown");
-const accountCheckCooldown = $("accountCheckCooldown");
-const dropletReserve = $("dropletReserve");
-const antiGriefStandby = $("antiGriefStandby");
-const chargeThreshold = $("chargeThreshold");
-const totalCharges = $("totalCharges");
-const totalMaxCharges = $("totalMaxCharges");
-const totalDroplets = $("totalDroplets");
-const totalPPH = $("totalPPH");
-const messageBoxOverlay = $("messageBoxOverlay");
-const messageBoxTitle = $("messageBoxTitle");
-const messageBoxContent = $("messageBoxContent");
-const messageBoxConfirm = $("messageBoxConfirm");
-const messageBoxCancel = $("messageBoxCancel");
-const proxyEnabled = $("proxyEnabled");
-const proxyFormContainer = $("proxyFormContainer");
-const proxyRotationMode = $("proxyRotationMode");
-const proxyCount = $("proxyCount");
-const reloadProxiesBtn = $("reloadProxiesBtn");
-const logProxyUsage = $("logProxyUsage");
+const main = $('main');
+const openManageUsers = $('openManageUsers');
+const openAddTemplate = $('openAddTemplate');
+const openManageTemplates = $('openManageTemplates');
+const openSettings = $('openSettings');
+const userForm = $('userForm');
+const scookie = $('scookie');
+const jcookie = $('jcookie');
+const submitUser = $('submitUser');
+const manageUsers = $('manageUsers');
+const manageUsersTitle = $('manageUsersTitle');
+const userList = $('userList');
+const checkUserStatus = $('checkUserStatus');
+const addTemplate = $('addTemplate');
+const convert = $('convert');
+const details = $('details');
+const size = $('size');
+const ink = $('ink');
+const templateCanvas = $('templateCanvas');
+const previewCanvas = $('previewCanvas');
+const previewCanvasButton = $('previewCanvasButton');
+const previewBorder = $('previewBorder');
+const templateForm = $('templateForm');
+const templateFormTitle = $('templateFormTitle');
+const convertInput = $('convertInput');
+const templateName = $('templateName');
+const tx = $('tx');
+const ty = $('ty');
+const px = $('px');
+const py = $('py');
+const userSelectList = $('userSelectList');
+const selectAllUsers = $('selectAllUsers');
+const canBuyMaxCharges = $('canBuyMaxCharges');
+const canBuyCharges = $('canBuyCharges');
+const antiGriefMode = $('antiGriefMode');
+const eraseMode = $('eraseMode');
+const templateOutlineMode = $('templateOutlineMode');
+const templateSkipPaintedPixels = $('templateSkipPaintedPixels');
+const enableAutostart = $('enableAutostart');
+const submitTemplate = $('submitTemplate');
+const manageTemplates = $('manageTemplates');
+const templateList = $('templateList');
+const startAll = $('startAll');
+const stopAll = $('stopAll');
+const settings = $('settings');
+const openBrowserOnStart = $('openBrowserOnStart');
+const drawingDirectionSelect = $('drawingDirectionSelect');
+const drawingOrderSelect = $('drawingOrderSelect');
+const pixelSkipSelect = $('pixelSkipSelect');
+const accountCooldown = $('accountCooldown');
+const purchaseCooldown = $('purchaseCooldown');
+const accountCheckCooldown = $('accountCheckCooldown');
+const dropletReserve = $('dropletReserve');
+const antiGriefStandby = $('antiGriefStandby');
+const chargeThreshold = $('chargeThreshold');
+const totalCharges = $('totalCharges');
+const totalMaxCharges = $('totalMaxCharges');
+const totalDroplets = $('totalDroplets');
+const totalPPH = $('totalPPH');
+const messageBoxOverlay = $('messageBoxOverlay');
+const messageBoxTitle = $('messageBoxTitle');
+const messageBoxContent = $('messageBoxContent');
+const messageBoxConfirm = $('messageBoxConfirm');
+const messageBoxCancel = $('messageBoxCancel');
+const proxyEnabled = $('proxyEnabled');
+const proxyFormContainer = $('proxyFormContainer');
+const proxyRotationMode = $('proxyRotationMode');
+const proxyCount = $('proxyCount');
+const reloadProxiesBtn = $('reloadProxiesBtn');
+const logProxyUsage = $('logProxyUsage');
 
-// Stealth Mode Elements
-const stealthMode = $("stealthMode");
-const stealthOptions = $("stealthOptions");
-const stealthChargeThresholdFluctuation = $("stealthChargeThresholdFluctuation");
-const stealthCooldownMinPercent = $("stealthCooldownMinPercent");
-const stealthCooldownMaxPercent = $("stealthCooldownMaxPercent");
-const stealthBurstMinPercent = $("stealthBurstMinPercent");
-const stealthBurstMaxPercent = $("stealthBurstMaxPercent");
-const stealthBreakChancePercent = $("stealthBreakChancePercent");
-const stealthBreakMinMinutes = $("stealthBreakMinMinutes");
-const stealthBreakMaxMinutes = $("stealthBreakMaxMinutes");
-const stealthTileDelayMinMs = $("stealthTileDelayMinMs");
-const stealthTileDelayMaxMs = $("stealthTileDelayMaxMs");
+// --- START: STEALTH MODE ELEMENTS ---
+const stealthModeEnabled = $('stealthModeEnabled');
+const stealthModeContainer = $('stealthModeContainer');
+const stealthMinDelay = $('stealthMinDelay');
+const stealthMaxDelay = $('stealthMaxDelay');
+const stealthMaxPixelsPercentage = $('stealthMaxPixelsPercentage');
+// --- END: STEALTH MODE ELEMENTS ---
 
+// Logs Viewer
+const openLogsViewer = $('openLogsViewer');
+const logsViewer = $('logsViewer');
+const logsContainer = $('logsContainer');
+const showLogsBtn = $('showLogsBtn');
+const showErrorsBtn = $('showErrorsBtn');
+const clearLogsBtn = $('clearLogsBtn');
+const logsSearchInput = $('logsSearchInput');
+const logsExportBtn = $('logsExportBtn');
+const logsTypeFilter = $('logsTypeFilter');
 
 // --- Global State ---
 let templateUpdateInterval = null;
@@ -92,12 +96,20 @@ let confirmCallback = null;
 let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
 
+
+let logsWs = null;
+let logsMode = 'logs'; // 'logs' or 'errors'
+let allLogLines = [];
+let filterText = '';
+let filterType = '';
+
 const tabs = {
     main,
     manageUsers,
     addTemplate,
     manageTemplates,
-    settings
+    settings,
+    logsViewer,
 };
 
 const showMessage = (title, content) => {
@@ -136,23 +148,28 @@ messageBoxCancel.addEventListener('click', () => {
 
 const handleError = (error) => {
     console.error(error);
-    let message = "An unknown error occurred. Check the console for details.";
+    let message = 'An unknown error occurred. Check the console for details.';
 
     if (error.code === 'ERR_NETWORK') {
-        message = "Could not connect to the server. Please ensure the bot is running and accessible.";
+        message = 'Could not connect to the server. Please ensure the bot is running and accessible.';
     } else if (error.response && error.response.data && error.response.data.error) {
         const errMsg = error.response.data.error;
-        if (errMsg.includes("(1015)")) {
-            message = "You are being rate-limited by the server. Please wait a moment before trying again.";
-        } else if (errMsg.includes("(500)")) {
-            message = "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
-        } else if (errMsg.includes("(502)")) {
-            message = "The server reported a 'Bad Gateway' error. It might be temporarily down or restarting. Please try again in a few moments.";
+        if (errMsg.includes('(1015)')) {
+            message = 'You are being rate-limited by the server. Please wait a moment before trying again.';
+        } else if (errMsg.includes('(500)')) {
+            message =
+                "Authentication failed. The user's cookie may be expired or invalid. Please try adding the user again with a new cookie.";
+        } else if (errMsg.includes('(401)')) {
+            message =
+                'Authentication failed (401). This may be due to an invalid cookie or the IP/proxy being rate-limited. Please try again later or with a different proxy.';
+        } else if (errMsg.includes('(502)')) {
+            message =
+                "The server reported a 'Bad Gateway' error. It might be temporarily down or restarting. Please try again in a few moments.";
         } else {
             message = errMsg;
         }
     }
-    showMessage("Error", message);
+    showMessage('Error', message);
 };
 
 const changeTab = (tabName) => {
@@ -160,40 +177,282 @@ const changeTab = (tabName) => {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
     }
-    Object.values(tabs).forEach(tab => tab.style.display = 'none');
+    Object.values(tabs).forEach((tab) => (tab.style.display = 'none'));
     tabs[tabName].style.display = 'block';
     currentTab = tabName;
+    if (tabName === 'logsViewer') {
+        startLogsViewer();
+    } else {
+        stopLogsViewer();
+    }
 };
+
+
+function startLogsViewer() {
+    logsMode = 'logs';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Connecting to log stream...</span>';
+    connectLogsWs();
+}
+
+function stopLogsViewer() {
+    if (logsWs) {
+        logsWs.close();
+        logsWs = null;
+    }
+}
+
+function connectLogsWs() {
+    if (logsWs) logsWs.close();
+    logsContainer.innerHTML = '<span class="logs-placeholder">Connecting to log stream...</span>';
+    let url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws-logs?type=' + logsMode;
+    logsWs = new WebSocket(url);
+    logsContainer.innerHTML = '';
+    allLogLines = [];
+    logsWs.onopen = () => {
+        logsContainer.innerHTML = '<span class="logs-placeholder">Waiting for logs...</span>';
+    };
+    logsWs.onmessage = (event) => {
+        if (logsContainer.querySelector('.logs-placeholder')) logsContainer.innerHTML = '';
+        // If first message is JSON, treat as initial log dump
+        try {
+            const data = JSON.parse(event.data);
+            if (Array.isArray(data.initial)) {
+                allLogLines = data.initial;
+                renderFilteredLogs();
+                return;
+            }
+        } catch {}
+        allLogLines.push(event.data);
+        renderFilteredLogs();
+    };
+    logsWs.onerror = () => {
+        logsContainer.innerHTML = '<span class="logs-placeholder">WebSocket error. Try refreshing.</span>';
+    };
+    logsWs.onclose = () => {
+        logsContainer.innerHTML += '<span class="logs-placeholder">Log stream closed.</span>';
+    };
+}
+
+function getFilteredLogs() {
+    let filtered = allLogLines;
+    const currentFilterType = filterType;
+    const currentFilterText = filterText;
+
+    if (currentFilterType) {
+        filtered = filtered.filter(line => {
+            if (currentFilterType === 'error') return /error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line);
+            if (currentFilterType === 'warn') return /warn|deprecated|slow|timeout/i.test(line);
+            if (currentFilterType === 'success') return /success|started|running|ok|ready|listening|connected/i.test(line);
+            if (currentFilterType === 'info') return /info|log|notice|\bOK\b/i.test(line);
+            return true;
+        });
+    }
+    if (currentFilterText) {
+        const f = currentFilterText.toLowerCase();
+        filtered = filtered.filter(line => line.toLowerCase().includes(f));
+    }
+    return filtered;
+}
+
+function renderFilteredLogs() {
+    const filtered = getFilteredLogs();
+    logsContainer.innerHTML = filtered.map(renderLogLines).join('\n');
+    logsContainer.scrollTop = logsContainer.scrollHeight;
+}
+
+if (logsSearchInput) {
+    logsSearchInput.addEventListener('input', (e) => {
+        filterText = e.target.value;
+        renderFilteredLogs();
+    });
+}
+if (logsTypeFilter) {
+    logsTypeFilter.addEventListener('change', (e) => {
+        filterType = e.target.value;
+        renderFilteredLogs();
+    });
+}
+if (logsExportBtn) {
+    logsExportBtn.addEventListener('click', () => {
+        const filtered = getFilteredLogs();
+        // Redact user discriminator: (Name#12345678) => (Name#REDACTED)
+        const redacted = filtered.map(line => line.replace(/\(([^#()]+)#\d{5,}\)/g, '($1#REDACTED)'));
+        const blob = new Blob([redacted.join('\n')], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = logsMode + '-export.txt';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 200);
+    });
+}
+
+function renderLogLines(text) {
+    return text.split(/\r?\n/).filter(Boolean).map(line => {
+        let cls = 'log-line';
+        if (/error|fail|exception|critical|\bERR\b|\bSRV_ERR\b/i.test(line)) cls += ' error';
+        else if (/warn|deprecated|slow|timeout/i.test(line)) cls += ' warn';
+        else if (/success|started|running|ok|ready|listening|connected/i.test(line)) cls += ' success';
+        else if (/info|log|notice|\bOK\b/i.test(line)) cls += ' info';
+        return `<span class="${cls}">${escapeHtml(line)}</span>`;
+    }).join('\n');
+}
+
+function escapeHtml(str) {
+    return str.replace(/[&<>"']/g, function(tag) {
+        const charsToReplace = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#39;'
+        };
+        return charsToReplace[tag] || tag;
+    });
+}
+
+openLogsViewer.addEventListener('click', () => changeTab('logsViewer'));
+showLogsBtn.addEventListener('click', () => {
+    logsMode = 'logs';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Switching to logs...</span>';
+    connectLogsWs();
+});
+showErrorsBtn.addEventListener('click', () => {
+    logsMode = 'errors';
+    logsContainer.innerHTML = '<span class="logs-placeholder">Switching to errors...</span>';
+    connectLogsWs();
+});
+clearLogsBtn.addEventListener('click', () => {
+    logsContainer.innerHTML = '';
+});
+
+// --- Logs search/filter/export ---
+if (typeof logsSearchInput !== 'undefined' && logsSearchInput) {
+    logsSearchInput.addEventListener('input', (e) => {
+        filterText = e.target.value;
+        renderFilteredLogs();
+    });
+}
+
 
 // users
 const loadUsers = async (f) => {
     try {
-        const users = await axios.get("/users");
+        const users = await axios.get('/users');
         if (f) f(users.data);
     } catch (error) {
         handleError(error);
-    };
+    }
 };
 
 userForm.addEventListener('submit', async (e) => {
     e.preventDefault();
+    let jValue = jcookie.value.trim();
+
+    if (!jValue) {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text) {
+                jcookie.value = text;
+                jValue = text.trim();
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard contents: ', err);
+            showMessage('Clipboard Error', 'Could not read from clipboard. Please paste the cookie manually.');
+            return;
+        }
+    }
+
+    if (!jValue) {
+        showMessage('Error', 'JWT Cookie (j) is required.');
+        return;
+    }
+
     try {
-        const response = await axios.post('/user', { cookies: { s: scookie.value, j: jcookie.value } });
+        const response = await axios.post('/user', { cookies: { s: scookie.value, j: jValue } });
         if (response.status === 200) {
-            showMessage("Success", `Logged in as ${response.data.name} (#${response.data.id})!`);
+            showMessage('Success', `Logged in as ${response.data.name} (#${response.data.id})!`);
             userForm.reset();
             openManageUsers.click(); // Refresh the view
         }
     } catch (error) {
         handleError(error);
-    };
+    }
 });
 
-// templates
-const colors = { "0,0,0": 1, "60,60,60": 2, "120,120,120": 3, "210,210,210": 4, "255,255,255": 5, "96,0,24": 6, "237,28,36": 7, "255,127,39": 8, "246,170,9": 9, "249,221,59": 10, "255,250,188": 11, "14,185,104": 12, "19,230,123": 13, "135,255,94": 14, "12,129,110": 15, "16,174,166": 16, "19,225,190": 17, "40,80,158": 18, "64,147,228": 19, "96,247,242": 20, "107,80,246": 21, "153,177,251": 22, "120,12,153": 23, "170,56,185": 24, "224,159,249": 25, "203,0,122": 26, "236,31,128": 27, "243,141,169": 28, "104,70,52": 29, "149,104,42": 30, "248,178,119": 31, "170,170,170": 32, "165,14,30": 33, "250,128,114": 34, "228,92,26": 35, "214,181,148": 36, "156,132,49": 37, "197,173,49": 38, "232,212,95": 39, "74,107,58": 40, "90,148,74": 41, "132,197,115": 42, "15,121,159": 43, "187,250,242": 44, "125,199,255": 45, "77,49,184": 46, "74,66,132": 47, "122,113,196": 48, "181,174,241": 49, "219,164,99": 50, "209,128,81": 51, "255,197,165": 52, "155,82,73": 53, "209,128,120": 54, "250,182,164": 55, "123,99,82": 56, "156,132,107": 57, "51,57,65": 58, "109,117,141": 59, "179,185,209": 60, "109,100,63": 61, "148,140,107": 62, "205,197,158": 63 };
+const colors = {
+    '0,0,0': { id: 1, name: 'Black' },
+    '60,60,60': { id: 2, name: 'Dark Gray' },
+    '120,120,120': { id: 3, name: 'Gray' },
+    '210,210,210': { id: 4, name: 'Light Gray' },
+    '255,255,255': { id: 5, name: 'White' },
+    '96,0,24': { id: 6, name: 'Dark Red' },
+    '237,28,36': { id: 7, name: 'Red' },
+    '255,127,39': { id: 8, name: 'Orange' },
+    '246,170,9': { id: 9, name: 'Dark Orange' },
+    '249,221,59': { id: 10, name: 'Yellow' },
+    '255,250,188': { id: 11, name: 'Light Yellow' },
+    '14,185,104': { id: 12, name: 'Green' },
+    '19,230,123': { id: 13, name: 'Light Green' },
+    '135,255,94': { id: 14, name: 'Bright Green' },
+    '12,129,110': { id: 15, name: 'Teal' },
+    '16,174,166': { id: 16, name: 'Cyan' },
+    '19,225,190': { id: 17, name: 'Light Cyan' },
+    '40,80,158': { id: 18, name: 'Dark Blue' },
+    '64,147,228': { id: 19, name: 'Blue' },
+    '96,247,242': { id: 20, name: 'Light Blue' },
+    '107,80,246': { id: 21, name: 'Purple' },
+    '153,177,251': { id: 22, name: 'Light Purple' },
+    '120,12,153': { id: 23, name: 'Dark Purple' },
+    '170,56,185': { id: 24, name: 'Magenta' },
+    '224,159,249': { id: 25, name: 'Light Magenta' },
+    '203,0,122': { id: 26, name: 'Dark Pink' },
+    '236,31,128': { id: 27, name: 'Pink' },
+    '243,141,169': { id: 28, name: 'Light Pink' },
+    '104,70,52': { id: 29, name: 'Brown' },
+    '149,104,42': { id: 30, name: 'Dark Brown' },
+    '248,178,119': { id: 31, name: 'Tan' },
+    '170,170,170': { id: 32, name: 'Medium Gray' },
+    '165,14,30': { id: 33, name: 'Maroon' },
+    '250,128,114': { id: 34, name: 'Salmon' },
+    '228,92,26': { id: 35, name: 'Red Orange' },
+    '214,181,148': { id: 36, name: 'Beige' },
+    '156,132,49': { id: 37, name: 'Olive' },
+    '197,173,49': { id: 38, name: 'Yellow Green' },
+    '232,212,95': { id: 39, name: 'Pale Yellow' },
+    '74,107,58': { id: 40, name: 'Forest Green' },
+    '90,148,74': { id: 41, name: 'Moss Green' },
+    '132,197,115': { id: 42, name: 'Mint Green' },
+    '15,121,159': { id: 43, name: 'Steel Blue' },
+    '187,250,242': { id: 44, name: 'Aqua' },
+    '125,199,255': { id: 45, name: 'Sky Blue' },
+    '77,49,184': { id: 46, name: 'Indigo' },
+    '74,66,132': { id: 47, name: 'Navy Blue' },
+    '122,113,196': { id: 48, name: 'Slate Blue' },
+    '181,174,241': { id: 49, name: 'Periwinkle' },
+    '219,164,99': { id: 50, name: 'Peach' },
+    '209,128,81': { id: 51, name: 'Bronze' },
+    '255,197,165': { id: 52, name: 'Light Peach' },
+    '155,82,73': { id: 53, name: 'Rust' },
+    '209,128,120': { id: 54, name: 'Rose' },
+    '250,182,164': { id: 55, name: 'Blush' },
+    '123,99,82': { id: 56, name: 'Coffee' },
+    '156,132,107': { id: 57, name: 'Taupe' },
+    '51,57,65': { id: 58, name: 'Charcoal' },
+    '109,117,141': { id: 59, name: 'Slate' },
+    '179,185,209': { id: 60, name: 'Lavender' },
+    '109,100,63': { id: 61, name: 'Khaki' },
+    '148,140,107': { id: 62, name: 'Sand' },
+    '205,197,158': { id: 63, name: 'Cream' },
+};
 
-const colorById = (id) => Object.keys(colors).find(key => colors[key] === id);
-const closest = color => {
+const colorById = (id) => Object.keys(colors).find((key) => colors[key].id === id);
+const closest = (color) => {
     const [tr, tg, tb] = color.split(',').map(Number);
     return Object.keys(colors).reduce((closestKey, currentKey) => {
         const [cr, cg, cb] = currentKey.split(',').map(Number);
@@ -207,48 +466,68 @@ const closest = color => {
 const drawTemplate = (template, canvas) => {
     canvas.width = template.width;
     canvas.height = template.height;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, template.width, template.height);
+
     const imageData = new ImageData(template.width, template.height);
+
     for (let x = 0; x < template.width; x++) {
         for (let y = 0; y < template.height; y++) {
             const color = template.data[x][y];
             if (color === 0) continue;
+
             const i = (y * template.width + x) * 4;
+
             if (color === -1) {
+                // keep your sentinel behavior
                 imageData.data[i] = 158;
                 imageData.data[i + 1] = 189;
                 imageData.data[i + 2] = 255;
                 imageData.data[i + 3] = 255;
                 continue;
-            };
-            const [r, g, b] = colorById(color).split(',').map(Number);
+            }
+
+            const key = Object.keys(colors).find((k) => colors[k].id === color);
+            if (!key) {
+                // Unknown color id. Skip to avoid `.split` crash.
+                // Optional: console.warn('Unknown color id:', color);
+                continue;
+            }
+
+            const [r, g, b] = key.split(',').map(Number);
             imageData.data[i] = r;
             imageData.data[i + 1] = g;
             imageData.data[i + 2] = b;
             imageData.data[i + 3] = 255;
-        };
-    };
+        }
+    }
+
     ctx.putImageData(imageData, 0, 0);
 };
 
 const loadTemplates = async (f) => {
     try {
-        const templates = await axios.get("/templates");
+        const templates = await axios.get('/templates');
         if (f) f(templates.data);
     } catch (error) {
         handleError(error);
-    };
+    }
 };
 
-const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
+// --- START: REFACTORED fetchCanvas ---
+const fetchCanvas = async (coords, templateCanvas, targetCanvas) => {
+    const [txVal, tyVal, pxVal, pyVal] = coords;
+    const { width, height } = templateCanvas;
+
     const TILE_SIZE = 1000;
-    const radius = Math.max(0, parseInt(previewBorder.value, 10) || 0);
+    // Lấy giá trị border từ input chung, nếu không có thì mặc định là 0
+    const radiusInput = document.getElementById('previewBorder');
+    const radius = Math.max(0, parseInt(radiusInput.value, 10) || 0);
 
     const startX = txVal * TILE_SIZE + pxVal - radius;
     const startY = tyVal * TILE_SIZE + pyVal - radius;
-    const displayWidth = width + (radius * 2);
-    const displayHeight = height + (radius * 2);
+    const displayWidth = width + radius * 2;
+    const displayHeight = height + radius * 2;
     const endX = startX + displayWidth;
     const endY = startY + displayHeight;
 
@@ -257,9 +536,9 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
     const endTileX = Math.floor((endX - 1) / TILE_SIZE);
     const endTileY = Math.floor((endY - 1) / TILE_SIZE);
 
-    previewCanvas.width = displayWidth;
-    previewCanvas.height = displayHeight;
-    const ctx = previewCanvas.getContext('2d');
+    targetCanvas.width = displayWidth;
+    targetCanvas.height = displayHeight;
+    const ctx = targetCanvas.getContext('2d');
     ctx.clearRect(0, 0, displayWidth, displayHeight);
 
     for (let txi = startTileX; txi <= endTileX; txi++) {
@@ -269,67 +548,63 @@ const fetchCanvas = async (txVal, tyVal, pxVal, pyVal, width, height) => {
                 const img = new Image();
                 img.src = response.data.image;
                 await img.decode();
-                const sx = (txi === startTileX) ? startX - txi * TILE_SIZE : 0;
-                const sy = (tyi === startTileY) ? startY - tyi * TILE_SIZE : 0;
-                const ex = (txi === endTileX) ? endX - txi * TILE_SIZE : TILE_SIZE;
-                const ey = (tyi === endTileY) ? endY - tyi * TILE_SIZE : TILE_SIZE;
+                const sx = txi === startTileX ? startX - txi * TILE_SIZE : 0;
+                const sy = tyi === startTileY ? startY - tyi * TILE_SIZE : 0;
+                const ex = txi === endTileX ? endX - txi * TILE_SIZE : TILE_SIZE;
+                const ey = tyi === endTileY ? endY - tyi * TILE_SIZE : TILE_SIZE;
                 const sw = ex - sx;
                 const sh = ey - sy;
                 const dx = txi * TILE_SIZE + sx - startX;
                 const dy = tyi * TILE_SIZE + sy - startY;
                 ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
             } catch (error) {
-                handleError(error);
-                return;
+                // Đừng hiển thị lỗi pop-up cho mỗi tile, chỉ log ra console
+                console.error(`Failed to fetch tile ${txi}, ${tyi}:`, error);
+                // Vẽ một ô màu đỏ để báo lỗi
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+                const dx = txi * TILE_SIZE - startX;
+                const dy = tyi * TILE_SIZE - startY;
+                ctx.fillRect(dx, dy, TILE_SIZE, TILE_SIZE);
             }
         }
     }
 
-    const baseImage = ctx.getImageData(0, 0, displayWidth, displayHeight);
-    const templateCtx = templateCanvas.getContext('2d');
-    const templateImage = templateCtx.getImageData(0, 0, width, height);
-    ctx.globalAlpha = 0.5;
+    // Chồng template lên
+    ctx.globalAlpha = 0.2; // Tăng độ mờ một chút để dễ nhìn
     ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
-    const b = baseImage.data;
-    const t = templateImage.data;
-    for (let i = 0; i < t.length; i += 4) {
-        if (t[i + 3] === 0) continue;
 
-        const templateIdx = i / 4;
-        const templateX = templateIdx % width;
-        const templateY = Math.floor(templateIdx / width);
-        const canvasX = templateX + radius;
-        const canvasY = templateY + radius;
-        const canvasIdx = (canvasY * displayWidth + canvasX) * 4;
-
-        if (b[canvasIdx + 3] === 0) continue;
-
-        ctx.fillStyle = 'rgba(255,0,0,0.8)';
-        ctx.fillRect(canvasX, canvasY, 1, 1);
-    }
-    previewCanvas.style.display = 'block';
+    // Hiển thị canvas mục tiêu
+    targetCanvas.parentElement.style.display = 'block';
 };
+// --- END: REFACTORED fetchCanvas ---
+
 
 const nearestimgdecoder = (imageData, width, height) => {
     const d = imageData.data;
     const matrix = Array.from({ length: width }, () => Array(height).fill(0));
+    const uniqueColors = new Set();
     let ink = 0;
-    let hasPremium = false;
 
     for (let y = 0; y < height; y++) {
         for (let x = 0; x < width; x++) {
             const i = (y * width + x) * 4;
             const a = d[i + 3];
             if (a === 255) {
-                const r = d[i], g = d[i + 1], b = d[i + 2];
+                const r = d[i],
+                    g = d[i + 1],
+                    b = d[i + 2];
                 const rgb = `${r},${g},${b}`;
-                if (rgb == "158,189,255") {
+                if (rgb == '158,189,255') {
                     matrix[x][y] = -1;
                 } else {
-                    const id = colors[rgb] || colors[closest(rgb)];
-                    matrix[x][y] = id;
-                    if (id >= 32) hasPremium = true;
+                    const colorObj = colors[rgb] || colors[closest(rgb)];
+                    if (colorObj) {
+                        matrix[x][y] = colorObj.id;
+                        uniqueColors.add(colorObj.id);
+                    } else {
+                        matrix[x][y] = 0; // fallback if not found
+                    }
                 }
                 ink++;
             } else {
@@ -337,31 +612,33 @@ const nearestimgdecoder = (imageData, width, height) => {
             }
         }
     }
-    return { matrix, ink, hasPremium };
+    return { matrix, ink, uniqueColors };
 };
 
 const processImageFile = (file, callback) => {
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = e => {
+    reader.onload = (e) => {
         const image = new Image();
         image.src = e.target.result;
         image.onload = async () => {
-            const canvas = document.createElement("canvas");
+            const canvas = document.createElement('canvas');
             canvas.width = image.width;
             canvas.height = image.height;
-            const ctx = canvas.getContext("2d");
+            const ctx = canvas.getContext('2d');
             ctx.drawImage(image, 0, 0);
 
             const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-            const { matrix, ink, hasPremium } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+            const { matrix, ink , uniqueColors } = nearestimgdecoder(imageData, canvas.width, canvas.height);
+
+            const filteredColors = Array.from(uniqueColors).filter(id => id !== 0 && id !== -1);
 
             const template = {
                 width: canvas.width,
                 height: canvas.height,
                 ink,
                 data: matrix,
-                hasPremium
+                uniqueColors: filteredColors
             };
 
             canvas.remove();
@@ -374,27 +651,38 @@ const processImageFile = (file, callback) => {
 const processEvent = () => {
     const file = convertInput.files[0];
     if (file) {
-        templateName.value = file.name.replace(/\.[^/.]+$/, "");
+        templateName.value = file.name.replace(/\.[^/.]+$/, '');
         processImageFile(file, (template) => {
             currentTemplate = template;
             drawTemplate(template, templateCanvas);
             size.innerHTML = `${template.width}x${template.height}px`;
             ink.innerHTML = template.ink;
-            if (template.hasPremium) {
-                premiumWarning.innerHTML = "<b>Warning:</b> This template uses premium colors. Ensure your selected accounts have purchased them.";
-                premiumWarning.style.display = "block";
-            } else {
-                premiumWarning.style.display = "none";
-            }
             templateCanvas.style.display = 'block';
             previewCanvas.style.display = 'none';
-            details.style.display = "block";
+            details.style.display = 'block';
+
+            // Update the color grid to show only colors in this image
+            if (template.uniqueColors && template.uniqueColors.length > 0) {
+                // Clear current available colors and set to image colors
+                availableColors.clear();
+                template.uniqueColors.forEach(colorId => availableColors.add(colorId));
+                
+                // Update the color grid with image-specific colors
+                updateColorGridForImage(template.uniqueColors);
+                
+            } else {
+                // Fallback to all colors if no unique colors found
+                console.warn('No unique colors found in image, showing all colors');
+                availableColors = new Set(Object.values(colors).map(c => c.id));
+                resetOrder();
+            }
         });
-    };
+    }
 };
 
 convertInput.addEventListener('change', processEvent);
 
+// --- START: UPDATED OLD PREVIEW BUTTON LOGIC ---
 previewCanvasButton.addEventListener('click', async () => {
     const txVal = parseInt(tx.value, 10);
     const tyVal = parseInt(ty.value, 10);
@@ -404,29 +692,42 @@ previewCanvasButton.addEventListener('click', async () => {
         showMessage("Error", "Please convert an image and enter valid coordinates before previewing.");
         return;
     }
-    await fetchCanvas(txVal, tyVal, pxVal, pyVal, currentTemplate.width, currentTemplate.height);
+    
+    // Giờ chúng ta gọi hàm đã refactor với các canvas tương ứng
+    const coords = [txVal, tyVal, pxVal, pyVal];
+    try {
+        previewCanvasButton.disabled = true;
+        previewCanvasButton.innerHTML = "Loading...";
+        await fetchCanvas(coords, templateCanvas, previewCanvas);
+    } catch (error) {
+        handleError(error);
+    } finally {
+        previewCanvasButton.disabled = false;
+        previewCanvasButton.innerHTML = "Preview Canvas";
+    }
 });
+// --- END: UPDATED OLD PREVIEW BUTTON LOGIC ---
 
 function pastePinCoordinates(text) {
     const patterns = [
         /Tl X:\s*(\d+),\s*Tl Y:\s*(\d+),\s*Px X:\s*(\d+),\s*Px Y:\s*(\d+)/,
-        /^\s*(\d+)[\s,;]+(\d+)[\s,;]+(\d+)[\s,;]+(\d+)\s*$/
+        /^\s*(\d+)[\s,;]+(\d+)[\s,;]+(\d+)[\s,;]+(\d+)\s*$/,
     ];
     for (const p of patterns) {
-        match = p.exec(text);
+        const match = p.exec(text);
         if (match) {
-            $("tx").value = match[1];
-            $("ty").value = match[2];
-            $("px").value = match[3];
-            $("py").value = match[4];
+            $('tx').value = match[1];
+            $('ty').value = match[2];
+            $('px').value = match[3];
+            $('py').value = match[4];
             return true;
         }
     }
     return false;
 }
 
-document.addEventListener("paste", (e) => {
-    const text = e.clipboardData?.getData("text");
+document.addEventListener('paste', (e) => {
+    const text = e.clipboardData?.getData('text');
     if (text && pastePinCoordinates(text)) {
         e.preventDefault();
     }
@@ -446,30 +747,32 @@ canBuyCharges.addEventListener('change', () => {
 
 const resetTemplateForm = () => {
     templateForm.reset();
-    templateFormTitle.textContent = "Add Template";
+    templateFormTitle.textContent = 'Add Template';
     submitTemplate.innerHTML = '<img src="icons/addTemplate.svg">Add Template';
     delete templateForm.dataset.editId;
-    details.style.display = "none";
-    premiumWarning.style.display = "none";
+    details.style.display = 'none';
     previewCanvas.style.display = 'none';
     currentTemplate = { width: 0, height: 0, data: [] };
+
+    currentTemplateId = null;
+    availableColors.clear();
+    initializeGrid(null);
 };
 
 templateForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-
     const isEditMode = !!templateForm.dataset.editId;
-
     if (!isEditMode && (!currentTemplate || currentTemplate.width === 0)) {
-        showMessage("Error", "Please convert an image before creating a template.");
+        showMessage('Error', 'Please convert an image before creating a template.');
         return;
     }
-    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(cb => cb.value);
+    const selectedUsers = Array.from(document.querySelectorAll('input[name="user_checkbox"]:checked')).map(
+        (cb) => cb.value
+    );
     if (selectedUsers.length === 0) {
-        showMessage("Error", "Please select at least one user.");
+        showMessage('Error', 'Please select at least one user.');
         return;
     }
-
     const data = {
         templateName: templateName.value,
         coords: [tx.value, ty.value, px.value, py.value].map(Number),
@@ -480,26 +783,34 @@ templateForm.addEventListener('submit', async (e) => {
         eraseMode: eraseMode.checked,
         outlineMode: templateOutlineMode.checked,
         skipPaintedPixels: templateSkipPaintedPixels.checked,
-        enableAutostart: enableAutostart.checked
+        enableAutostart: enableAutostart.checked,
     };
-
     if (currentTemplate && currentTemplate.width > 0) {
         data.template = currentTemplate;
     }
-
     try {
+        let templateId;
+        let colorOrderSaved = false;
+        
         if (isEditMode) {
-            await axios.put(`/template/edit/${templateForm.dataset.editId}`, data);
-            showMessage("Success", "Template updated!");
+            templateId = templateForm.dataset.editId;
+            await axios.put(`/template/edit/${templateId}`, data);
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
+            showMessage('Success', 'Template updated!');
         } else {
-            await axios.post('/template', data);
-            showMessage("Success", "Template created!");
+            const response = await axios.post('/template', data);
+            templateId = response.data.id;
+            // Save the color ordering for this template
+            colorOrderSaved = await saveColorOrder(templateId);
+            showMessage('Success', 'Template created!');
         }
+        
         resetTemplateForm();
         openManageTemplates.click();
     } catch (error) {
         handleError(error);
-    };
+    }
 });
 
 startAll.addEventListener('click', async () => {
@@ -508,9 +819,9 @@ startAll.addEventListener('click', async () => {
             await axios.put(`/template/${child.id}`, { running: true });
         } catch (error) {
             handleError(error);
-        };
-    };
-    showMessage("Success", "Finished! Check console for details.");
+        }
+    }
+    showMessage('Success', 'Finished! Check console for details.');
     openManageTemplates.click();
 });
 
@@ -520,20 +831,20 @@ stopAll.addEventListener('click', async () => {
             await axios.put(`/template/${child.id}`, { running: false });
         } catch (error) {
             handleError(error);
-        };
-    };
-    showMessage("Success", "Finished! Check console for details.");
+        }
+    }
+    showMessage('Success', 'Finished! Check console for details.');
     openManageTemplates.click();
 });
 
-openManageUsers.addEventListener("click", () => {
-    userList.innerHTML = "";
+openManageUsers.addEventListener('click', () => {
+    userList.innerHTML = '';
     userForm.reset();
-    totalCharges.textContent = "?";
-    totalMaxCharges.textContent = "?";
-    totalDroplets.textContent = "?";
-    totalPPH.textContent = "?";
-    loadUsers(users => {
+    totalCharges.textContent = '?';
+    totalMaxCharges.textContent = '?';
+    totalDroplets.textContent = '?';
+    totalPPH.textContent = '?';
+    loadUsers((users) => {
         const userCount = Object.keys(users).length;
         manageUsersTitle.textContent = `Existing Users (${userCount})`;
         for (const id of Object.keys(users)) {
@@ -555,22 +866,22 @@ openManageUsers.addEventListener("click", () => {
                     <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
                 </div>`;
 
-            user.querySelector('.delete-btn').addEventListener("click", () => {
+            user.querySelector('.delete-btn').addEventListener('click', () => {
                 showConfirmation(
-                    "Delete User",
+                    'Delete User',
                     `Are you sure you want to delete ${users[id].name} (#${id})? This will also remove them from all templates.`,
                     async () => {
                         try {
                             await axios.delete(`/user/${id}`);
-                            showMessage("Success", "User deleted.");
+                            showMessage('Success', 'User deleted.');
                             openManageUsers.click();
                         } catch (error) {
                             handleError(error);
-                        };
+                        }
                     }
                 );
             });
-            user.querySelector('.info-btn').addEventListener("click", async () => {
+            user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
                     const info = `
@@ -578,7 +889,7 @@ openManageUsers.addEventListener("click", () => {
                     <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
                     <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
                     <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? "Yes" : "No"}</span><br>
+                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? 'Yes' : 'No'}</span><br>
                     <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
                     <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
                     <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
@@ -588,27 +899,27 @@ openManageUsers.addEventListener("click", () => {
                     <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
                     `;
 
-                    showConfirmation("User Info", info, () => {
+                    showConfirmation('User Info', info, () => {
                         navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
                     });
                 } catch (error) {
                     handleError(error);
-                };
+                }
             });
             userList.appendChild(user);
-        };
+        }
     });
     changeTab('manageUsers');
 });
 
-checkUserStatus.addEventListener("click", async () => {
+checkUserStatus.addEventListener('click', async () => {
     checkUserStatus.disabled = true;
-    checkUserStatus.innerHTML = "Checking...";
+    checkUserStatus.innerHTML = 'Checking...';
     const userElements = Array.from(document.querySelectorAll('.user'));
 
-    userElements.forEach(userEl => {
+    userElements.forEach((userEl) => {
         const infoSpans = userEl.querySelectorAll('.user-info > span');
-        infoSpans.forEach(span => span.style.color = 'var(--warning-color)');
+        infoSpans.forEach((span) => (span.style.color = 'var(--warning-color)'));
     });
 
     let totalCurrent = 0;
@@ -648,21 +959,21 @@ checkUserStatus.addEventListener("click", async () => {
                 totalDropletsCount += userInfo.droplets;
                 successfulAccounts++;
 
-                infoSpans.forEach(span => span.style.color = 'var(--success-color)');
+                infoSpans.forEach((span) => (span.style.color = 'var(--success-color)'));
             } else {
-                currentChargesEl.textContent = "ERR";
-                maxChargesEl.textContent = "ERR";
-                currentLevelEl.textContent = "?";
-                dropletsEl.textContent = "ERR";
-                levelProgressEl.textContent = "(?%)";
-                infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+                currentChargesEl.textContent = 'ERR';
+                maxChargesEl.textContent = 'ERR';
+                currentLevelEl.textContent = '?';
+                dropletsEl.textContent = 'ERR';
+                levelProgressEl.textContent = '(?%)';
+                infoSpans.forEach((span) => (span.style.color = 'var(--error-color)'));
             }
         }
     } catch (error) {
         handleError(error);
-        userElements.forEach(userEl => {
+        userElements.forEach((userEl) => {
             const infoSpans = userEl.querySelectorAll('.user-info > span');
-            infoSpans.forEach(span => span.style.color = 'var(--error-color)');
+            infoSpans.forEach((span) => (span.style.color = 'var(--error-color)'));
         });
     }
 
@@ -676,12 +987,12 @@ checkUserStatus.addEventListener("click", async () => {
     checkUserStatus.innerHTML = '<img src="icons/check.svg">Check Account Status';
 });
 
-openAddTemplate.addEventListener("click", () => {
+openAddTemplate.addEventListener('click', () => {
     resetTemplateForm();
-    userSelectList.innerHTML = "";
-    loadUsers(users => {
+    userSelectList.innerHTML = '';
+    loadUsers((users) => {
         if (Object.keys(users).length === 0) {
-            userSelectList.innerHTML = "<span>No users added. Please add a user first.</span>";
+            userSelectList.innerHTML = '<span>No users added. Please add a user first.</span>';
             return;
         }
         for (const id of Object.keys(users)) {
@@ -700,31 +1011,40 @@ openAddTemplate.addEventListener("click", () => {
             userSelectList.appendChild(userDiv);
         }
     });
+
     changeTab('addTemplate');
 });
 
 selectAllUsers.addEventListener('click', () => {
-    document.querySelectorAll('#userSelectList input[type="checkbox"]').forEach(cb => cb.checked = true);
+    const checkboxes = document.querySelectorAll('#userSelectList input[type="checkbox"]');
+    if (checkboxes.length === 0) return;
+
+    const allSelected = Array.from(checkboxes).every(cb => cb.checked);
+    const targetState = !allSelected;
+    checkboxes.forEach(cb => cb.checked = targetState);
 });
 
 const createToggleButton = (template, id, buttonsContainer, progressBarText, currentPercent) => {
     const button = document.createElement('button');
-    const isRunning = template.running;
+    button.className = template.running ? 'destructive-button' : 'primary-button';
+    button.innerHTML = `<img src="icons/${template.running ? 'pause' : 'play'}.svg">${template.running ? 'Stop' : 'Start'}`;
 
-    button.className = isRunning ? 'destructive-button' : 'primary-button';
-    button.innerHTML = `<img src="icons/${isRunning ? 'pause' : 'play'}.svg">${isRunning ? 'Stop' : 'Start'} Template`;
-
-    button.addEventListener('click', async () => {
+    button.addEventListener('click', async (event) => {
+        event.preventDefault();
+        const shouldBeRunning = !template.running;
         try {
-            await axios.put(`/template/${id}`, { running: !isRunning });
-            template.running = !isRunning;
-            const newStatus = !isRunning ? 'Started' : 'Stopped';
-            const newButton = createToggleButton(template, id, buttonsContainer, progressBarText, currentPercent);
-            button.replaceWith(newButton);
+            await axios.put(`/template/${id}`, { running: shouldBeRunning });
+            template.running = shouldBeRunning;
+
+            // Update button appearance
+            button.className = template.running ? 'destructive-button' : 'primary-button';
+            button.innerHTML = `<img src="icons/${template.running ? 'pause' : 'play'}.svg">${template.running ? 'Stop' : 'Start'}`;
+
+            // Update progress bar
+            const newStatus = template.running ? 'Started' : 'Stopped';
             progressBarText.textContent = `${currentPercent}% | ${newStatus}`;
             const progressBar = progressBarText.previousElementSibling;
-            progressBar.classList.toggle('stopped', !isRunning);
-
+            progressBar.classList.toggle('stopped', !template.running);
         } catch (error) {
             handleError(error);
         }
@@ -734,7 +1054,7 @@ const createToggleButton = (template, id, buttonsContainer, progressBarText, cur
 
 const updateTemplateStatus = async () => {
     try {
-        const { data: templates } = await axios.get("/templates");
+        const { data: templates } = await axios.get('/templates');
         for (const id in templates) {
             const t = templates[id];
             const templateElement = $(id);
@@ -747,13 +1067,13 @@ const updateTemplateStatus = async () => {
 
             const progressBar = templateElement.querySelector('.progress-bar');
             const progressBarText = templateElement.querySelector('.progress-bar-text');
-            const pixelCount = templateElement.querySelector('.pixel-count');
+            const pixelCountSpan = templateElement.querySelector('.pixel-count');
 
             if (progressBar) progressBar.style.width = `${percent}%`;
             if (progressBarText) progressBarText.textContent = `${percent}% | ${t.status}`;
-            if (pixelCount) pixelCount.textContent = `${completed} / ${total}`;
+            if (pixelCountSpan) pixelCountSpan.textContent = `${completed} / ${total}`;
 
-            if (t.status === "Finished.") {
+            if (t.status === 'Finished.') {
                 progressBar.classList.add('finished');
                 progressBar.classList.remove('stopped');
             } else if (!t.running) {
@@ -764,154 +1084,231 @@ const updateTemplateStatus = async () => {
             }
         }
     } catch (error) {
-        console.error("Failed to update template statuses:", error);
+        console.error('Failed to update template statuses:', error);
     }
 };
 
-openManageTemplates.addEventListener("click", () => {
-    templateList.innerHTML = "";
-    if (templateUpdateInterval) clearInterval(templateUpdateInterval);
+// --- START: UPDATED createTemplateCard (v2) ---
+const createTemplateCard = (t, id) => {
+    const total = t.totalPixels || 1;
+    const remaining = t.pixelsRemaining != null ? t.pixelsRemaining : total;
+    const completed = total - remaining;
+    const percent = Math.floor((completed / total) * 100);
 
-    loadUsers(users => {
-        loadTemplates(templates => {
-            for (const id of Object.keys(templates)) {
-                const t = templates[id];
-                const userListFormatted = t.userIds.map(userId => {
-                    const user = users[userId];
-                    return user ? `${user.name}#${userId}` : `Unknown#${userId}`;
-                }).join(", ");
+    const card = document.createElement('div');
+    card.id = id;
+    card.className = 'template';
 
-                const template = document.createElement('div');
-                template.id = id;
-                template.className = "template";
+    const info = document.createElement('div');
+    info.className = 'template-info';
+    info.innerHTML = `
+        <span><b>Name:</b> <span class="template-data">${t.name}</span></span>
+        <span><b>Pixels:</b> <span class="template-data pixel-count">${completed} / ${total}</span></span>
+    `;
+    card.appendChild(info);
 
-                const total = t.totalPixels || 1;
-                const remaining = t.pixelsRemaining !== null ? t.pixelsRemaining : total;
-                const completed = total - remaining;
-                const percent = Math.floor((completed / total) * 100);
+    const pc = document.createElement('div');
+    pc.className = 'progress-bar-container';
+    const pb = document.createElement('div');
+    pb.className = 'progress-bar';
+    pb.style.width = `${percent}%`;
+    const pbt = document.createElement('span');
+    pbt.className = 'progress-bar-text';
+    pbt.textContent = `${percent}% | ${t.status}`;
+    if (t.status === 'Finished.') pb.classList.add('finished');
+    else if (!t.running) pb.classList.add('stopped');
+    pc.append(pb, pbt);
+    card.appendChild(pc);
 
-                const infoSpan = document.createElement('span');
-                infoSpan.innerHTML = `<b>Template Name:</b> ${t.name}<br><b>Assigned Accounts:</b> ${userListFormatted}<br><b>Coordinates:</b> ${t.coords.join(", ")}<br><b>Pixels:</b> <span class="pixel-count">${completed} / ${total}</span>`;
-                template.appendChild(infoSpan);
+    const actions = document.createElement('div');
+    actions.className = 'template-actions';
+    
+    const toggleButton = createToggleButton(t, id, actions, pbt, percent);
+    actions.appendChild(toggleButton);
 
-                const progressBarContainer = document.createElement('div');
-                progressBarContainer.className = 'progress-bar-container';
+    const previewBtn = document.createElement('button');
+    previewBtn.className = 'secondary-button';
+    // THAY ĐỔI 1: Sửa văn bản ban đầu
+    previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview'; 
+    actions.appendChild(previewBtn);
 
-                const progressBar = document.createElement('div');
-                progressBar.className = 'progress-bar';
-                progressBar.style.width = `${percent}%`;
+    const shareBtn = document.createElement('button');
+    shareBtn.className = 'secondary-button';
+    shareBtn.innerHTML = '<img src="icons/open.svg">Share';
+    actions.appendChild(shareBtn);
 
-                const progressBarText = document.createElement('span');
-                progressBarText.className = 'progress-bar-text';
-                progressBarText.textContent = `${percent}% | ${t.status}`;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'secondary-button';
+    editBtn.innerHTML = '<img src="icons/settings.svg">Edit';
+    actions.appendChild(editBtn);
 
-                if (t.status === "Finished.") {
-                    progressBar.classList.add('finished');
-                } else if (!t.running) {
-                    progressBar.classList.add('stopped');
-                }
+    const delBtn = document.createElement('button');
+    delBtn.className = 'destructive-button';
+    delBtn.innerHTML = '<img src="icons/remove.svg">Delete';
+    actions.appendChild(delBtn);
 
-                progressBarContainer.appendChild(progressBar);
-                progressBarContainer.appendChild(progressBarText);
-                template.appendChild(progressBarContainer);
+    card.appendChild(actions);
 
-                const canvas = document.createElement("canvas");
-                drawTemplate(t.template, canvas);
-                const buttons = document.createElement('div');
-                buttons.className = "template-actions";
+    const staticCanvasContainer = document.createElement('div');
+    staticCanvasContainer.className = 'template-canvas-container';
+    const staticCanvas = document.createElement('canvas');
+    staticCanvasContainer.appendChild(staticCanvas);
+    card.appendChild(staticCanvasContainer);
+    drawTemplate(t.template, staticCanvas);
 
-                const toggleButton = createToggleButton(t, id, buttons, progressBarText, percent);
-                buttons.appendChild(toggleButton);
+    const previewContainer = document.createElement('div');
+    previewContainer.className = 'template-preview-container';
+    const realtimeCanvas = document.createElement('canvas');
+    previewContainer.appendChild(realtimeCanvas);
+    card.appendChild(previewContainer);
 
-                const editButton = document.createElement('button');
-                editButton.className = 'secondary-button';
-                editButton.innerHTML = '<img src="icons/settings.svg">Edit Template';
-                editButton.addEventListener('click', () => {
-                    openAddTemplate.click();
+    previewBtn.addEventListener('click', async () => {
+        const isVisible = previewContainer.style.display === 'block';
+        if (isVisible) {
+            previewContainer.style.display = 'none';
+            // THAY ĐỔI 2: Sửa văn bản khi đóng
+            previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview'; 
+        } else {
+            try {
+                previewBtn.disabled = true;
+                previewBtn.innerHTML = 'Loading Preview...';
+                await fetchCanvas(t.coords, staticCanvas, realtimeCanvas);
+                previewBtn.innerHTML = '<img src="icons/close.svg" alt="Close Icon">Close Preview';
+            } catch (error) {
+                handleError(error);
+                // THAY ĐỔI 3: Sửa văn bản khi có lỗi
+                previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview';
+                previewContainer.style.display = 'none';
+            } finally {
+                previewBtn.disabled = false;
+            }
+        }
+    });
 
-                    templateFormTitle.textContent = `Edit Template: ${t.name}`;
-                    submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
-                    templateForm.dataset.editId = id;
+    shareBtn.addEventListener('click', async () => {
+        if (!t.shareCode) {
+            showMessage('Error', 'No share code available for this template.');
+            return;
+        }
+        await navigator.clipboard.writeText(t.shareCode);
+        showMessage('Copied!', 'Share code copied to clipboard.');
+    });
 
-                    templateName.value = t.name;
-                    [tx.value, ty.value, px.value, py.value] = t.coords;
-                    canBuyCharges.checked = t.canBuyCharges;
-                    canBuyMaxCharges.checked = t.canBuyMaxCharges;
-                    antiGriefMode.checked = t.antiGriefMode;
-                    eraseMode.checked = t.eraseMode;
-                    templateOutlineMode.checked = t.outlineMode;
-                    templateSkipPaintedPixels.checked = t.skipPaintedPixels;
-                    enableAutostart.checked = t.enableAutostart;
+    editBtn.addEventListener('click', () => {
+        openAddTemplate.click();
+        templateFormTitle.textContent = `Edit Template: ${t.name}`;
+        submitTemplate.innerHTML = '<img src="icons/edit.svg">Save Changes';
+        templateForm.dataset.editId = id;
+        templateName.value = t.name;
+        [tx.value, ty.value, px.value, py.value] = t.coords;
+        canBuyCharges.checked = t.canBuyCharges;
+        canBuyMaxCharges.checked = t.canBuyMaxCharges;
+        antiGriefMode.checked = t.antiGriefMode;
+        eraseMode.checked = t.eraseMode;
+        templateOutlineMode.checked = t.outlineMode;
+        templateSkipPaintedPixels.checked = t.skipPaintedPixels;
+        enableAutostart.checked = t.enableAutostart;
+        setTimeout(() => {
+            document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
+                cb.checked = t.userIds.includes(cb.value);
+            });
+            initializeGrid(id);
+        }, 100);
+    });
 
-                    setTimeout(() => {
-                        document.querySelectorAll('input[name="user_checkbox"]').forEach(cb => {
-                            cb.checked = t.userIds.includes(cb.value);
-                        });
-                    }, 100);
-                });
-
-                const delButton = document.createElement('button');
-                delButton.className = 'destructive-button';
-                delButton.innerHTML = '<img src="icons/remove.svg">Delete Template';
-                delButton.addEventListener("click", () => {
-                    showConfirmation(
-                        "Delete Template",
-                        `Are you sure you want to delete template "${t.name}"?`,
-                        async () => {
-                            try {
-                                await axios.delete(`/template/${id}`);
-                                openManageTemplates.click();
-                            } catch (error) {
-                                handleError(error);
-                            };
-                        }
-                    );
-                });
-                buttons.append(editButton);
-                buttons.append(delButton);
-                template.append(canvas);
-                template.append(buttons);
-                templateList.append(template);
-            };
-            templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
+    delBtn.addEventListener('click', () => {
+        showConfirmation('Delete Template', `Are you sure you want to delete "${t.name}"?`, async () => {
+            try {
+                await axios.delete(`/template/${id}`);
+                openManageTemplates.click();
+            } catch (e) {
+                handleError(e);
+            }
         });
     });
+
+    return card;
+};
+// --- END: UPDATED createTemplateCard (v2) ---
+let importShareCode = false;
+openManageTemplates.addEventListener('click', () => {
+    templateList.innerHTML = '';
+    if (templateUpdateInterval) clearInterval(templateUpdateInterval);
+
+    if (!importShareCode) {
+        const topBar = document.createElement('div');
+        topBar.className = 'template-actions-all';
+        const importBtnTop = document.createElement('button');
+        importBtnTop.className = 'secondary-button';
+        importBtnTop.innerHTML = '<img src="icons/addTemplate.svg">Import Share Code';
+        importBtnTop.style.marginBottom = '10px';
+        importBtnTop.addEventListener('click', async () => {
+            const code = prompt('Paste a share code:');
+            if (!code) return;
+            try {
+                const genId = Date.now().toString();
+                await axios.post('/templates/import', {
+                    id: genId,
+                    name: `Imported ${genId}`,
+                    coords: [0, 0, 0, 0],
+                    code,
+                });
+                showMessage('Success', 'Template imported successfully.');
+                openManageTemplates.click();
+            } catch (e) {
+                handleError(e);
+            }
+        });
+        topBar.appendChild(importBtnTop);
+        templateList.before(topBar);
+        importShareCode = true;
+    }
+
+    loadTemplates((templates) => {
+        if (Object.keys(templates).length === 0) {
+            templateList.innerHTML = '<span>No templates created yet.</span>';
+            return;
+        }
+        for (const id in templates) {
+            const card = createTemplateCard(templates[id], id);
+            templateList.appendChild(card);
+        }
+        templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
+    });
+
     changeTab('manageTemplates');
 });
 
-openSettings.addEventListener("click", async () => {
+openSettings.addEventListener('click', async () => {
     try {
         const response = await axios.get('/settings');
-        const s = response.data;
-        drawingDirectionSelect.value = s.drawingDirection;
-        drawingOrderSelect.value = s.drawingOrder;
-        pixelSkipSelect.value = s.pixelSkip;
-        stealthMode.checked = s.stealthMode;
-        stealthOptions.style.display = s.stealthMode ? 'block' : 'none';
-        
-        stealthChargeThresholdFluctuation.value = s.stealthChargeThresholdFluctuation;
-        stealthCooldownMinPercent.value = s.stealthCooldownMinPercent;
-        stealthCooldownMaxPercent.value = s.stealthCooldownMaxPercent;
-        stealthBurstMinPercent.value = s.stealthBurstMinPercent;
-        stealthBurstMaxPercent.value = s.stealthBurstMaxPercent;
-        stealthBreakChancePercent.value = s.stealthBreakChancePercent;
-        stealthBreakMinMinutes.value = s.stealthBreakMinMinutes;
-        stealthBreakMaxMinutes.value = s.stealthBreakMaxMinutes;
-        stealthTileDelayMinMs.value = s.stealthTileDelayMinMs;
-        stealthTileDelayMaxMs.value = s.stealthTileDelayMaxMs;
+        const currentSettings = response.data;
+        openBrowserOnStart.checked = currentSettings.openBrowserOnStart;
+        drawingDirectionSelect.value = currentSettings.drawingDirection;
+        drawingOrderSelect.value = currentSettings.drawingOrder;
+        pixelSkipSelect.value = currentSettings.pixelSkip;
 
-        proxyEnabled.checked = s.proxyEnabled;
-        proxyRotationMode.value = s.proxyRotationMode || 'sequential';
-        logProxyUsage.checked = s.logProxyUsage;
-        proxyCount.textContent = `${s.proxyCount} proxies loaded from file.`;
+        proxyEnabled.checked = currentSettings.proxyEnabled;
+        proxyRotationMode.value = currentSettings.proxyRotationMode || 'sequential';
+        logProxyUsage.checked = currentSettings.logProxyUsage;
+        proxyCount.textContent = `${currentSettings.proxyCount} proxies loaded from file.`;
         proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
 
-        accountCooldown.value = s.accountCooldown / 1000;
-        purchaseCooldown.value = s.purchaseCooldown / 1000;
-        accountCheckCooldown.value = s.accountCheckCooldown / 1000;
-        dropletReserve.value = s.dropletReserve;
-        antiGriefStandby.value = s.antiGriefStandby / 60000;
-        chargeThreshold.value = s.chargeThreshold * 100;
+        accountCooldown.value = currentSettings.accountCooldown / 1000;
+        purchaseCooldown.value = currentSettings.purchaseCooldown / 1000;
+        accountCheckCooldown.value = currentSettings.accountCheckCooldown / 1000;
+        dropletReserve.value = currentSettings.dropletReserve;
+        antiGriefStandby.value = currentSettings.antiGriefStandby / 60000;
+        chargeThreshold.value = currentSettings.chargeThreshold * 100;
+        
+        // --- START: STEALTH MODE ---
+        stealthModeEnabled.checked = currentSettings.stealthModeEnabled;
+        stealthMinDelay.value = currentSettings.stealthMinDelay;
+        stealthMaxDelay.value = currentSettings.stealthMaxDelay;
+        stealthMaxPixelsPercentage.value = currentSettings.stealthMaxPixelsPercentage;
+        stealthModeContainer.style.display = stealthModeEnabled.checked ? 'block' : 'none';
+        // --- END: STEALTH MODE ---
+
     } catch (error) {
         handleError(error);
     }
@@ -921,74 +1318,123 @@ openSettings.addEventListener("click", async () => {
 const saveSetting = async (setting) => {
     try {
         await axios.put('/settings', setting);
-        showMessage("Success", "Setting saved!");
+        showMessage('Success', 'Setting saved!');
     } catch (error) {
         handleError(error);
     }
 };
 
-const setupSettingListener = (element, key, isNumeric = true, multiplier = 1, isFloat = false) => {
-    element.addEventListener('change', () => {
-        let value = element.value;
-        if (isNumeric) {
-            value = isFloat ? parseFloat(value) : parseInt(value, 10);
-            if (isNaN(value)) {
-                showMessage("Error", "Please enter a valid number.");
-                return;
-            }
-        }
-        saveSetting({ [key]: value * multiplier });
-    });
-};
-
-drawingDirectionSelect.addEventListener('change', () => saveSetting({ drawingDirection: drawingDirectionSelect.value }));
+openBrowserOnStart.addEventListener('change', () => saveSetting({ openBrowserOnStart: openBrowserOnStart.checked }));
+drawingDirectionSelect.addEventListener('change', () =>
+    saveSetting({ drawingDirection: drawingDirectionSelect.value })
+);
 drawingOrderSelect.addEventListener('change', () => saveSetting({ drawingOrder: drawingOrderSelect.value }));
 pixelSkipSelect.addEventListener('change', () => saveSetting({ pixelSkip: parseInt(pixelSkipSelect.value, 10) }));
-
-stealthMode.addEventListener('change', () => {
-    const isEnabled = stealthMode.checked;
-    stealthOptions.style.display = isEnabled ? 'block' : 'none';
-    saveSetting({ stealthMode: isEnabled });
-});
-
-setupSettingListener(stealthChargeThresholdFluctuation, 'stealthChargeThresholdFluctuation');
-setupSettingListener(stealthCooldownMinPercent, 'stealthCooldownMinPercent');
-setupSettingListener(stealthCooldownMaxPercent, 'stealthCooldownMaxPercent');
-setupSettingListener(stealthBurstMinPercent, 'stealthBurstMinPercent');
-setupSettingListener(stealthBurstMaxPercent, 'stealthBurstMaxPercent');
-setupSettingListener(stealthBreakChancePercent, 'stealthBreakChancePercent');
-setupSettingListener(stealthBreakMinMinutes, 'stealthBreakMinMinutes');
-setupSettingListener(stealthBreakMaxMinutes, 'stealthBreakMaxMinutes');
-setupSettingListener(stealthTileDelayMinMs, 'stealthTileDelayMinMs');
-setupSettingListener(stealthTileDelayMaxMs, 'stealthTileDelayMaxMs');
-
 
 proxyEnabled.addEventListener('change', () => {
     proxyFormContainer.style.display = proxyEnabled.checked ? 'block' : 'none';
     saveSetting({ proxyEnabled: proxyEnabled.checked });
 });
 
-logProxyUsage.addEventListener('change', () => saveSetting({ logProxyUsage: logProxyUsage.checked }));
-proxyRotationMode.addEventListener('change', () => saveSetting({ proxyRotationMode: proxyRotationMode.value }));
+logProxyUsage.addEventListener('change', () => {
+    saveSetting({ logProxyUsage: logProxyUsage.checked });
+});
+
+proxyRotationMode.addEventListener('change', () => {
+    saveSetting({ proxyRotationMode: proxyRotationMode.value });
+});
 
 reloadProxiesBtn.addEventListener('click', async () => {
     try {
         const response = await axios.post('/reload-proxies');
         if (response.data.success) {
             proxyCount.textContent = `${response.data.count} proxies reloaded from file.`;
-            showMessage("Success", "Proxies reloaded successfully!");
+            showMessage('Success', 'Proxies reloaded successfully!');
         }
     } catch (error) {
         handleError(error);
     }
 });
 
-setupSettingListener(accountCooldown, 'accountCooldown', true, 1000);
-setupSettingListener(purchaseCooldown, 'purchaseCooldown', true, 1000);
-setupSettingListener(accountCheckCooldown, 'accountCheckCooldown', true, 1000);
-setupSettingListener(dropletReserve, 'dropletReserve');
-setupSettingListener(antiGriefStandby, 'antiGriefStandby', true, 60000);
-setupSettingListener(chargeThreshold, 'chargeThreshold', true, 0.01, true);
+// --- START: STEALTH MODE EVENT LISTENERS ---
+stealthModeEnabled.addEventListener('change', () => {
+    const isEnabled = stealthModeEnabled.checked;
+    stealthModeContainer.style.display = isEnabled ? 'block' : 'none';
+    saveSetting({ stealthModeEnabled: isEnabled });
+});
+
+stealthMinDelay.addEventListener('change', () => {
+    const value = parseInt(stealthMinDelay.value, 10);
+    if (isNaN(value) || value < 0) return;
+    saveSetting({ stealthMinDelay: value });
+});
+
+stealthMaxDelay.addEventListener('change', () => {
+    const value = parseInt(stealthMaxDelay.value, 10);
+    if (isNaN(value) || value < 0) return;
+    saveSetting({ stealthMaxDelay: value });
+});
+
+stealthMaxPixelsPercentage.addEventListener('change', () => {
+    const value = parseInt(stealthMaxPixelsPercentage.value, 10);
+    if (isNaN(value) || value < 1 || value > 100) return;
+    saveSetting({ stealthMaxPixelsPercentage: value });
+});
+// --- END: STEALTH MODE EVENT LISTENERS ---
+
+accountCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage('Error', 'Please enter a valid non-negative number.');
+        return;
+    }
+    saveSetting({ accountCooldown: value });
+});
+
+purchaseCooldown.addEventListener('change', () => {
+    const value = parseInt(purchaseCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage('Error', 'Please enter a valid non-negative number.');
+        return;
+    }
+    saveSetting({ purchaseCooldown: value });
+});
+
+accountCheckCooldown.addEventListener('change', () => {
+    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
+    if (isNaN(value) || value < 0) {
+        showMessage('Error', 'Please enter a valid non-negative number.');
+        return;
+    }
+    saveSetting({ accountCheckCooldown: value });
+});
+
+dropletReserve.addEventListener('change', () => {
+    const value = parseInt(dropletReserve.value, 10);
+    if (isNaN(value) || value < 0) {
+        showMessage('Error', 'Please enter a valid non-negative number.');
+        return;
+    }
+    saveSetting({ dropletReserve: value });
+});
+
+antiGriefStandby.addEventListener('change', () => {
+    const value = parseInt(antiGriefStandby.value, 10) * 60000;
+    if (isNaN(value) || value < 60000) {
+        showMessage('Error', 'Please enter a valid number (at least 1 minute).');
+        return;
+    }
+    saveSetting({ antiGriefStandby: value });
+});
+
+chargeThreshold.addEventListener('change', () => {
+    const value = parseInt(chargeThreshold.value, 10);
+    if (isNaN(value) || value < 0 || value > 100) {
+        showMessage('Error', 'Please enter a valid percentage between 0 and 100.');
+        return;
+    }
+    saveSetting({ chargeThreshold: value / 100 });
+});
 
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
@@ -1013,15 +1459,123 @@ tx.addEventListener('blur', () => {
     }
 });
 
-[ty, px, py].forEach(input => {
+[ty, px, py].forEach((input) => {
     input.addEventListener('blur', () => {
         input.value = input.value.replace(/[^0-9]/g, '');
     });
 });
 
-document.addEventListener('DOMContentLoaded', () => {
-    openManageUsers.addEventListener('click', () => changeTab('manageUsers'));
-    openAddTemplate.addEventListener('click', () => changeTab('addTemplate'));
-    openManageTemplates.addEventListener('click', () => changeTab('manageTemplates'));
-    openSettings.addEventListener('click', () => changeTab('settings'));
+// --- Color Ordering
+const colorGrid = document.getElementById('colorGrid');
+let currentTemplateId = null;
+let availableColors = new Set();
+
+// Single function handles all initialization
+async function initializeGrid(templateId = null) {
+    currentTemplateId = templateId;
+    let colorEntries = Object.entries(colors);
+    
+    if (templateId) {
+        try {
+            const { colors: templateColors } = await (await fetch(`/template/${templateId}/colors`)).json();
+            availableColors = new Set(templateColors.map(c => c.id));
+            colorEntries = templateColors.map(c => [Object.keys(colors).find(rgb => colors[rgb].id === c.id), colors[Object.keys(colors).find(rgb => colors[rgb].id === c.id)]]).filter(([rgb]) => rgb);
+        } catch {
+            availableColors = new Set(Object.values(colors).map(c => c.id));
+        }
+    } else {
+        availableColors = new Set(Object.values(colors).map(c => c.id));
+    }
+    
+    await buildGrid(colorEntries, templateId);
+}
+
+// Build grid with saved order applied
+async function buildGrid(colorEntries, templateId = null) {
+    try {
+        const { order = [] } = await (await fetch(templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`)).json();
+        const colorMap = new Map(colorEntries.map(([rgb, data]) => [data.id, { rgb, ...data }]));
+        
+        colorGrid.innerHTML = '';
+        let priority = 1;
+        
+        // Add ordered colors first
+        order.forEach(id => {
+            const colorInfo = colorMap.get(id);
+            if (colorInfo) {
+                colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, priority++));
+                colorMap.delete(id);
+            }
+        });
+        
+        // Add remaining colors
+        [...colorMap.values()].sort((a, b) => a.id - b.id).forEach(colorInfo => {
+            colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, priority++));
+        });
+    } catch {
+        colorEntries.sort((a, b) => a[1].id - b[1].id);
+        colorGrid.innerHTML = '';
+        colorEntries.forEach(([rgb, data], i) => colorGrid.appendChild(createColorItem(rgb, data, i + 1)));
+    }
+}
+
+// Create color item element
+const createColorItem = (rgb, { id, name }, priority) => {
+    const div = document.createElement('div');
+    div.className = 'color-item';
+    div.draggable = true;
+    Object.assign(div.dataset, { id, rgb, name });
+    div.title = `ID ${id}: ${name} (${rgb})`;
+    div.innerHTML = `<div class="color-swatch" style="background:rgb(${rgb})"></div><div class="color-info"><span class="priority-number">${priority}</span><span class="color-name">${name}</span></div>`;
+    return div;
+};
+
+// Drag and drop with single event listener
+let draggedElement = null;
+colorGrid.addEventListener('mousedown', e => e.target.closest('.color-item')?.setAttribute('draggable', 'true'));
+
+colorGrid.addEventListener('dragstart', e => {
+    draggedElement = e.target.closest('.color-item');
+    draggedElement?.classList.add('dragging');
 });
+
+colorGrid.addEventListener('dragover', e => {
+    e.preventDefault();
+    const item = e.target.closest('.color-item');
+    [...colorGrid.children].forEach(el => el.classList.toggle('drag-over', el === item && el !== draggedElement));
+});
+
+colorGrid.addEventListener('drop', e => {
+    const dropTarget = e.target.closest('.color-item');
+    if (dropTarget && dropTarget !== draggedElement && draggedElement) {
+        const items = [...colorGrid.children];
+        const [dragIdx, dropIdx] = [items.indexOf(draggedElement), items.indexOf(dropTarget)];
+        colorGrid.insertBefore(draggedElement, dropIdx < dragIdx ? dropTarget : dropTarget.nextSibling);
+        
+        // Update priorities and save
+        [...colorGrid.children].forEach((item, i) => item.querySelector('.priority-number').textContent = i + 1);
+        if (currentTemplateId) saveColorOrder(currentTemplateId);
+    }
+});
+
+colorGrid.addEventListener('dragend', () => {
+    [...colorGrid.children].forEach(item => item.classList.remove('dragging', 'drag-over'));
+    draggedElement = null;
+});
+
+// Save color order
+const saveColorOrder = async (templateId = null) => {
+    const order = [...colorGrid.children].map(el => parseInt(el.dataset.id));
+    const url = templateId ? `/color-ordering/template/${templateId}` : `/color-ordering/global`;
+    try {
+        return (await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) })).ok;
+    } catch { return false; }
+};
+
+// Quick reset and image color functions
+const resetOrder = () => buildGrid(Object.entries(colors).filter(([_, data]) => !currentTemplateId || availableColors.has(data.id)));
+const updateColorGridForImage = (imageColorIds) => {
+    availableColors = new Set(imageColorIds);
+    const imageColors = imageColorIds.map(id => [Object.keys(colors).find(rgb => colors[rgb].id === id), colors[Object.keys(colors).find(rgb => colors[rgb].id === id)]]).filter(([rgb]) => rgb);
+    buildGrid(imageColors);
+};
