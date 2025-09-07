@@ -13,6 +13,22 @@ if (sessionStorage.getItem(RELOAD_FLAG)) {
 const sentTokens = new Set();
 const pending = { turnstile: null, pawtect: null };
 
+// Searches inside preloaded JS modules for a string and returns the filename
+async function findModuleName(str) {
+    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"][href$=".js"]'));
+
+    for (const link of links) {
+        try {
+            const url = new URL(link.getAttribute("href"), location.origin).href;
+            const code = await fetch(url).then(r => r.text());
+            if (code.includes(str)) {
+                return url.split('/').pop();
+            }
+        } catch {}
+    }
+    console.error(`No JS file contains "${str}"`);
+}
+
 const trySendPair = () => {
     if (!pending.turnstile || !pending.pawtect) return;
     const t = pending.turnstile;
@@ -56,24 +72,28 @@ const postToken = (token, pawtectToken) => {
 };
 
 // Ask background to inject pawtect fetch hook into page (bypasses CSP)
-try {
-    if (!window.__wplacerPawtectRequested) {
-        window.__wplacerPawtectRequested = true;
-        chrome.runtime.sendMessage({ action: 'injectPawtect' });
-        console.log('wplacer: requested pawtect hook injection.');
-    }
-} catch {}
-
+(async () => {
+    try {
+        if (!window.__wplacerPawtectRequested) {
+            window.__wplacerPawtectRequested = true;
+            const mod = await findModuleName("get_pawtected_endpoint_payload")
+            chrome.runtime.sendMessage({ action: 'injectPawtect', wasmModule: mod });
+            console.log('wplacer: requested pawtect hook injection.');
+        }
+    } catch {}
+})();
 // Auto-trigger a harmless pixel POST in page context to seed pawtect on load
-try {
-    if (!sessionStorage.getItem('wplacer_seeded')) {
-        const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
-        const seedBody = { colors: [0], coords: [randomInt(1000), randomInt(1000)], fp, t: 'wplacer_seed' };
-        chrome.runtime.sendMessage({ action: 'seedPawtect', bodyStr: JSON.stringify(seedBody) });
-        sessionStorage.setItem('wplacer_seeded', '1');
-    }
-} catch {}
-
+(async () => {
+    try {
+        if (!sessionStorage.getItem('wplacer_seeded')) {
+            const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
+            const seedBody = { colors: [0], coords: [randomInt(1000), randomInt(1000)], fp, t: 'wplacer_seed' };
+            const mod = await findModuleName("get_pawtected_endpoint_payload");
+            chrome.runtime.sendMessage({ action: 'seedPawtect', bodyStr: JSON.stringify(seedBody), wasmModule: mod });
+            sessionStorage.setItem('wplacer_seeded', '1');
+        }
+    } catch {}
+})();
 // --- Event Listeners ---
 
 // 1. Listen for messages from the Cloudflare Turnstile iframe (primary method)
@@ -88,13 +108,16 @@ window.addEventListener('message', (event) => {
             // Kick off pawtect compute seeded with this turnstile token
             const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
             const body = { colors: [0], coords: [1, 1], fp, t: token };
-            try {
-                chrome.runtime.sendMessage({
-                    action: 'computePawtectForT',
-                    url: 'https://backend.wplace.live/s0/pixel/1/1',
-                    bodyStr: JSON.stringify(body)
-                });
-            } catch {}
+            (async () => {
+                try {
+                    chrome.runtime.sendMessage({
+                        action: 'computePawtectForT',
+                        url: 'https://backend.wplace.live/s0/pixel/1/1',
+                        bodyStr: JSON.stringify(body),
+                        wasmModule: await findModuleName("get_pawtected_endpoint_payload")
+                    });
+                } catch {}
+            })();
             // If a pawtect token already arrived, pair immediately; otherwise, give compute a brief window
             if (window.wplacerPawtectToken) {
                 pending.pawtect = window.wplacerPawtectToken;

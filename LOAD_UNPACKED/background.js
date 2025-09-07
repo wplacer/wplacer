@@ -131,15 +131,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
-                    func: () => {
+                    args: [request.wasmModule],
+                    func: (modName) => {
                         if (window.__wplacerPawtectHooked) return;
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
                         const importModule = async () => {
                             const candidates = [
-                                new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
-                                'https://wplace.live/_app/immutable/chunks/BBb1ALhY.js'
+                                new URL(`/_app/immutable/chunks/${modName}`, location.origin).href,
+                                `https://wplace.live/_app/immutable/chunks/${modName}`
                             ];
                             let lastErr;
                             for (const url of candidates) {
@@ -258,12 +259,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
-                    func: (rawBody) => {
+                    func: (rawBody, modName) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const mod = await import(`/_app/immutable/chunks/${modName}`);
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
@@ -291,7 +292,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             } catch {}
                         })();
                     },
-                    args: [bodyStr]
+                    args: [bodyStr, request.wasmModule]
                 });
             }
         } catch {}
@@ -305,11 +306,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
-                    func: (tValue) => {
+                    func: (tValue, modName) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const mod = await import(`/_app/immutable/chunks/${modName}`);
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
@@ -346,7 +347,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             } catch {}
                         })();
                     },
-                    args: [turnstile]
+                    args: [turnstile, request.wasmModule]
                 });
             }
         } catch {}
