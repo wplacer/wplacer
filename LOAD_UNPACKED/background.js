@@ -136,16 +136,81 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
-                        const importModule = async () => {
-                            const candidates = [
-                                new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
-                                'https://wplace.live/_app/immutable/chunks/BBb1ALhY.js'
-                            ];
-                            let lastErr;
-                            for (const url of candidates) {
-                                try { return await import(url); } catch (e) { lastErr = e; }
+                        
+                        const findPawtectPath = async () => {
+                            const cacheKey = 'wplacer_pawtect_path';
+                            const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                            const cacheExpiry = 5 * 60 * 1000; // 5 minutes
+                            
+                            let pawtectPath = localStorage.getItem(cacheKey);
+                            const cacheTime = localStorage.getItem(cacheTimeKey);
+                            
+                            if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                return pawtectPath;
                             }
-                            console.warn('pawtect: module import failed', lastErr?.message || lastErr);
+                            
+                            console.log("[SEARCHING for Pawtect chunk...]");
+                            const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                .map(l => l.href);
+                            
+                            for (const url of links) {
+                                try {
+                                    const res = await fetch(url);
+                                    const text = await res.text();
+                                    if (text.includes("get_pawtected_endpoint_payload")) {
+                                        pawtectPath = url;
+                                        console.log("[FOUND Pawtect chunk]:", url);
+                                        localStorage.setItem(cacheKey, pawtectPath);
+                                        localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                        return pawtectPath;
+                                    }
+                                } catch (e) {
+                                    console.log("Failed to fetch", url, e);
+                                }
+                            }
+                            
+                            return null;
+                        };
+                        
+                        const importModule = async () => {
+                            try {
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) {
+                                    console.warn('pawtect: Could not find Pawtect chunk!');
+                                    return null;
+                                }
+                                
+                                try {
+                                    console.log("[USING Pawtect path]:", pawtectPath);
+                                    return await import(pawtectPath);
+                                } catch (e) {
+                                    console.log("[PATH FAILED, clearing cache and finding new one]:", e);
+                                    localStorage.removeItem('wplacer_pawtect_path');
+                                    localStorage.removeItem('wplacer_pawtect_cache_time');
+                                    const newPath = await findPawtectPath();
+                                    if (newPath) {
+                                        return await import(newPath);
+                                    }
+                                    return null;
+                                }
+                            } catch (e) {
+                                console.warn('pawtect: module import failed', e?.message || e);
+                                return null;
+                            }
+                        };
+
+                        const findSetUserIdFunction = (mod) => {
+                            for (const key of Object.keys(mod)) {
+                                const fn = mod[key];
+                                if (typeof fn === "function") {
+                                    try {
+                                        const str = fn.toString();
+                                        if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                            return fn;
+                                        }
+                                    } catch {}
+                                }
+                            }
                             return null;
                         };
 
@@ -155,7 +220,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             const wasm = await mod._();
                             try {
                                 const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                if (me?.id) {
+                                    const setUserIdFn = findSetUserIdFunction(mod);
+                                    if (setUserIdFn) {
+                                        console.log('Set userId', me.id);
+                                        setUserIdFn(me.id);
+                                    }
+                                }
                             } catch {}
                             if (typeof mod.r === 'function') mod.r(url);
                             const enc = new TextEncoder();
@@ -263,11 +334,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                
+                                const findPawtectPath = async () => {
+                                    const cacheKey = 'wplacer_pawtect_path';
+                                    const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                                    const cacheExpiry = 5 * 60 * 1000;
+                                    
+                                    let pawtectPath = localStorage.getItem(cacheKey);
+                                    const cacheTime = localStorage.getItem(cacheTimeKey);
+                                    
+                                    if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                        return pawtectPath;
+                                    }
+                                    
+                                    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                        .map(l => l.href);
+                                    
+                                    for (const url of links) {
+                                        try {
+                                            const res = await fetch(url);
+                                            const text = await res.text();
+                                            if (text.includes("get_pawtected_endpoint_payload")) {
+                                                pawtectPath = url;
+                                                localStorage.setItem(cacheKey, pawtectPath);
+                                                localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                                return pawtectPath;
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    
+                                    return null;
+                                };
+                                
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) return;
+                                
+                                const mod = await import(pawtectPath);
                                 const wasm = await mod._();
+                                
+                                const findSetUserIdFunction = (mod) => {
+                                    for (const key of Object.keys(mod)) {
+                                        const fn = mod[key];
+                                        if (typeof fn === "function") {
+                                            try {
+                                                const str = fn.toString();
+                                                if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                                    return fn;
+                                                }
+                                            } catch {}
+                                        }
+                                    }
+                                    return null;
+                                };
+                                
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                    if (me?.id) {
+                                        const setUserIdFn = findSetUserIdFunction(mod);
+                                        if (setUserIdFn) setUserIdFn(me.id);
+                                    }
                                 } catch {}
                                 if (typeof mod.r === 'function') mod.r(url);
                                 const enc = new TextEncoder();
@@ -309,11 +434,65 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                
+                                const findPawtectPath = async () => {
+                                    const cacheKey = 'wplacer_pawtect_path';
+                                    const cacheTimeKey = 'wplacer_pawtect_cache_time';
+                                    const cacheExpiry = 5 * 60 * 1000;
+                                    
+                                    let pawtectPath = localStorage.getItem(cacheKey);
+                                    const cacheTime = localStorage.getItem(cacheTimeKey);
+                                    
+                                    if (pawtectPath && cacheTime && (Date.now() - parseInt(cacheTime)) < cacheExpiry) {
+                                        return pawtectPath;
+                                    }
+                                    
+                                    const links = Array.from(document.querySelectorAll('link[rel="modulepreload"]'))
+                                        .map(l => l.href);
+                                    
+                                    for (const url of links) {
+                                        try {
+                                            const res = await fetch(url);
+                                            const text = await res.text();
+                                            if (text.includes("get_pawtected_endpoint_payload")) {
+                                                pawtectPath = url;
+                                                localStorage.setItem(cacheKey, pawtectPath);
+                                                localStorage.setItem(cacheTimeKey, Date.now().toString());
+                                                return pawtectPath;
+                                            }
+                                        } catch (e) {}
+                                    }
+                                    
+                                    return null;
+                                };
+                                
+                                const pawtectPath = await findPawtectPath();
+                                if (!pawtectPath) return;
+                                
+                                const mod = await import(pawtectPath);
                                 const wasm = await mod._();
+                                
+                                const findSetUserIdFunction = (mod) => {
+                                    for (const key of Object.keys(mod)) {
+                                        const fn = mod[key];
+                                        if (typeof fn === "function") {
+                                            try {
+                                                const str = fn.toString();
+                                                if (/[\w$]+\s*\.\s*set_user_id\s*\(/.test(str)) {
+                                                    return fn;
+                                                }
+                                            } catch {}
+                                        }
+                                    }
+                                    return null;
+                                };
+                                
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
-                                    if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+                                    if (me?.id) {
+                                        const setUserIdFn = findSetUserIdFunction(mod);
+                                        if (setUserIdFn) setUserIdFn(me.id);
+                                    }
                                 } catch {}
                                 // Randomize pixel tile minimally (fixed 1/1) and coords for simplicity
                                 const url = `${backend}/s0/pixel/1/1`;
