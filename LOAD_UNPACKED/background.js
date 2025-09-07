@@ -6,6 +6,7 @@ const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
 const getSettings = async () => {
     const result = await chrome.storage.local.get(['wplacerPort']);
     return {
+        // Default to 80 to match popup UI default
         port: result.wplacerPort || 80,
         host: '127.0.0.1'
     };
@@ -124,6 +125,32 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendCookie(sendResponse);
         return true; // Required for async response
     }
+    if (request.action === "saveSettings") {
+        try {
+            const port = Number(request.port);
+            if (!Number.isInteger(port) || port < 1 || port > 65535) {
+                sendResponse({ success: false, error: 'Invalid port number.' });
+                return true;
+            }
+            chrome.storage.local.set({ wplacerPort: port }, () => {
+                if (chrome.runtime.lastError) {
+                    sendResponse({ success: false, error: chrome.runtime.lastError.message || 'Failed to save settings.' });
+                } else {
+                    console.log(`wplacer: Settings updated. Port set to ${port}.`);
+                    sendResponse({ success: true });
+                }
+            });
+        } catch (e) {
+            sendResponse({ success: false, error: 'Unexpected error saving settings.' });
+        }
+        return true; // async
+    }
+    if (request.action === "settingsUpdated") {
+        // Backward-compat no-op; popup may send this in older versions
+        try { console.log('wplacer: Received settingsUpdated notification.'); } catch {}
+        sendResponse && sendResponse({ ok: true });
+        return true;
+    }
     if (request.action === "injectPawtect") {
         // Inject a small page-world script to hook fetch and compute pawtect when posting to pixel endpoint
         try {
@@ -136,6 +163,66 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
+                        // Detect which WASM actually loads (prefers pawtect_wasm_bg*.wasm)
+                        function createWasmDetector(matchers = [/pawtect_wasm_bg.*\.wasm$/i, /\.wasm$/i], timeout = 8000) {
+                            let resolved = false, _resolve, _reject;
+                            const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
+                            const seen = new Set();
+                            const maybe = (url) => {
+                                if (resolved || !url) return;
+                                try {
+                                    const u = new URL(url, location.href).href;
+                                    if (seen.has(u)) return;
+                                    if (matchers.some(rx => rx.test(u))) {
+                                        seen.add(u);
+                                        resolved = true;
+                                        try { window.__PAWTECT_WASM_URL__ = u; } catch {}
+                                        try { window.postMessage({ type: 'WPLACER_PAWTECT_WASM_URL', url: u }, '*'); } catch {}
+                                        _resolve(u);
+                                    }
+                                } catch {}
+                            };
+                            // Hook fetch
+                            try {
+                                const _fetch = window.fetch.bind(window);
+                                window.fetch = async (...args) => {
+                                    const r = await _fetch(...args);
+                                    try { maybe(r?.url); } catch {}
+                                    return r;
+                                };
+                            } catch {}
+                            // Hook XHR
+                            try {
+                                const _open = XMLHttpRequest.prototype.open;
+                                XMLHttpRequest.prototype.open = function(method, url) {
+                                    this.addEventListener('loadend', () => { try { maybe(this.responseURL); } catch {} });
+                                    return _open.apply(this, arguments);
+                                };
+                            } catch {}
+                            // Hook WebAssembly streaming
+                            try {
+                                ['instantiateStreaming', 'compileStreaming'].forEach((k) => {
+                                    if (!WebAssembly[k]) return;
+                                    const orig = WebAssembly[k];
+                                    WebAssembly[k] = function(src, ...rest) {
+                                        Promise.resolve(src)
+                                            .then((resp) => { try { maybe(resp?.url); } catch {} })
+                                            .catch(() => {});
+                                        return orig.call(WebAssembly, src, ...rest);
+                                    };
+                                });
+                            } catch {}
+                            // Performance entries (buffered)
+                            try {
+                                const po = new PerformanceObserver((list) => {
+                                    for (const e of list.getEntries()) maybe(e.name);
+                                });
+                                po.observe({ type: 'resource', buffered: true });
+                            } catch {}
+                            setTimeout(() => { if (!resolved) _reject(new Error('wasm not detected')); }, timeout);
+                            return { promise, maybe };
+                        }
+                        const wasmDet = createWasmDetector();
                         const importModule = async () => {
                             const candidates = [
                                 new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
@@ -152,7 +239,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         const computePawtect = async (url, bodyStr) => {
                             const mod = await importModule();
                             if (!mod || typeof mod._ !== 'function') return null;
-                            const wasm = await mod._();
+                            let wasm;
+                            try {
+                                let wasmUrl;
+                                try {
+                                    wasmUrl = await Promise.race([
+                                        wasmDet.promise,
+                                        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500))
+                                    ]);
+                                } catch {}
+                                wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+                            } catch {
+                                try { wasm = await mod._(); } catch { return null; }
+                            }
                             try {
                                 const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                 if (me?.id && typeof mod.i === 'function') mod.i(me.id);
@@ -264,7 +363,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
                                 const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
-                                const wasm = await mod._();
+                                let wasm;
+                                try {
+                                    const wasmUrl = window.__PAWTECT_WASM_URL__;
+                                    wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+                                } catch { wasm = await mod._(); }
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
@@ -310,7 +413,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
-                                const wasm = await mod._();
+                                let wasm;
+                                try {
+                                    const wasmUrl = window.__PAWTECT_WASM_URL__;
+                                    wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+                                } catch { wasm = await mod._(); }
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
@@ -359,16 +466,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
     if (request.type === "SEND_TOKEN") {
         getServerUrl("/t").then(url => {
+            const payload = {
+                t: request.token,
+                pawtect: request.pawtect || null,
+                fp: request.fp || null
+            };
             fetch(url, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    t: request.token,
-                    pawtect: request.pawtect || null,
-                    fp: request.fp || null
-                })
+                body: JSON.stringify(payload)
+            })
+            .then(res => {
+                if (!res.ok) {
+                    console.warn(`wplacer: Failed to POST token to ${url}. Status: ${res.status}`);
+                } else {
+                    console.log("wplacer: Token sent to server.");
+                }
+            })
+            .catch(err => {
+                console.error("wplacer: Error sending token to server:", err?.message || err);
             });
-        });
+        }).catch(err => console.error('wplacer: Failed to resolve server URL for /t', err));
     }
     return false;
 });
@@ -403,6 +521,404 @@ const initializeAlarms = () => {
     });
     console.log("wplacer: Alarms initialized.");
 };
+
+// --- Page Injection Functions (executed in page context) ---
+/**
+ * Injects hooks into the page to observe WASM loads and compute pawtect tokens
+ * for POSTs to the pixel endpoint. Runs in the page (MAIN) world.
+ */
+function injectedPawtectHook() {
+    if (window.__wplacerPawtectHooked) return;
+    window.__wplacerPawtectHooked = true;
+
+    const backend = 'https://backend.wplace.live';
+    // Detect which WASM actually loads (prefers pawtect_wasm_bg*.wasm)
+    function createWasmDetector(matchers = [/pawtect_wasm_bg.*\.wasm$/i, /\.wasm$/i], timeout = 8000) {
+        let resolved = false, _resolve, _reject;
+        const promise = new Promise((res, rej) => { _resolve = res; _reject = rej; });
+        const seen = new Set();
+        const maybe = (url) => {
+            if (resolved || !url) return;
+            try {
+                const u = new URL(url, location.href).href;
+                if (seen.has(u)) return;
+                if (matchers.some(rx => rx.test(u))) {
+                    seen.add(u);
+                    resolved = true;
+                    try { window.__PAWTECT_WASM_URL__ = u; } catch {}
+                    try { window.postMessage({ type: 'WPLACER_PAWTECT_WASM_URL', url: u }, '*'); } catch {}
+                    _resolve(u);
+                }
+            } catch {}
+        };
+        // Hook fetch
+        try {
+            const _fetch = window.fetch.bind(window);
+            window.fetch = async (...args) => {
+                const r = await _fetch(...args);
+                try { maybe(r?.url); } catch {}
+                return r;
+            };
+        } catch {}
+        // Hook XHR
+        try {
+            const _open = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(method, url) {
+                this.addEventListener('loadend', () => { try { maybe(this.responseURL); } catch {} });
+                return _open.apply(this, arguments);
+            };
+        } catch {}
+        // Hook WebAssembly streaming
+        try {
+            ['instantiateStreaming', 'compileStreaming'].forEach((k) => {
+                if (!WebAssembly[k]) return;
+                const orig = WebAssembly[k];
+                WebAssembly[k] = function(src, ...rest) {
+                    Promise.resolve(src)
+                        .then((resp) => { try { maybe(resp?.url); } catch {} })
+                        .catch(() => {});
+                    return orig.call(WebAssembly, src, ...rest);
+                };
+            });
+        } catch {}
+        // Performance entries (buffered)
+        try {
+            const po = new PerformanceObserver((list) => {
+                for (const e of list.getEntries()) maybe(e.name);
+            });
+            po.observe({ type: 'resource', buffered: true });
+        } catch {}
+        setTimeout(() => { if (!resolved) _reject(new Error('wasm not detected')); }, timeout);
+        return { promise, maybe };
+    }
+    const wasmDet = createWasmDetector();
+    const importModule = async () => {
+        const candidates = [
+            new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
+            'https://wplace.live/_app/immutable/chunks/BBb1ALhY.js'
+        ];
+        let lastErr;
+        for (const url of candidates) {
+            try { return await import(url); } catch (e) { lastErr = e; }
+        }
+        console.warn('pawtect: module import failed', lastErr?.message || lastErr);
+        return null;
+    };
+
+    const computePawtect = async (url, bodyStr) => {
+        const mod = await importModule();
+        if (!mod || typeof mod._ !== 'function') return null;
+        let wasm;
+        try {
+            let wasmUrl;
+            try {
+                wasmUrl = await Promise.race([
+                    wasmDet.promise,
+                    new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 1500))
+                ]);
+            } catch {}
+            wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+        } catch {
+            try { wasm = await mod._(); } catch { return null; }
+        }
+        try {
+            const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+            if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+        } catch {}
+        if (typeof mod.r === 'function') mod.r(url);
+        const enc = new TextEncoder();
+        const dec = new TextDecoder();
+        const bytes = enc.encode(bodyStr);
+        const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+        new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+        console.log('wplacer: pawtect compute start', { url, bodyLen: bodyStr.length });
+        const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+        let token;
+        if (Array.isArray(out)) {
+            const [outPtr, outLen] = out;
+            token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+            try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+        } else if (typeof out === 'string') {
+            token = out;
+        } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+            token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+            try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+        } else {
+            console.warn('wplacer: unexpected pawtect out shape', typeof out);
+            token = null;
+        }
+        console.log('wplacer: pawtect compute done, tokenLen:', token ? token.length : 0);
+        window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'pixel' }, '*');
+        return token;
+    };
+
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = async (...args) => {
+        try {
+            const input = args[0];
+            const init = args[1] || {};
+            const req = new Request(input, init);
+            if (req.method === 'POST' && /\/s0\/pixel\//.test(req.url)) {
+                // Prefer using init.body when it's already a string to avoid consuming streams
+                const raw = typeof init.body === 'string' ? init.body : null;
+                if (raw) {
+                    console.log('wplacer: hook(fetch) pixel POST detected (init.body)', req.url, 'len', raw.length);
+                    computePawtect(req.url, raw);
+                } else {
+                    try {
+                        const clone = req.clone();
+                        const text = await clone.text();
+                        console.log('wplacer: hook(fetch) pixel POST detected (clone)', req.url, 'len', text.length);
+                        computePawtect(req.url, text);
+                    } catch {}
+                }
+            }
+        } catch {}
+        return originalFetch(...args);
+    };
+    // Also hook XHR in case the site uses XMLHttpRequest
+    try {
+        const origOpen = XMLHttpRequest.prototype.open;
+        const origSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function(method, url) {
+            try {
+                this.__wplacer_url = new URL(url, location.href).href;
+                this.__wplacer_method = String(method || '');
+            } catch {}
+            return origOpen.apply(this, arguments);
+        };
+        XMLHttpRequest.prototype.send = function(body) {
+            try {
+                if ((this.__wplacer_method || '').toUpperCase() === 'POST' && /\/s0\/pixel\//.test(this.__wplacer_url || '')) {
+                    const url = this.__wplacer_url;
+                    const maybeCompute = (raw) => { if (raw && typeof raw === 'string') computePawtect(url, raw); };
+                    if (typeof body === 'string') {
+                        console.log('wplacer: hook(XHR) pixel POST detected (string)', url, 'len', body.length);
+                        maybeCompute(body);
+                    } else if (body instanceof ArrayBuffer) {
+                        try { const s = new TextDecoder().decode(new Uint8Array(body)); console.log('wplacer: hook(XHR) pixel POST detected (ArrayBuffer)', url, 'len', s.length); maybeCompute(s); } catch {}
+                    } else if (body && typeof body === 'object' && 'buffer' in body && body.buffer instanceof ArrayBuffer) {
+                        // e.g., Uint8Array
+                        try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); console.log('wplacer: hook(XHR) pixel POST detected (TypedArray)', url, 'len', s.length); maybeCompute(s); } catch {}
+                    } else if (body && typeof body.text === 'function') {
+                        // Blob or similar
+                        try { body.text().then(s => { console.log('wplacer: hook(XHR) pixel POST detected (Blob)', url, 'len', (s||'').length); maybeCompute(s); }).catch(() => {}); } catch {}
+                    }
+                }
+            } catch {}
+            return origSend.apply(this, arguments);
+        };
+    } catch {}
+    console.log('wplacer: pawtect fetch hook installed');
+}
+
+/**
+ * Seed pawtect by computing a token for a small pixel POST body. Runs in page world.
+ */
+function seedPawtectInPage(rawBody) {
+    (async () => {
+        try {
+            const backend = 'https://backend.wplace.live';
+            const url = `${backend}/s0/pixel/1/1`;
+            const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+            let wasm;
+            try {
+                const wasmUrl = window.__PAWTECT_WASM_URL__;
+                wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+            } catch { wasm = await mod._(); }
+            try {
+                const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+            } catch {}
+            if (typeof mod.r === 'function') mod.r(url);
+            const enc = new TextEncoder();
+            const dec = new TextDecoder();
+            const bytes = enc.encode(rawBody);
+            const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+            new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+            const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+            let token;
+            if (Array.isArray(out)) {
+                const [outPtr, outLen] = out;
+                token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+            } else if (typeof out === 'string') {
+                token = out;
+            } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+            }
+            window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'seed' }, '*');
+        } catch {}
+    })();
+}
+
+/**
+ * Compute pawtect token using a provided Turnstile token value. Runs in page world.
+ */
+function computePawtectInPageFromTurnstile(tValue) {
+    (async () => {
+        try {
+            const backend = 'https://backend.wplace.live';
+            const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+            let wasm;
+            try {
+                const wasmUrl = window.__PAWTECT_WASM_URL__;
+                wasm = wasmUrl ? await mod._(wasmUrl) : await mod._();
+            } catch { wasm = await mod._(); }
+            try {
+                const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
+                if (me?.id && typeof mod.i === 'function') mod.i(me.id);
+            } catch {}
+            // Randomize pixel tile minimally (fixed 1/1) and coords for simplicity
+            const url = `${backend}/s0/pixel/1/1`;
+            if (typeof mod.r === 'function') mod.r(url);
+            const fp = (window.wplacerFP && String(window.wplacerFP)) || (()=>{
+                const b = new Uint8Array(16); crypto.getRandomValues(b); return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+            })();
+            const rx = Math.floor(Math.random()*1000);
+            const ry = Math.floor(Math.random()*1000);
+            const bodyObj = { colors:[0], coords:[rx,ry], fp, t: String(tValue||'') };
+            const rawBody = JSON.stringify(bodyObj);
+            const enc = new TextEncoder();
+            const dec = new TextDecoder();
+            const bytes = enc.encode(rawBody);
+            const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
+            new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
+            const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+            let token;
+            if (Array.isArray(out)) {
+                const [outPtr, outLen] = out;
+                token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+            } else if (typeof out === 'string') {
+                token = out;
+            } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+            }
+            window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'simple' }, '*');
+        } catch {}
+    })();
+}
+
+// --- Runtime Message Handling ---
+/**
+ * Central dispatcher for messages from popup/content scripts.
+ * Returns true if responding asynchronously via sendResponse, else false.
+ */
+function handleRuntimeMessage(request, sender, sendResponse) {
+    const action = request.action || request.type || '';
+    switch (action) {
+        case 'sendCookie': {
+            sendCookie(sendResponse);
+            return true;
+        }
+        case 'saveSettings': {
+            try {
+                const port = Number(request.port);
+                if (!Number.isInteger(port) || port < 1 || port > 65535) {
+                    sendResponse({ success: false, error: 'Invalid port number.' });
+                    return true;
+                }
+                chrome.storage.local.set({ wplacerPort: port }, () => {
+                    if (chrome.runtime.lastError) {
+                        sendResponse({ success: false, error: chrome.runtime.lastError.message || 'Failed to save settings.' });
+                    } else {
+                        console.log(`wplacer: Settings updated. Port set to ${port}.`);
+                        sendResponse({ success: true });
+                    }
+                });
+            } catch (e) {
+                sendResponse({ success: false, error: 'Unexpected error saving settings.' });
+            }
+            return true;
+        }
+        case 'settingsUpdated': {
+            try { console.log('wplacer: Received settingsUpdated notification.'); } catch {}
+            sendResponse && sendResponse({ ok: true });
+            return true;
+        }
+        case 'injectPawtect': {
+            try {
+                if (sender.tab?.id) {
+                    chrome.scripting.executeScript({
+                        target: { tabId: sender.tab.id },
+                        world: 'MAIN',
+                        func: injectedPawtectHook
+                    });
+                }
+            } catch (e) {
+                console.error('wplacer: failed to inject pawtect hook', e);
+            }
+            sendResponse({ ok: true });
+            return true;
+        }
+        case 'seedPawtect': {
+            try {
+                if (sender.tab?.id) {
+                    const bodyStr = String(request.bodyStr || '{"colors":[0],"coords":[1,1],"fp":"seed","t":"seed"}');
+                    chrome.scripting.executeScript({
+                        target: { tabId: sender.tab.id },
+                        world: 'MAIN',
+                        func: seedPawtectInPage,
+                        args: [bodyStr]
+                    });
+                }
+            } catch {}
+            sendResponse({ ok: true });
+            return true;
+        }
+        case 'computePawtectForT': {
+            try {
+                if (sender.tab?.id) {
+                    const turnstile = typeof request.bodyStr === 'string' ? (()=>{ try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } })() : '';
+                    chrome.scripting.executeScript({
+                        target: { tabId: sender.tab.id },
+                        world: 'MAIN',
+                        func: computePawtectInPageFromTurnstile,
+                        args: [turnstile]
+                    });
+                }
+            } catch {}
+            sendResponse({ ok: true });
+            return true;
+        }
+        case 'quickLogout': {
+            quickLogout(sendResponse);
+            return true;
+        }
+        case 'SEND_TOKEN': {
+            getServerUrl("/t").then(url => {
+                const payload = {
+                    t: request.token,
+                    pawtect: request.pawtect || null,
+                    fp: request.fp || null
+                };
+                fetch(url, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                })
+                .then(res => {
+                    if (!res.ok) {
+                        console.warn(`wplacer: Failed to POST token to ${url}. Status: ${res.status}`);
+                    } else {
+                        console.log("wplacer: Token sent to server.");
+                    }
+                })
+                .catch(err => {
+                    console.error("wplacer: Error sending token to server:", err?.message || err);
+                });
+            }).catch(err => console.error('wplacer: Failed to resolve server URL for /t', err));
+            return false;
+        }
+        default:
+            return false;
+    }
+}
+
+chrome.runtime.onMessage.addListener(handleRuntimeMessage);
 
 chrome.runtime.onStartup.addListener(() => {
     console.log("wplacer: Browser startup.");

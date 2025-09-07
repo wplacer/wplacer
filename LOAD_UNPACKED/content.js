@@ -84,6 +84,7 @@ window.addEventListener('message', (event) => {
     try {
         const token = event.data.token || event.data.response || event.data['cf-turnstile-response'];
         if (token) {
+            try { console.log('✅ wplacer: Turnstile token captured. Pairing...'); } catch {}
             pending.turnstile = token;
             // Kick off pawtect compute seeded with this turnstile token
             const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
@@ -117,6 +118,9 @@ window.addEventListener('message', (event) => {
             pending.pawtect = data.token;
             window.wplacerPawtectToken = data.token;
             console.log('✅ wplacer: Pawtect token captured from', data.origin || 'unknown', 'waiting/pairing...');
+            if (pending.turnstile) {
+                try { console.log('✅ wplacer: Both tokens present. Sending to server...'); } catch {}
+            }
             trySendPair();
         }
     } catch {}

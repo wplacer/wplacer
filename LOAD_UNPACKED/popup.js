@@ -13,20 +13,23 @@ document.addEventListener('DOMContentLoaded', () => {
         portInput.value = initialPort;
     });
 
-    // Save settings
+    // Save settings (delegated to background)
     saveBtn.addEventListener('click', () => {
         const port = parseInt(portInput.value, 10);
         if (isNaN(port) || port < 1 || port > 65535) {
             statusEl.textContent = 'Error: Invalid port number.';
             return;
         }
-
-        chrome.storage.local.set({ wplacerPort: port }, () => {
-            statusEl.textContent = `Settings saved. Server on port ${port}.`;
-            // Inform background script if port changed, so it can reconnect SSE
-            if (port !== initialPort) {
-                chrome.runtime.sendMessage({ action: "settingsUpdated" });
+        chrome.runtime.sendMessage({ action: 'saveSettings', port }, (response) => {
+            if (chrome.runtime.lastError) {
+                statusEl.textContent = `Error: ${chrome.runtime.lastError.message}`;
+                return;
+            }
+            if (response && response.success) {
+                statusEl.textContent = `Settings saved. Server on port ${port}.`;
                 initialPort = port;
+            } else {
+                statusEl.textContent = `Error: ${(response && response.error) || 'Failed to save settings.'}`;
             }
         });
     });
