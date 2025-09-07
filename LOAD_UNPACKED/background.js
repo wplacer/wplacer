@@ -138,8 +138,8 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         const backend = 'https://backend.wplace.live';
                         const importModule = async () => {
                             const candidates = [
-                                new URL('/_app/immutable/chunks/BBb1ALhY.js', location.origin).href,
-                                'https://wplace.live/_app/immutable/chunks/BBb1ALhY.js'
+                                new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href,
+                                'https://wplace.live/_app/immutable/chunks/BdJF80pX.js'
                             ];
                             let lastErr;
                             for (const url of candidates) {
@@ -263,7 +263,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const mod = await import('/_app/immutable/chunks/BdJF80pX.js');
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
@@ -309,7 +309,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const mod = await import('/_app/immutable/chunks/BBb1ALhY.js');
+                                const mod = await import('/_app/immutable/chunks/BdJF80pX.js');
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
