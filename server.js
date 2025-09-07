@@ -1145,6 +1145,9 @@ class TemplateManager {
     async handleUpgrades(wplacer) {
         if (!this.canBuyMaxCharges) return;
         await wplacer.loadUserInfo();
+        const charges = wplacer.userInfo.charges;
+        // Only buy Max Charges when we're at full charges so we can immediately use the +10
+        if (Math.floor(charges.count) < charges.max) return;
         const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
         const amountToBuy = Math.floor(affordableDroplets / 500);
         if (amountToBuy > 0) {
@@ -1397,11 +1400,12 @@ class TemplateManager {
                                         this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
 
+                                        // Buy Max Charges first when conditions are met so added charges are usable this turn
+                                        await this.handleUpgrades(wplacer);
                                         await this._performPaintTurn(wplacer, color);
 
                                         // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
                                         foundUserForTurn = true;
-                                        await this.handleUpgrades(wplacer);
                                         await this.handleChargePurchases(wplacer);
                                     } catch (error) {
                                         if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
