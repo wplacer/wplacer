@@ -84,7 +84,7 @@ const logsTypeFilter = $('logsTypeFilter');
 
 // --- Global State ---
 let templateUpdateInterval = null;
-let confirmCallback = null;
+let confirmCallback = {};
 let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
 
@@ -110,32 +110,35 @@ const showMessage = (title, content) => {
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = null;
+    confirmCallback = { close: true };
 };
 
-const showConfirmation = (title, content, onConfirm) => {
+const showConfirmation = (title, content, onConfirm, closeOnConfirm) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.remove('hidden');
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = onConfirm;
+    confirmCallback = {
+        fn: onConfirm,
+        close: closeOnConfirm
+    };
 };
 
 const closeMessageBox = () => {
     messageBoxOverlay.classList.add('hidden');
-    confirmCallback = null;
 };
 
 messageBoxConfirm.addEventListener('click', () => {
-    if (confirmCallback) {
-        confirmCallback();
-    }
-    closeMessageBox();
+    if (!confirmCallback) return;
+    const { fn: callback, close } = confirmCallback;
+    if (close) closeMessageBox();
+    if (callback) callback();
 });
 
 messageBoxCancel.addEventListener('click', () => {
     closeMessageBox();
+    confirmCallback = {};
 });
 
 const handleError = (error) => {
@@ -860,30 +863,46 @@ openManageUsers.addEventListener('click', () => {
                         } catch (error) {
                             handleError(error);
                         }
-                    }
+                    },
+                    true
                 );
             });
             user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
-                    const info = `
-                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
-                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
-                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
-                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? 'Yes' : 'No'}</span><br>
-                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
-                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
-                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
-                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
-                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
-                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
-                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
-                    `;
+                    let { status: isBanned, until } = response.data.ban;
+                    let info;
+                    if (isBanned == true) {
+                        if (until == Number.MAX_SAFE_INTEGER)
+                            until = "FOREVER";
+                        else
+                            until = new Date(until);
+
+                        info = `
+                        User <b><span style="color: #f97a1f;">${response.data.name}</span></b> has been <span style="color: #b91919ff;">banned!</span><br>
+                        <b>Banned until:</n> <span style="color: #f97a1f;">${until}</span><br>
+                        <br>Would you like to remove the <b>account</b> from the user list?
+                        `
+                    } else
+                        info = `
+                        <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                        <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                        <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                        <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                        <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? 'Yes' : 'No'}</span><br>
+                        <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                        <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                        <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                        <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                        <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                        <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                        <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                        `;
 
                     showConfirmation('User Info', info, () => {
-                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
-                    });
+                        if (isBanned) user.querySelector('.delete-btn').click();
+                        else navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                    }, !isBanned);
                 } catch (error) {
                     handleError(error);
                 }
@@ -924,7 +943,7 @@ checkUserStatus.addEventListener('click', async () => {
             const dropletsEl = userEl.querySelector('.user-stats b:nth-of-type(4)');
             const levelProgressEl = userEl.querySelector('.level-progress');
 
-            if (status && status.success) {
+            if (status && status.success && status.data.ban.status == false) {
                 const userInfo = status.data;
                 const charges = Math.floor(userInfo.charges.count);
                 const max = userInfo.charges.max;
@@ -1112,11 +1131,11 @@ const createTemplateCard = (t, id) => {
     shareBtn.className = 'secondary-button';
     shareBtn.innerHTML = '<img src="icons/open.svg">Share';
     shareBtn.addEventListener('click', async () => {
-        if (!t.shareCode) {
+        if (!t.template.shareCode) {
             showMessage('Error', 'No share code available for this template.');
             return;
         }
-        await navigator.clipboard.writeText(t.shareCode);
+        await navigator.clipboard.writeText(t.template.shareCode);
         showMessage('Copied!', 'Share code copied to clipboard.');
     });
     actions.appendChild(shareBtn);
@@ -1160,7 +1179,7 @@ const createTemplateCard = (t, id) => {
             } catch (e) {
                 handleError(e);
             }
-        });
+        }, true);
     });
     actions.appendChild(delBtn);
     card.appendChild(actions);

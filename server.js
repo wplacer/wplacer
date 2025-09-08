@@ -59,6 +59,8 @@ const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
 const JSON_LIMIT = '50mb';
 
 const MS = {
+    QUARTER_SEC: 250,
+    TWO_SEC: 2_000,
     THIRTY_SEC: 30_000,
     TWO_MIN: 120_000,
     FIVE_MIN: 300_000,
@@ -412,6 +414,8 @@ class WPlacer {
         for (const k of Object.keys(this.cookies)) {
             jar.setCookieSync(`${k}=${this.cookies[k]}; Path=/`, WPLACE_BASE);
         }
+        const sleepTime = Math.floor(Math.random() * MS.TWO_SEC) + MS.QUARTER_SEC;
+        await sleep(sleepTime);
         const opts = { cookieJar: jar, browser: 'chrome', ignoreTlsErrors: true };
         const proxyUrl = getNextProxy();
         if (proxyUrl) {
@@ -444,6 +448,15 @@ class WPlacer {
                 throw new NetworkError('(401) Unauthorized. The cookie may be invalid or the current IP/proxy is rate-limited.');
             if (userInfo.error) throw new Error(`(500) Auth failed: "${userInfo.error}".`);
             if (userInfo.id && userInfo.name) {
+                const suspendedUntil = users[userInfo.id]?.suspendedUntil; // Grab suspendedUntil property from config files
+                const isStillSuspended = suspendedUntil > new Date();
+
+                // And create a new property in UserInfo
+                userInfo["ban"] = {
+                    status: isStillSuspended,
+                    until: suspendedUntil
+                };
+
                 this.userInfo = userInfo;
                 ChargeCache.markFromUserInfo(userInfo);
                 return true;
@@ -1191,8 +1204,19 @@ class TemplateManager {
             } catch (error) {
                 if (error.name === 'SuspensionError') {
                     const until = new Date(error.suspendedUntil).toLocaleString();
-                    log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended until ${until}.`);
-                    users[wplacer.userInfo.id].suspendedUntil = error.suspendedUntil;
+                    
+                    // Difference between a BAN and a SUSPENSION of the account.
+                    if (error.durationMs > 0) log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account suspended until ${until}.`);
+                    else log(wplacer.userInfo.id, wplacer.userInfo.name, `[${this.name}] 🛑 Account BANNED PERMANENTLY, banned due to ${error.reason}.`)
+                    
+                    /*
+                    
+                    If a BAN has been issued, instead of setting suspendedUntil to wpalcer's suspendedUntil (current date in ms),
+                    set it to a HUGE number to avoid modifying any logic in the rest of the code, and still perform properly with
+                    the banned account.
+                    
+                    */
+                    users[wplacer.userInfo.id].suspendedUntil = error.durationMs > 0 ? error.suspendedUntil : Number.MAX_SAFE_INTEGER;
                     saveUsers();
                     throw error;
                 }
@@ -1630,11 +1654,16 @@ app.post('/user', async (req, res) => {
     const wplacer = new WPlacer({});
     try {
         const userInfo = await wplacer.login(req.body.cookies);
+        let banned = users[userInfo.id]?.suspendedUntil; // Save any previous suspendedUntil property
         users[userInfo.id] = {
             name: userInfo.name,
             cookies: req.body.cookies,
             expirationDate: req.body.expirationDate,
         };
+
+        if (banned && banned > new Date())
+            users[userInfo.id].suspendedUntil = banned // Restore the suspsendedUntil property from users file if is still suspended
+
         saveUsers();
         res.json(userInfo);
     } catch (error) {
