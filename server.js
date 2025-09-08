@@ -59,6 +59,8 @@ const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
 const JSON_LIMIT = '50mb';
 
 const MS = {
+    QUARTER_SEC: 250,
+    TWO_SEC: 2_000,
     THIRTY_SEC: 30_000,
     TWO_MIN: 120_000,
     FIVE_MIN: 300_000,
@@ -412,6 +414,8 @@ class WPlacer {
         for (const k of Object.keys(this.cookies)) {
             jar.setCookieSync(`${k}=${this.cookies[k]}; Path=/`, WPLACE_BASE);
         }
+        const sleepTime = Math.floor(Math.random() * MS.TWO_SEC) + MS.QUARTER_SEC;
+        await sleep(sleepTime);
         const opts = { cookieJar: jar, browser: 'chrome', ignoreTlsErrors: true };
         const proxyUrl = getNextProxy();
         if (proxyUrl) {
