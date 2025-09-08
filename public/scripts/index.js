@@ -131,9 +131,9 @@ const closeMessageBox = () => {
 
 messageBoxConfirm.addEventListener('click', () => {
     if (!confirmCallback) return;
-    if (confirmCallback.close) closeMessageBox();
-
-    if (confirmCallback.fn) confirmCallback();
+    const { fn: callback, close } = confirmCallback;
+    if (close) closeMessageBox();
+    if (callback) callback();
 });
 
 messageBoxCancel.addEventListener('click', () => {
