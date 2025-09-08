@@ -1246,9 +1246,20 @@ class TemplateManager {
         while (!done && this.running) {
             try {
                 wplacer.token = await TokenManager.getToken(this.name);
-                // Pull latest pawtect token if available
                 wplacer.pawtect = globalThis.__wplacer_last_pawtect || null;
                 const painted = await wplacer.paint(this.currentPixelSkip, colorFilter);
+                
+                // ---------- START: REALTIME PIXEL COUNT FIX ----------
+                // After every successful paint action, we immediately subtract the painted pixels.
+                // This ensures the UI is always showing a near-realtime count.
+                if (painted > 0) {
+                    this.pixelsRemaining -= painted;
+                    if (templates[this.templateId]) {
+                        templates[this.templateId].pixelsRemaining = this.pixelsRemaining;
+                    }
+                }
+                // ---------- END: REALTIME PIXEL COUNT FIX ----------
+
                 paintedTotal += painted;
                 done = true;
             } catch (error) {
@@ -1273,13 +1284,13 @@ class TemplateManager {
     }
 
     async _findWorkingUserAndCheckPixels() {
-        // Iterate through all users in the queue to find one that works.
+        // ... (this function remains the same)
         for (let i = 0; i < this.userQueue.length; i++) {
             const userId = this.userQueue.shift();
-            this.userQueue.push(userId); // Immediately cycle user to the back of the queue.
+            this.userQueue.push(userId);
 
             if (!users[userId] || (users[userId].suspendedUntil && Date.now() < users[userId].suspendedUntil)) {
-                continue; // Skip suspended or non-existent users.
+                continue;
             }
 
             const wplacer = new WPlacer({
@@ -1298,15 +1309,14 @@ class TemplateManager {
                 log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
                 await wplacer.login(users[userId].cookies);
                 await wplacer.loadTiles();
-                const mismatchedPixels = wplacer._getMismatchedPixels(1, null); // Check all pixels, no skip, no color filter.
+                const mismatchedPixels = wplacer._getMismatchedPixels(1, null);
                 log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels.`);
-                return { wplacer, mismatchedPixels }; // Success
+                return { wplacer, mismatchedPixels };
             } catch (error) {
                 logUserError(error, userId, users[userId].name, 'cycle pixel check');
-                // This user failed, loop will continue to the next one.
             }
         }
-        return null; // No working users were found in the entire queue.
+        return null;
     }
 
     async start() {
@@ -1318,8 +1328,9 @@ class TemplateManager {
         try {
             while (this.running) {
                 this.status = 'Checking for pixels...';
+                if (templates[this.templateId]) templates[this.templateId].status = this.status;
+
                 log('SYSTEM', 'wplacer', `[${this.name}] 💓 Starting new check cycle...`);
-                // --- Find a working user and get mismatched pixels ---
                 const checkResult = await this._findWorkingUserAndCheckPixels();
                 if (!checkResult) {
                     log('SYSTEM', 'wplacer', `[${this.name}] ❌ No working users found for pixel check. Retrying in 30s.`);
@@ -1327,6 +1338,12 @@ class TemplateManager {
                     continue;
                 }
                 
+                this.pixelsRemaining = checkResult.mismatchedPixels.length;
+                if (templates[this.templateId]) {
+                    templates[this.templateId].pixelsRemaining = this.pixelsRemaining;
+                }
+                
+                // ... (the rest of the start() function remains the same as your latest version)
                 let colorsToPaint;
                 const isColorMode = ['color', 'randomColor'].includes(currentSettings.drawingOrder);
 
@@ -1369,12 +1386,10 @@ class TemplateManager {
                     colorsToPaint = [null];
                 }
 
-                this.pixelsRemaining = checkResult.mismatchedPixels.length;
-
-                // --- COMPLETION & ANTI-GRIEF CHECK ---
                 if (this.pixelsRemaining === 0) {
                     if (this.antiGriefMode) {
                         this.status = 'Monitoring for changes.';
+                        if (templates[this.templateId]) templates[this.templateId].status = this.status;
                         const standbyTime = currentSettings.stealthMode 
                             ? getRandomizedCooldown(currentSettings.antiGriefStandby, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
                             : currentSettings.antiGriefStandby;
@@ -1384,6 +1399,7 @@ class TemplateManager {
                     } else {
                         log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
                         this.status = 'Finished.';
+                        if (templates[this.templateId]) templates[this.templateId].status = this.status;
                         this.running = false;
                         break;
                     }
@@ -1451,6 +1467,7 @@ class TemplateManager {
                                     try {
                                         const userInfo = await wplacer.login(users[userId].cookies);
                                         this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
+                                        if (templates[this.templateId]) templates[this.templateId].status = this.status;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
                                         await this._performPaintTurn(wplacer, color);
                                         foundUserForTurn = true;
@@ -1505,6 +1522,7 @@ class TemplateManager {
                                 });
                                 const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
                                 this.status = 'Waiting for charges.';
+                                if (templates[this.templateId]) templates[this.templateId].status = this.status;
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
                                 log('SYSTEM', 'wplacer', `[${this.name}] 🫃 Woke up. Re-evaluating...`);
@@ -1516,12 +1534,13 @@ class TemplateManager {
         } finally {
             activePaintingTasks--;
             if (this.status !== 'Finished.') this.status = 'Stopped.';
+            if (templates[this.templateId]) templates[this.templateId].status = this.status;
             this.userIds.forEach((id) => activeTemplateUsers.delete(id));
             processQueue();
         }
     }
 }
-
+// ... (phần còn lại của file giữ nguyên)
 
 // ---------- Express setup ----------
 
