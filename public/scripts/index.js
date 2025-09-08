@@ -943,7 +943,7 @@ checkUserStatus.addEventListener('click', async () => {
             const dropletsEl = userEl.querySelector('.user-stats b:nth-of-type(4)');
             const levelProgressEl = userEl.querySelector('.level-progress');
 
-            if (status && status.success) {
+            if (status && status.success && status.data.ban.status == false) {
                 const userInfo = status.data;
                 const charges = Math.floor(userInfo.charges.count);
                 const max = userInfo.charges.max;
