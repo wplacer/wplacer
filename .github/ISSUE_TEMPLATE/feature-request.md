@@ -1,9 +1,9 @@
 ---
 name: Feature request
 about: Suggest an idea for this project
-title: ''
+title: "[FEATURE] "
 labels: enhancement
-assignees: JinxTheCatto, luluwaffless
+assignees: JinxTheCatto, ProtonDev-sys, luluwaffless
 
 ---
 
