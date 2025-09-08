@@ -1,11 +1,11 @@
 <h1 align="center"><p style="display: inline-flex; align-items: center; gap: 0.25em"><img style="width: 1.5em; height: 1.5em;" src="public/icons/favicon.png">wplacer</p></h1>
 
-<p align="center"><img src="https://img.shields.io/github/package-json/v/luluwaffless/wplacer">
-<a href="LICENSE"><img src="https://img.shields.io/github/license/luluwaffless/wplacer"></a>
-<a href="https://discord.gg/qbtcWrHJvR"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
+<p align="center"><img src="https://img.shields.io/github/package-json/v/wplacer/wplacer">
+<a href="LICENSE"><img src="https://img.shields.io/github/license/wplacer/wplacer"></a>
+<a href="https://discord.gg/wplacerbot"><img src="https://img.shields.io/badge/Support-gray?style=flat&logo=Discord&logoColor=white&logoSize=auto&labelColor=5562ea"></a>
 <a href="LEIAME.md"><img src="https://img.shields.io/badge/tradução-português_(brasil)-green"></a>
 <a href="LISEZMOI.md"><img src="https://img.shields.io/badge/traduction-français-blue"></a>
-<a href="README_zh-cn.md"><img src="https://img.shields.io/badge/翻译-简体中文-blue"></a></p>
+<a href="README_zh-cn.md"><img src="https://img.shields.io/badge/翻译-简体中文-red"></a></p>
 
 A massively updated auto-drawing bot for [wplace.live](https://wplace.live/).
 
@@ -94,11 +94,12 @@ One of your modules are missing. To install them, simply use `npm i`.
 
 ### Credits 🙏
 
+-   [Lulu](https://github.com/luluwaffless) [(donate here to help us develop the project!)](https://ko-fi.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto) [(Donate here to help us develop the project :3)](https://ko-fi.com/jinxthecat)
--   [luluwaffless](https://github.com/luluwaffless) [(Donate here to help us develop the project)](https://ko-fi.com/luluwaffless)
+-   [Proton](https://github.com/ProtonDev-sys) [(Donate here to help us develop the project)](https://example.com/no-link-yet-lol)
 
 And to our amazing contributors!
-<p align="center"><img src="https://contrib.rocks/image?repo=luluwaffless/wplacer"></p>
+<p align="center"><img src="https://contrib.rocks/image?repo=wplacer/wplacer"></p>
 
 ### License 📜
 
