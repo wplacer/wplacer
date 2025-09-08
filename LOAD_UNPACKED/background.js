@@ -136,11 +136,48 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
+                        const resolvePawtectChunkUrl = async () => {
+                            try {
+                                if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
+                                const cached = localStorage.getItem('wplacerPawtectChunk');
+                                if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
+
+                                const urls = new Set();
+                                // script tags
+                                Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
+                                // modulepreload and script links (SvelteKit)
+                                Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
+                                // performance entries already loaded
+                                try {
+                                    (performance.getEntriesByType('resource') || []).forEach(e => {
+                                        if (e && typeof e.name === 'string') urls.add(e.name);
+                                    });
+                                } catch { }
+
+                                const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
+                                console.log('wplacer: pawtect chunk candidates', scripts);
+
+                                for (const src of scripts) {
+                                    try {
+                                        const text = await fetch(src, { credentials: 'omit' }).then(r => r.text());
+                                        if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
+                                            localStorage.setItem('wplacerPawtectChunk', src);
+                                            window.__wplacerPawtectChunk = src;
+                                            return src;
+                                        }
+                                    } catch { }
+                                }
+                                return null;
+                            } catch { return null; }
+                        };
                         const importModule = async () => {
-                            const candidates = [
-                                new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href,
-                                'https://wplace.live/_app/immutable/chunks/BdJF80pX.js'
-                            ];
+                            const discovered = await resolvePawtectChunkUrl();
+                            console.log('wplacer: pawtect chunk discovered', discovered);
+
+                            const candidates = [];
+                            if (discovered) candidates.push(discovered);
+                            candidates.push(new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href);
+                            candidates.push('https://wplace.live/_app/immutable/chunks/BdJF80pX.js');
                             let lastErr;
                             for (const url of candidates) {
                                 try { return await import(url); } catch (e) { lastErr = e; }
@@ -156,7 +193,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                 if (me?.id && typeof mod.i === 'function') mod.i(me.id);
-                            } catch {}
+                            } catch { }
                             if (typeof mod.r === 'function') mod.r(url);
                             const enc = new TextEncoder();
                             const dec = new TextDecoder();
@@ -169,12 +206,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             if (Array.isArray(out)) {
                                 const [outPtr, outLen] = out;
                                 token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
-                                try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                                try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch { }
                             } else if (typeof out === 'string') {
                                 token = out;
                             } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
                                 token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
-                                try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                                try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
                             } else {
                                 console.warn('wplacer: unexpected pawtect out shape', typeof out);
                                 token = null;
@@ -202,24 +239,24 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                             const text = await clone.text();
                                             console.log('wplacer: hook(fetch) pixel POST detected (clone)', req.url, 'len', text.length);
                                             computePawtect(req.url, text);
-                                        } catch {}
+                                        } catch { }
                                     }
                                 }
-                            } catch {}
+                            } catch { }
                             return originalFetch(...args);
                         };
                         // Also hook XHR in case the site uses XMLHttpRequest
                         try {
                             const origOpen = XMLHttpRequest.prototype.open;
                             const origSend = XMLHttpRequest.prototype.send;
-                            XMLHttpRequest.prototype.open = function(method, url) {
+                            XMLHttpRequest.prototype.open = function (method, url) {
                                 try {
                                     this.__wplacer_url = new URL(url, location.href).href;
                                     this.__wplacer_method = String(method || '');
-                                } catch {}
+                                } catch { }
                                 return origOpen.apply(this, arguments);
                             };
-                            XMLHttpRequest.prototype.send = function(body) {
+                            XMLHttpRequest.prototype.send = function (body) {
                                 try {
                                     if ((this.__wplacer_method || '').toUpperCase() === 'POST' && /\/s0\/pixel\//.test(this.__wplacer_url || '')) {
                                         const url = this.__wplacer_url;
@@ -228,19 +265,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                             console.log('wplacer: hook(XHR) pixel POST detected (string)', url, 'len', body.length);
                                             maybeCompute(body);
                                         } else if (body instanceof ArrayBuffer) {
-                                            try { const s = new TextDecoder().decode(new Uint8Array(body)); console.log('wplacer: hook(XHR) pixel POST detected (ArrayBuffer)', url, 'len', s.length); maybeCompute(s); } catch {}
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body)); console.log('wplacer: hook(XHR) pixel POST detected (ArrayBuffer)', url, 'len', s.length); maybeCompute(s); } catch { }
                                         } else if (body && typeof body === 'object' && 'buffer' in body && body.buffer instanceof ArrayBuffer) {
                                             // e.g., Uint8Array
-                                            try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); console.log('wplacer: hook(XHR) pixel POST detected (TypedArray)', url, 'len', s.length); maybeCompute(s); } catch {}
+                                            try { const s = new TextDecoder().decode(new Uint8Array(body.buffer)); console.log('wplacer: hook(XHR) pixel POST detected (TypedArray)', url, 'len', s.length); maybeCompute(s); } catch { }
                                         } else if (body && typeof body.text === 'function') {
                                             // Blob or similar
-                                            try { body.text().then(s => { console.log('wplacer: hook(XHR) pixel POST detected (Blob)', url, 'len', (s||'').length); maybeCompute(s); }).catch(() => {}); } catch {}
+                                            try { body.text().then(s => { console.log('wplacer: hook(XHR) pixel POST detected (Blob)', url, 'len', (s || '').length); maybeCompute(s); }).catch(() => { }); } catch { }
                                         }
                                     }
-                                } catch {}
+                                } catch { }
                                 return origSend.apply(this, arguments);
                             };
-                        } catch {}
+                        } catch { }
                         console.log('wplacer: pawtect fetch hook installed');
                     }
                 });
@@ -263,12 +300,29 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const mod = await import('/_app/immutable/chunks/BdJF80pX.js');
+                                const resolvePawtectChunkUrl = async () => {
+                                    try {
+                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
+                                        const cached = localStorage.getItem('wplacerPawtectChunk');
+                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
+                                        const urls = new Set();
+                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
+                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
+                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch { }
+                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
+                                        for (const src of scripts) {
+                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch { }
+                                        }
+                                        return null;
+                                    } catch { return null; }
+                                };
+                                const discovered = await resolvePawtectChunkUrl();
+                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
-                                } catch {}
+                                } catch { }
                                 if (typeof mod.r === 'function') mod.r(url);
                                 const enc = new TextEncoder();
                                 const dec = new TextDecoder();
@@ -280,28 +334,28 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 if (Array.isArray(out)) {
                                     const [outPtr, outLen] = out;
                                     token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
-                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch { }
                                 } else if (typeof out === 'string') {
                                     token = out;
                                 } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
                                     token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
-                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
                                 }
                                 window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'seed' }, '*');
-                            } catch {}
+                            } catch { }
                         })();
                     },
                     args: [bodyStr]
                 });
             }
-        } catch {}
+        } catch { }
         sendResponse({ ok: true });
         return true;
     }
     if (request.action === 'computePawtectForT') {
         try {
             if (sender.tab?.id) {
-                const turnstile = typeof request.bodyStr === 'string' ? (()=>{ try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } })() : '';
+                const turnstile = typeof request.bodyStr === 'string' ? (() => { try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } })() : '';
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
@@ -309,21 +363,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const mod = await import('/_app/immutable/chunks/BdJF80pX.js');
+                                const resolvePawtectChunkUrl = async () => {
+                                    try {
+                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
+                                        const cached = localStorage.getItem('wplacerPawtectChunk');
+                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
+                                        const urls = new Set();
+                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
+                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
+                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch { }
+                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
+                                        for (const src of scripts) {
+                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch { }
+                                        }
+                                        return null;
+                                    } catch { return null; }
+                                };
+                                const discovered = await resolvePawtectChunkUrl();
+                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
-                                } catch {}
+                                } catch { }
                                 // Randomize pixel tile minimally (fixed 1/1) and coords for simplicity
                                 const url = `${backend}/s0/pixel/1/1`;
                                 if (typeof mod.r === 'function') mod.r(url);
-                                const fp = (window.wplacerFP && String(window.wplacerFP)) || (()=>{
-                                    const b = new Uint8Array(16); crypto.getRandomValues(b); return Array.from(b).map(x=>x.toString(16).padStart(2,'0')).join('');
+                                const fp = (window.wplacerFP && String(window.wplacerFP)) || (() => {
+                                    const b = new Uint8Array(16); crypto.getRandomValues(b); return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
                                 })();
-                                const rx = Math.floor(Math.random()*1000);
-                                const ry = Math.floor(Math.random()*1000);
-                                const bodyObj = { colors:[0], coords:[rx,ry], fp, t: String(tValue||'') };
+                                const rx = Math.floor(Math.random() * 1000);
+                                const ry = Math.floor(Math.random() * 1000);
+                                const bodyObj = { colors: [0], coords: [rx, ry], fp, t: String(tValue || '') };
                                 const rawBody = JSON.stringify(bodyObj);
                                 const enc = new TextEncoder();
                                 const dec = new TextDecoder();
@@ -335,21 +406,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 if (Array.isArray(out)) {
                                     const [outPtr, outLen] = out;
                                     token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
-                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch {}
+                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch { }
                                 } else if (typeof out === 'string') {
                                     token = out;
                                 } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
                                     token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
-                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch {}
+                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
                                 }
                                 window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'simple' }, '*');
-                            } catch {}
+                            } catch { }
                         })();
                     },
                     args: [turnstile]
                 });
             }
-        } catch {}
+        } catch { }
         sendResponse({ ok: true });
         return true;
     }
