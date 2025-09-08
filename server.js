@@ -1310,12 +1310,10 @@ class TemplateManager {
     }
 
     async start() {
-        const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
         log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
-
 
         try {
             while (this.running) {
@@ -1328,6 +1326,7 @@ class TemplateManager {
                     await this.cancellableSleep(30_000);
                     continue;
                 }
+                
                 let colorsToPaint;
                 const isColorMode = ['color', 'randomColor'].includes(currentSettings.drawingOrder);
 
@@ -1441,11 +1440,12 @@ class TemplateManager {
                                 }
 
                                 const predicted = ChargeCache.predict(userId, now);
-                                const threshold = currentSettings.stealthMode 
+                                const thresholdPercent = currentSettings.stealthMode 
                                     ? getBellRandomizedValue(currentSettings.chargeThreshold, 0.1, 1.0, currentSettings.stealthChargeThresholdFluctuation / 100)
                                     : currentSettings.chargeThreshold;
+                                const threshold = predicted ? Math.max(1, Math.floor(predicted.max * thresholdPercent)) : Infinity;
 
-                                if (predicted && Math.floor(predicted.count) >= Math.max(1, Math.floor(predicted.max * threshold))) {
+                                if (predicted && Math.floor(predicted.count) >= threshold) {
                                     activeBrowserUsers.add(userId);
                                     const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
                                     try {
@@ -1482,8 +1482,10 @@ class TemplateManager {
                                      const cooldown = currentSettings.stealthMode 
                                         ? getRandomizedCooldown(currentSettings.accountCooldown, currentSettings.stealthCooldownMinPercent, currentSettings.stealthCooldownMaxPercent) 
                                         : currentSettings.accountCooldown;
-                                    log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(cooldown)}).`);
-                                    await this.cancellableSleep(cooldown);
+                                    if(cooldown > 0) {
+                                        log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(cooldown)}).`);
+                                        await this.cancellableSleep(cooldown);
+                                    }
                                     
                                     if (currentSettings.stealthMode && Math.random() < (currentSettings.stealthBreakChancePercent / 100)) {
                                         const minBreak = currentSettings.stealthBreakMinMinutes * 60 * 1000;
@@ -1990,7 +1992,7 @@ app.put('/settings', (req, res) => {
     const prev = { ...currentSettings };
     currentSettings = { ...prev, ...req.body };
     saveSettings();
-    if (prev.chargeThreshold !== currentSettings.chargeThreshold) {
+    if (prev.chargeThreshold !== currentSettings.chargeThreshold || prev.stealthMode !== currentSettings.stealthMode) {
         for (const id in templates) if (templates[id].running) templates[id].interruptSleep();
     }
     res.sendStatus(HTTP_STATUS.OK);
@@ -2212,7 +2214,7 @@ const diffVer = (v1, v2) => {
                 ▒▒▒▒▒                                          v${version}`));
     // check versions (dont delete this ffs)
     try {
-        const githubPackage = await fetch("https://raw.githubusercontent.com/luluwaffless/wplacer/refs/heads/main/package.json");
+        const githubPackage = await fetch("https://raw.githubusercontent.com/wplacer/wplacer/refs/heads/main/package.json");
         const githubVersion = (await githubPackage.json()).version;
         const diff = diffVer(version, githubVersion);
         if (diff !== 0) console.warn(`${diff < 0 ? "⚠️ Outdated version! Please update using \"git pull\"." : "🤖 Unreleased."}\n  GitHub: ${githubVersion}\n  Local: ${version} (${diff})`);
