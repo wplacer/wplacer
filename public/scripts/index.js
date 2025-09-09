@@ -71,7 +71,7 @@ const proxyCount = $('proxyCount');
 const reloadProxiesBtn = $('reloadProxiesBtn');
 const logProxyUsage = $('logProxyUsage');
 
-// --- START: DETAILED STEALTH MODE ELEMENTS (RESTORED) ---
+// --- START: DETAILED STEALTH MODE ELEMENTS ---
 const stealthMode = $("stealthMode");
 const stealthOptions = $("stealthOptions");
 const stealthChargeThresholdFluctuation = $("stealthChargeThresholdFluctuation");
@@ -84,7 +84,7 @@ const stealthBreakMinMinutes = $("stealthBreakMinMinutes");
 const stealthBreakMaxMinutes = $("stealthBreakMaxMinutes");
 const stealthTileDelayMinMs = $("stealthTileDelayMinMs");
 const stealthTileDelayMaxMs = $("stealthTileDelayMaxMs");
-// --- END: DETAILED STEALTH MODE ELEMENTS (RESTORED) ---
+// --- END: DETAILED STEALTH MODE ELEMENTS ---
 
 // Logs Viewer
 const openLogsViewer = $('openLogsViewer');
@@ -99,7 +99,7 @@ const logsTypeFilter = $('logsTypeFilter');
 
 // --- Global State ---
 let templateUpdateInterval = null;
-let confirmCallback = null;
+let confirmCallback = {};
 let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
 
@@ -125,32 +125,35 @@ const showMessage = (title, content) => {
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = null;
+    confirmCallback = { close: true };
 };
 
-const showConfirmation = (title, content, onConfirm) => {
+const showConfirmation = (title, content, onConfirm, closeOnConfirm = true) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.remove('hidden');
     messageBoxConfirm.textContent = 'Confirm';
     messageBoxOverlay.classList.remove('hidden');
-    confirmCallback = onConfirm;
+    confirmCallback = {
+        fn: onConfirm,
+        close: closeOnConfirm
+    };
 };
 
 const closeMessageBox = () => {
     messageBoxOverlay.classList.add('hidden');
-    confirmCallback = null;
 };
 
 messageBoxConfirm.addEventListener('click', () => {
-    if (confirmCallback) {
-        confirmCallback();
-    }
-    closeMessageBox();
+    if (!confirmCallback) return;
+    const { fn: callback, close } = confirmCallback;
+    if (close) closeMessageBox();
+    if (callback) callback();
 });
 
 messageBoxCancel.addEventListener('click', () => {
     closeMessageBox();
+    confirmCallback = {};
 });
 
 const handleError = (error) => {
@@ -496,8 +499,6 @@ const drawTemplate = (template, canvas) => {
 
             const key = Object.keys(colors).find((k) => colors[k].id === color);
             if (!key) {
-                // Unknown color id. Skip to avoid `.split` crash.
-                // Optional: console.warn('Unknown color id:', color);
                 continue;
             }
 
@@ -527,7 +528,6 @@ const fetchCanvas = async (coords, templateCanvas, targetCanvas) => {
     const { width, height } = templateCanvas;
 
     const TILE_SIZE = 1000;
-    // Lấy giá trị border từ input chung, nếu không có thì mặc định là 0
     const radiusInput = document.getElementById('previewBorder');
     const radius = Math.max(0, parseInt(radiusInput.value, 10) || 0);
 
@@ -565,9 +565,7 @@ const fetchCanvas = async (coords, templateCanvas, targetCanvas) => {
                 const dy = tyi * TILE_SIZE + sy - startY;
                 ctx.drawImage(img, sx, sy, sw, sh, dx, dy, sw, sh);
             } catch (error) {
-                // Đừng hiển thị lỗi pop-up cho mỗi tile, chỉ log ra console
                 console.error(`Failed to fetch tile ${txi}, ${tyi}:`, error);
-                // Vẽ một ô màu đỏ để báo lỗi
                 ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
                 const dx = txi * TILE_SIZE - startX;
                 const dy = tyi * TILE_SIZE - startY;
@@ -576,12 +574,10 @@ const fetchCanvas = async (coords, templateCanvas, targetCanvas) => {
         }
     }
 
-    // Chồng template lên
-    ctx.globalAlpha = 0.2; // Tăng độ mờ một chút để dễ nhìn
+    ctx.globalAlpha = 0.5;
     ctx.drawImage(templateCanvas, radius, radius);
     ctx.globalAlpha = 1;
 
-    // Hiển thị canvas mục tiêu
     targetCanvas.parentElement.style.display = 'block';
 };
 // --- END: REFACTORED fetchCanvas ---
@@ -668,17 +664,11 @@ const processEvent = () => {
             previewCanvas.style.display = 'none';
             details.style.display = 'block';
 
-            // Update the color grid to show only colors in this image
             if (template.uniqueColors && template.uniqueColors.length > 0) {
-                // Clear current available colors and set to image colors
                 availableColors.clear();
                 template.uniqueColors.forEach(colorId => availableColors.add(colorId));
-                
-                // Update the color grid with image-specific colors
                 updateColorGridForImage(template.uniqueColors);
-                
             } else {
-                // Fallback to all colors if no unique colors found
                 console.warn('No unique colors found in image, showing all colors');
                 availableColors = new Set(Object.values(colors).map(c => c.id));
                 resetOrder();
@@ -700,7 +690,6 @@ previewCanvasButton.addEventListener('click', async () => {
         return;
     }
     
-    // Giờ chúng ta gọi hàm đã refactor với các canvas tương ứng
     const coords = [txVal, tyVal, pxVal, pyVal];
     try {
         previewCanvasButton.disabled = true;
@@ -797,19 +786,16 @@ templateForm.addEventListener('submit', async (e) => {
     }
     try {
         let templateId;
-        let colorOrderSaved = false;
         
         if (isEditMode) {
             templateId = templateForm.dataset.editId;
             await axios.put(`/template/edit/${templateId}`, data);
-            // Save the color ordering for this template
-            colorOrderSaved = await saveColorOrder(templateId);
+            await saveColorOrder(templateId);
             showMessage('Success', 'Template updated!');
         } else {
             const response = await axios.post('/template', data);
             templateId = response.data.id;
-            // Save the color ordering for this template
-            colorOrderSaved = await saveColorOrder(templateId);
+            await saveColorOrder(templateId);
             showMessage('Success', 'Template created!');
         }
         
@@ -885,30 +871,46 @@ openManageUsers.addEventListener('click', () => {
                         } catch (error) {
                             handleError(error);
                         }
-                    }
+                    },
+                    true
                 );
             });
             user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
                     const response = await axios.get(`/user/status/${id}`);
-                    const info = `
-                    <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
-                    <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
-                    <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
-                    <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
-                    <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? 'Yes' : 'No'}</span><br>
-                    <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
-                    <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
-                    <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
-                    <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
-                    <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
-                    <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
-                    <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
-                    `;
+                    let { status: isBanned, until } = response.data.ban;
+                    let info;
+                    if (isBanned == true) {
+                        if (until == Number.MAX_SAFE_INTEGER)
+                            until = "FOREVER";
+                        else
+                            until = new Date(until);
+
+                        info = `
+                        User <b><span style="color: #f97a1f;">${response.data.name}</span></b> has been <span style="color: #b91919ff;">banned!</span><br>
+                        <b>Banned until:</b> <span style="color: #f97a1f;">${until}</span><br>
+                        <br>Would you like to remove the <b>account</b> from the user list?
+                        `
+                    } else
+                        info = `
+                        <b>User Name:</b> <span style="color: #f97a1f;">${response.data.name}</span><br>
+                        <b>Charges:</b> <span style="color: #f97a1f;">${Math.floor(response.data.charges.count)}</span>/<span style="color: #f97a1f;">${response.data.charges.max}</span><br>
+                        <b>Droplets:</b> <span style="color: #f97a1f;">${response.data.droplets}</span><br>
+                        <b>Favorite Locations:</b> <span style="color: #f97a1f;">${response.data.favoriteLocations.length}</span>/<span style="color: #f97a1f;">${response.data.maxFavoriteLocations}</span><br>
+                        <b>Flag Equipped:</b> <span style="color: #f97a1f;">${response.data.equippedFlag ? 'Yes' : 'No'}</span><br>
+                        <b>Discord:</b> <span style="color: #f97a1f;">${response.data.discord}</span><br>
+                        <b>Country:</b> <span style="color: #f97a1f;">${response.data.country}</span><br>
+                        <b>Pixels Painted:</b> <span style="color: #f97a1f;">${response.data.pixelsPainted}</span><br>
+                        <b>Extra Colors:</b> <span style="color: #f97a1f;">${response.data.extraColorsBitmap}</span><br>
+                        <b>Alliance ID:</b> <span style="color: #f97a1f;">${response.data.allianceId}</span><br>
+                        <b>Alliance Role:</b> <span style="color: #f97a1f;">${response.data.allianceRole}</span><br>
+                        <br>Would you like to copy the <b>Raw Json</b> to your clipboard?
+                        `;
 
                     showConfirmation('User Info', info, () => {
-                        navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
-                    });
+                        if (isBanned) user.querySelector('.delete-btn').click();
+                        else navigator.clipboard.writeText(JSON.stringify(response.data, null, 2));
+                    }, !isBanned);
                 } catch (error) {
                     handleError(error);
                 }
@@ -949,7 +951,7 @@ checkUserStatus.addEventListener('click', async () => {
             const dropletsEl = userEl.querySelector('.user-stats b:nth-of-type(4)');
             const levelProgressEl = userEl.querySelector('.level-progress');
 
-            if (status && status.success) {
+            if (status && status.success && status.data.ban.status == false) {
                 const userInfo = status.data;
                 const charges = Math.floor(userInfo.charges.count);
                 const max = userInfo.charges.max;
@@ -1043,11 +1045,9 @@ const createToggleButton = (template, id, buttonsContainer, progressBarText, cur
             await axios.put(`/template/${id}`, { running: shouldBeRunning });
             template.running = shouldBeRunning;
 
-            // Update button appearance
             button.className = template.running ? 'destructive-button' : 'primary-button';
             button.innerHTML = `<img src="icons/${template.running ? 'pause' : 'play'}.svg">${template.running ? 'Stop' : 'Start'}`;
 
-            // Update progress bar
             const newStatus = template.running ? 'Started' : 'Stopped';
             progressBarText.textContent = `${currentPercent}% | ${newStatus}`;
             const progressBar = progressBarText.previousElementSibling;
@@ -1095,7 +1095,7 @@ const updateTemplateStatus = async () => {
     }
 };
 
-// --- START: UPDATED createTemplateCard (v2) ---
+// --- START: UPDATED createTemplateCard ---
 const createTemplateCard = (t, id) => {
     const total = t.totalPixels || 1;
     const remaining = t.pixelsRemaining != null ? t.pixelsRemaining : total;
@@ -1135,7 +1135,6 @@ const createTemplateCard = (t, id) => {
 
     const previewBtn = document.createElement('button');
     previewBtn.className = 'secondary-button';
-    // THAY ĐỔI 1: Sửa văn bản ban đầu
     previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview'; 
     actions.appendChild(previewBtn);
 
@@ -1173,7 +1172,6 @@ const createTemplateCard = (t, id) => {
         const isVisible = previewContainer.style.display === 'block';
         if (isVisible) {
             previewContainer.style.display = 'none';
-            // THAY ĐỔI 2: Sửa văn bản khi đóng
             previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview'; 
         } else {
             try {
@@ -1183,7 +1181,6 @@ const createTemplateCard = (t, id) => {
                 previewBtn.innerHTML = '<img src="icons/close.svg" alt="Close Icon">Close Preview';
             } catch (error) {
                 handleError(error);
-                // THAY ĐỔI 3: Sửa văn bản khi có lỗi
                 previewBtn.innerHTML = '<img src="icons/preview.svg" alt="Preview Icon">Enable Preview';
                 previewContainer.style.display = 'none';
             } finally {
@@ -1193,11 +1190,11 @@ const createTemplateCard = (t, id) => {
     });
 
     shareBtn.addEventListener('click', async () => {
-        if (!t.shareCode) {
+        if (!t.template.shareCode) {
             showMessage('Error', 'No share code available for this template.');
             return;
         }
-        await navigator.clipboard.writeText(t.shareCode);
+        await navigator.clipboard.writeText(t.template.shareCode);
         showMessage('Copied!', 'Share code copied to clipboard.');
     });
 
@@ -1231,12 +1228,13 @@ const createTemplateCard = (t, id) => {
             } catch (e) {
                 handleError(e);
             }
-        });
+        }, true);
     });
 
     return card;
 };
-// --- END: UPDATED createTemplateCard (v2) ---
+// --- END: UPDATED createTemplateCard ---
+
 let importShareCode = false;
 openManageTemplates.addEventListener('click', () => {
     templateList.innerHTML = '';
@@ -1308,7 +1306,7 @@ openSettings.addEventListener('click', async () => {
         antiGriefStandby.value = s.antiGriefStandby / 60000;
         chargeThreshold.value = s.chargeThreshold * 100;
         
-        // --- START: DETAILED STEALTH MODE SETTINGS (RESTORED) ---
+        // --- START: DETAILED STEALTH MODE SETTINGS ---
         stealthMode.checked = s.stealthMode;
         stealthOptions.style.display = s.stealthMode ? 'block' : 'none';
         
@@ -1322,7 +1320,7 @@ openSettings.addEventListener('click', async () => {
         stealthBreakMaxMinutes.value = s.stealthBreakMaxMinutes;
         stealthTileDelayMinMs.value = s.stealthTileDelayMinMs;
         stealthTileDelayMaxMs.value = s.stealthTileDelayMaxMs;
-        // --- END: DETAILED STEALTH MODE SETTINGS (RESTORED) ---
+        // --- END: DETAILED STEALTH MODE SETTINGS ---
 
     } catch (error) {
         handleError(error);
@@ -1333,7 +1331,7 @@ openSettings.addEventListener('click', async () => {
 const saveSetting = async (setting) => {
     try {
         await axios.put('/settings', setting);
-        showMessage('Success', 'Setting saved!');
+        // Don't show success message for every little change to avoid spam
     } catch (error) {
         handleError(error);
     }
@@ -1371,15 +1369,28 @@ reloadProxiesBtn.addEventListener('click', async () => {
     }
 });
 
-// --- START: DETAILED STEALTH MODE EVENT LISTENERS (RESTORED) ---
-const setupSettingListener = (element, key, isInt = true) => {
+// --- START: DETAILED STEALTH MODE EVENT LISTENERS ---
+const setupSettingListener = (element, key, isInt = true, isFloat = false) => {
     element.addEventListener('change', () => {
-        let value = element.value;
-        if (isInt) {
-            value = parseInt(value, 10);
-            if (isNaN(value)) return;
+        let value;
+        if (isFloat) {
+            value = parseFloat(element.value);
+        } else if (isInt) {
+            value = parseInt(element.value, 10);
+        } else {
+            value = element.value;
         }
-        saveSetting({ [key]: value });
+
+        if (isNaN(value)) return;
+
+        let payload = { [key]: value };
+
+        // Convert seconds/minutes to milliseconds for server
+        if (key.endsWith('Cooldown')) payload[key] = value * 1000;
+        if (key === 'antiGriefStandby') payload[key] = value * 60000;
+        if (key === 'chargeThreshold') payload[key] = value / 100;
+
+        saveSetting(payload);
     });
 };
 
@@ -1399,62 +1410,14 @@ setupSettingListener(stealthBreakMinMinutes, 'stealthBreakMinMinutes');
 setupSettingListener(stealthBreakMaxMinutes, 'stealthBreakMaxMinutes');
 setupSettingListener(stealthTileDelayMinMs, 'stealthTileDelayMinMs');
 setupSettingListener(stealthTileDelayMaxMs, 'stealthTileDelayMaxMs');
-// --- END: DETAILED STEALTH MODE EVENT LISTENERS (RESTORED) ---
+setupSettingListener(accountCooldown, 'accountCooldown', false, true); // Use float for seconds
+setupSettingListener(purchaseCooldown, 'purchaseCooldown', false, true);
+setupSettingListener(accountCheckCooldown, 'accountCheckCooldown', false, true);
+setupSettingListener(dropletReserve, 'dropletReserve');
+setupSettingListener(antiGriefStandby, 'antiGriefStandby');
+setupSettingListener(chargeThreshold, 'chargeThreshold');
+// --- END: DETAILED STEALTH MODE EVENT LISTENERS ---
 
-
-accountCooldown.addEventListener('change', () => {
-    const value = parseInt(accountCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage('Error', 'Please enter a valid non-negative number.');
-        return;
-    }
-    saveSetting({ accountCooldown: value });
-});
-
-purchaseCooldown.addEventListener('change', () => {
-    const value = parseInt(purchaseCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage('Error', 'Please enter a valid non-negative number.');
-        return;
-    }
-    saveSetting({ purchaseCooldown: value });
-});
-
-accountCheckCooldown.addEventListener('change', () => {
-    const value = parseInt(accountCheckCooldown.value, 10) * 1000;
-    if (isNaN(value) || value < 0) {
-        showMessage('Error', 'Please enter a valid non-negative number.');
-        return;
-    }
-    saveSetting({ accountCheckCooldown: value });
-});
-
-dropletReserve.addEventListener('change', () => {
-    const value = parseInt(dropletReserve.value, 10);
-    if (isNaN(value) || value < 0) {
-        showMessage('Error', 'Please enter a valid non-negative number.');
-        return;
-    }
-    saveSetting({ dropletReserve: value });
-});
-
-antiGriefStandby.addEventListener('change', () => {
-    const value = parseInt(antiGriefStandby.value, 10) * 60000;
-    if (isNaN(value) || value < 60000) {
-        showMessage('Error', 'Please enter a valid number (at least 1 minute).');
-        return;
-    }
-    saveSetting({ antiGriefStandby: value });
-});
-
-chargeThreshold.addEventListener('change', () => {
-    const value = parseInt(chargeThreshold.value, 10);
-    if (isNaN(value) || value < 0 || value > 100) {
-        showMessage('Error', 'Please enter a valid percentage between 0 and 100.');
-        return;
-    }
-    saveSetting({ chargeThreshold: value / 100 });
-});
 
 tx.addEventListener('blur', () => {
     const value = tx.value.trim();
@@ -1490,17 +1453,20 @@ const colorGrid = document.getElementById('colorGrid');
 let currentTemplateId = null;
 let availableColors = new Set();
 
-// Single function handles all initialization
 async function initializeGrid(templateId = null) {
     currentTemplateId = templateId;
     let colorEntries = Object.entries(colors);
     
     if (templateId) {
         try {
-            const { colors: templateColors } = await (await fetch(`/template/${templateId}/colors`)).json();
+            const { data } = await axios.get(`/template/${templateId}/colors`);
+            const templateColors = data.colors;
             availableColors = new Set(templateColors.map(c => c.id));
-            colorEntries = templateColors.map(c => [Object.keys(colors).find(rgb => colors[rgb].id === c.id), colors[Object.keys(colors).find(rgb => colors[rgb].id === c.id)]]).filter(([rgb]) => rgb);
-        } catch {
+            colorEntries = templateColors
+                .map(c => [c.rgb, { id: c.id, name: c.name }])
+                .filter(([rgb]) => rgb);
+        } catch(e) {
+            console.error("Failed to load template-specific colors", e);
             availableColors = new Set(Object.values(colors).map(c => c.id));
         }
     } else {
@@ -1510,16 +1476,15 @@ async function initializeGrid(templateId = null) {
     await buildGrid(colorEntries, templateId);
 }
 
-// Build grid with saved order applied
 async function buildGrid(colorEntries, templateId = null) {
     try {
-        const { order = [] } = await (await fetch(templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`)).json();
+        const { data } = await axios.get(templateId ? `/color-ordering?templateId=${templateId}` : `/color-ordering`);
+        const order = data.order || [];
         const colorMap = new Map(colorEntries.map(([rgb, data]) => [data.id, { rgb, ...data }]));
         
         colorGrid.innerHTML = '';
         let priority = 1;
         
-        // Add ordered colors first
         order.forEach(id => {
             const colorInfo = colorMap.get(id);
             if (colorInfo) {
@@ -1528,18 +1493,17 @@ async function buildGrid(colorEntries, templateId = null) {
             }
         });
         
-        // Add remaining colors
         [...colorMap.values()].sort((a, b) => a.id - b.id).forEach(colorInfo => {
             colorGrid.appendChild(createColorItem(colorInfo.rgb, colorInfo, priority++));
         });
-    } catch {
+    } catch(e) {
+        console.error("Failed to build color grid", e);
         colorEntries.sort((a, b) => a[1].id - b[1].id);
         colorGrid.innerHTML = '';
         colorEntries.forEach(([rgb, data], i) => colorGrid.appendChild(createColorItem(rgb, data, i + 1)));
     }
 }
 
-// Create color item element
 const createColorItem = (rgb, { id, name }, priority) => {
     const div = document.createElement('div');
     div.className = 'color-item';
@@ -1550,7 +1514,6 @@ const createColorItem = (rgb, { id, name }, priority) => {
     return div;
 };
 
-// Drag and drop with single event listener
 let draggedElement = null;
 colorGrid.addEventListener('mousedown', e => e.target.closest('.color-item')?.setAttribute('draggable', 'true'));
 
@@ -1572,7 +1535,6 @@ colorGrid.addEventListener('drop', e => {
         const [dragIdx, dropIdx] = [items.indexOf(draggedElement), items.indexOf(dropTarget)];
         colorGrid.insertBefore(draggedElement, dropIdx < dragIdx ? dropTarget : dropTarget.nextSibling);
         
-        // Update priorities and save
         [...colorGrid.children].forEach((item, i) => item.querySelector('.priority-number').textContent = i + 1);
         if (currentTemplateId) saveColorOrder(currentTemplateId);
     }
@@ -1583,16 +1545,15 @@ colorGrid.addEventListener('dragend', () => {
     draggedElement = null;
 });
 
-// Save color order
 const saveColorOrder = async (templateId = null) => {
     const order = [...colorGrid.children].map(el => parseInt(el.dataset.id));
     const url = templateId ? `/color-ordering/template/${templateId}` : `/color-ordering/global`;
     try {
-        return (await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ order }) })).ok;
+        const response = await axios.put(url, { order });
+        return response.status === 200;
     } catch { return false; }
 };
 
-// Quick reset and image color functions
 const resetOrder = () => buildGrid(Object.entries(colors).filter(([_, data]) => !currentTemplateId || availableColors.has(data.id)));
 const updateColorGridForImage = (imageColorIds) => {
     availableColors = new Set(imageColorIds);
