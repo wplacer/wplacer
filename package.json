@@ -1,9 +1,9 @@
 {
   "name": "wplacer",
-  "version": "5.3.1",
+  "version": "5.3.2",
   "main": "server.js",
   "type": "module",
-  "author": "luluwaffless and JinxTheCatto",
+  "author": "luluwaffless and JinxTheCatto and Memayboo (fork)",
   "license": "AGPL-3.0-only",
   "funding": "https://ko-fi.com/luluwaffless and https://ko-fi.com/jinxthecat",
   "scripts": {
