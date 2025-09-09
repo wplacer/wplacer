@@ -479,10 +479,10 @@ canvas {
     left: 0;
     width: 100%;
     height: 100%;
-    line-height: 28px; /* Vertically center */
-    text-align: center; /* Horizontally center */
+    line-height: 28px;
+    text-align: center;
     font-weight: 500;
-    color: #FFFFFF !important; /* Force white color */
+    color: #FFFFFF !important;
     text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.6);
 }
 
@@ -744,13 +744,10 @@ input:checked + .slider:before {
 }
 
 /* --- START: CUSTOM PREVIEW STYLES --- */
-
-/* Ẩn container canvas tĩnh trong thẻ template theo mặc định */
 .template .template-canvas-container {
     display: none;
 }
 
-/* Container cho preview real-time, cũng ẩn theo mặc định */
 .template-preview-container {
     display: none;
     margin-top: 16px;
@@ -764,10 +761,8 @@ input:checked + .slider:before {
     margin: 0;
 }
 
-/* Thêm icon cho nút Preview mới */
 .template-actions button img[src*="preview.svg"],
 .template-actions button img[src*="close.svg"] {
     filter: brightness(0) invert(1);
 }
-
 /* --- END: CUSTOM PREVIEW STYLES --- */
