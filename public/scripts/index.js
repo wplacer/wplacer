@@ -1184,12 +1184,38 @@ const createTemplateCard = (t, id) => {
     actions.appendChild(delBtn);
     card.appendChild(actions);
 
-    // Canvas Preview
+
+    // Canvas Preview Toggle (global)
+    if (typeof window.showCanvasPreview === 'undefined') {
+        window.showCanvasPreview = true;
+        // Add toggle button to top of window (once)
+        const previewToggleBtn = document.createElement('button');
+        previewToggleBtn.id = 'canvasPreviewToggleBtn';
+        previewToggleBtn.className = 'secondary-button';
+        previewToggleBtn.style.position = 'fixed';
+        previewToggleBtn.style.top = '10px';
+        previewToggleBtn.style.right = '10px';
+        previewToggleBtn.style.zIndex = '1000';
+        previewToggleBtn.innerHTML = window.showCanvasPreview ? 'Disable Canvas Previews' : 'Enable Canvas Previews';
+        previewToggleBtn.addEventListener('click', () => {
+            window.showCanvasPreview = !window.showCanvasPreview;
+            previewToggleBtn.innerHTML = window.showCanvasPreview ? 'Disable Canvas Previews' : 'Enable Canvas Previews';
+            // Optionally hide/show all canvas previews
+            document.querySelectorAll('.template-canvas-preview').forEach(el => {
+                el.style.display = window.showCanvasPreview ? '' : 'none';
+            });
+        });
+        document.body.appendChild(previewToggleBtn);
+    }
+
+    // Canvas Preview per card
     const canvasContainer = document.createElement('div');
+    canvasContainer.className = 'template-canvas-preview';
     const canvas = document.createElement('canvas');
     canvasContainer.appendChild(canvas);
     card.appendChild(canvasContainer);
     drawTemplate(t.template, canvas);
+    canvasContainer.style.display = window.showCanvasPreview ? '' : 'none';
 
     return card;
 };
