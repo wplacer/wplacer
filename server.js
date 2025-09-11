@@ -396,8 +396,16 @@ class WPlacer {
 
     async _fetch(url, options) {
         try {
-            // Add a default timeout to all requests to prevent hangs
-            const optsWithTimeout = { timeout: 30000, ...options };
+            // Add a default timeout and browser-like defaults to reduce CF challenges
+            const defaultHeaders = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+                'Accept': 'application/json, text/plain, */*',
+                'Accept-Language': 'en-US,en;q=0.9',
+                // Referer helps some CF setups; safe default for this backend
+                'Referer': 'https://wplace.live/'
+            };
+            const mergedHeaders = { ...(defaultHeaders), ...(options?.headers || {}) };
+            const optsWithTimeout = { timeout: 30000, ...options, headers: mergedHeaders };
             return await this.browser.fetch(url, optsWithTimeout);
         } catch (error) {
             if (error.code === 'InvalidArg') {
@@ -471,7 +479,7 @@ class WPlacer {
     }
 
     async post(url, body) {
-        const headers = { Accept: '*/*', 'Content-Type': 'text/plain;charset=UTF-8', Referer: 'https://wplace.live/' };
+        const headers = { 'Content-Type': 'text/plain;charset=UTF-8' };
         if (this.pawtect) headers['x-pawtect-token'] = this.pawtect;
         const req = await this._fetch(url, {
             method: 'POST',
