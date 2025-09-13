@@ -13,7 +13,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabContents = document.querySelectorAll('.tab-content');
     
     let initialPort = 80;
-    let tokenWaitingStatus = false;
 
     // Load current settings
     chrome.storage.local.get(['wplacerPort', 'autoReload', 'autoClear'], (result) => {
@@ -50,12 +49,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (response && response.waiting) {
                 statusDot.classList.remove('active');
                 statusDot.classList.add('waiting');
-                tokenWaitingStatus = true;
                 statusEl.textContent = `Waiting for token (${response.waitTime}s)...`;
             } else {
                 statusDot.classList.remove('waiting');
                 statusDot.classList.add('active');
-                tokenWaitingStatus = false;
                 statusEl.textContent = 'Ready. Tokens will be sent automatically.';
             }
         });
@@ -67,12 +64,10 @@ chrome.runtime.onMessage.addListener((message) => {
         if (message.waiting) {
             statusDot.classList.remove('active');
             statusDot.classList.add('waiting');
-            tokenWaitingStatus = true;
             statusEl.textContent = `Waiting for token (${message.waitTime}s)...`;
         } else {
             statusDot.classList.remove('waiting');
             statusDot.classList.add('active');
-            tokenWaitingStatus = false;
             statusEl.textContent = 'Ready. Tokens will be sent automatically.';
         }
     } else if (message.action === "statusUpdate") {

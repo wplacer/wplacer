@@ -11,16 +11,6 @@ if (sessionStorage.getItem(RELOAD_FLAG)) {
 }
 
 const sentTokens = new Set();
-const pending = { turnstile: null, pawtect: null };
-
-const trySendPair = () => {
-    if (!pending.turnstile || !pending.pawtect) return;
-    const t = pending.turnstile;
-    const p = pending.pawtect || null;
-    postToken(t, p);
-    pending.turnstile = null;
-    pending.pawtect = null;
-};
 
 // Generate a random hex fingerprint (default 32 chars)
 const generateRandomHex = (length = 32) => {
@@ -28,9 +18,6 @@ const generateRandomHex = (length = 32) => {
     crypto.getRandomValues(bytes);
     return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
 };
-
-// Random integer in [0, max)
-const randomInt = (max) => Math.floor(Math.random() * Math.max(1, Number(max) || 1));
 
 // Create a per-load fingerprint and expose it for page usage
 try {
@@ -43,33 +30,8 @@ try {
 // Try to get the current color order from the page
 const getCurrentColorOrder = () => {
     try {
-        // Look for color palette elements in the DOM
-        const colorPalette = document.querySelector('[data-testid="palette"]');
-        if (colorPalette) {
-            // Find all color buttons in the palette
-            const colorButtons = colorPalette.querySelectorAll('button');
-            if (colorButtons && colorButtons.length > 0) {
-                // Extract color indices from button attributes or styles
-                const colors = [];
-                colorButtons.forEach(button => {
-                    // Try to get color index from various possible attributes
-                    const colorIndex = button.getAttribute('data-color-index') || 
-                                      button.getAttribute('data-index') || 
-                                      button.getAttribute('data-id');
-                    if (colorIndex && !isNaN(parseInt(colorIndex))) {
-                        colors.push(parseInt(colorIndex));
-                    }
-                });
-                if (colors.length > 0) {
-                    console.log('wplacer: Found color order:', colors);
-                    return colors;
-                }
-            }
-        }
-        
-        // Alternative method: check for color order in window/global objects
+        // Check for color order in window/global objects (fastest method)
         if (window.app && window.app.palette && Array.isArray(window.app.palette.colors)) {
-            console.log('wplacer: Found color order in app object:', window.app.palette.colors);
             return window.app.palette.colors;
         }
         
@@ -79,10 +41,29 @@ const getCurrentColorOrder = () => {
             try {
                 const palette = JSON.parse(storedPalette);
                 if (Array.isArray(palette)) {
-                    console.log('wplacer: Found color order in localStorage:', palette);
                     return palette;
                 }
             } catch {}
+        }
+        
+        // Look for color palette elements in the DOM (slowest method)
+        const colorPalette = document.querySelector('[data-testid="palette"]');
+        if (colorPalette) {
+            const colorButtons = colorPalette.querySelectorAll('button');
+            if (colorButtons && colorButtons.length > 0) {
+                const colors = [];
+                colorButtons.forEach(button => {
+                    const colorIndex = button.getAttribute('data-color-index') || 
+                                      button.getAttribute('data-index') || 
+                                      button.getAttribute('data-id');
+                    if (colorIndex && !isNaN(parseInt(colorIndex))) {
+                        colors.push(parseInt(colorIndex));
+                    }
+                });
+                if (colors.length > 0) {
+                    return colors;
+                }
+            }
         }
     } catch (e) {
         console.error('wplacer: Error getting color order:', e);
@@ -91,11 +72,13 @@ const getCurrentColorOrder = () => {
 };
 
 const postToken = (token, pawtectToken) => {
+    // Skip if token is invalid or already sent
     if (!token || typeof token !== 'string' || sentTokens.has(token)) {
         return;
     }
     sentTokens.add(token);
     console.log(`✅ wplacer: CAPTCHA Token Captured. Sending to server.`);
+    // Get fingerprint from available sources
     const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
     
     // Get current color order

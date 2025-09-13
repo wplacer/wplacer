@@ -1,6 +1,4 @@
 // --- Constants ---
-const POLL_ALARM_NAME = 'wplacer-poll-alarm';
-const COOKIE_ALARM_NAME = 'wplacer-cookie-alarm';
 const TOKEN_WAIT_THRESHOLD_MS = 30000; // 30 seconds threshold for token waiting
 
 // --- State Variables ---
@@ -629,36 +627,25 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     }
 });
 
-chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === COOKIE_ALARM_NAME) {
-        console.log("wplacer: Periodic alarm triggered. Sending cookie.");
-        sendCookie(response => console.log(`wplacer: Periodic cookie refresh: ${response.success ? 'Success' : 'Failed'}`));
-    } else if (alarm.name === POLL_ALARM_NAME) {
-        pollForTokenRequest();
-    }
-});
-
 // --- Initialization ---
-const initializeAlarms = () => {
-    // Poll for token requests every 45 seconds. This is the main keep-alive for the service worker.
-    chrome.alarms.create(POLL_ALARM_NAME, {
-        delayInMinutes: 0.1,
-        periodInMinutes: 0.75 // 45 seconds
-    });
-    // Refresh cookies less frequently.
-    chrome.alarms.create(COOKIE_ALARM_NAME, {
-        delayInMinutes: 1,
-        periodInMinutes: 20
-    });
-    console.log("wplacer: Alarms initialized.");
+const initializePolling = () => {
+    // Poll for token requests every 45 seconds
+    setInterval(pollForTokenRequest, 45000);
+    
+    // Refresh cookies less frequently (every 20 minutes)
+    setInterval(() => {
+        console.log("wplacer: Periodic cookie refresh triggered.");
+        sendCookie(response => console.log(`wplacer: Periodic cookie refresh: ${response.success ? 'Success' : 'Failed'}`));
+    }, 20 * 60 * 1000);
+    console.log("wplacer: Polling initialized.");
 };
 
 chrome.runtime.onStartup.addListener(() => {
     console.log("wplacer: Browser startup.");
-    initializeAlarms();
+    initializePolling();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log("wplacer: Extension installed/updated.");
-    initializeAlarms();
+    initializePolling();
 });
