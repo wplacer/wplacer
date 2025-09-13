@@ -1976,6 +1976,7 @@ app.post('/reload-proxies', (_req, res) => {
 });
 
 // Canvas proxy (returns data URI)
+// Return raw PNG; short cache for smoother previews in the UI
 app.get('/canvas', async (req, res) => {
     const { tx, ty } = req.query;
     if (isNaN(parseInt(tx)) || isNaN(parseInt(ty))) return res.sendStatus(HTTP_STATUS.BAD_REQ);
@@ -1983,11 +1984,29 @@ app.get('/canvas', async (req, res) => {
         const proxyUrl = getNextProxy();
         const imp = new Impit({ ignoreTlsErrors: true, ...(proxyUrl ? { proxyUrl } : {}) });
         const r = await imp.fetch(TILE_URL(tx, ty));
-        if (!r.ok) return res.sendStatus(response.status);
+        if (!r.ok) return res.sendStatus(r.status);
         const buffer = Buffer.from(await r.arrayBuffer());
-        res.json({ image: `data:image/png;base64,${buffer.toString('base64')}` });
+        res.set('Content-Type', 'image/png');
+        res.set('Cache-Control', 'public, max-age=30');
+        res.send(buffer);
     } catch (error) {
         res.status(HTTP_STATUS.SRV_ERR).json({ error: error.message });
+    }
+});
+
+// Palette API for UI to stay in sync with server palette and names
+// Used by the UI to sync palette on startup
+app.get('/palette', (_req, res) => {
+    try {
+        const colors = Object.entries(palette).map(([rgb, id]) => ({
+            id,
+            rgb,
+            name: COLOR_NAMES[id] || null,
+        }));
+        res.json({ colors });
+    } catch (e) {
+        console.warn('[palette] failed:', e?.message || e);
+        res.status(HTTP_STATUS.SRV_ERR).json({ error: 'Failed to get palette' });
     }
 });
 
@@ -2291,11 +2310,21 @@ const diffVer = (v1, v2) => {
                         if (event === 'change') {
                             try {
                                 const stats = statSync(file);
+                                // Handle truncation/rotation
+                                if (stats.size < lastSize) lastSize = 0;
                                 if (stats.size > lastSize) {
-                                    const fd = readFileSync(file);
-                                    const newData = fd.slice(lastSize).toString();
-                                    newData.split(/\r?\n/).filter(Boolean).forEach(line => broadcastLog(type, line));
-                                    lastSize = stats.size;
+                                    const start = lastSize;
+                                    const endSize = stats.size;
+                                    const stream = createReadStream(file, { start });
+                                    let buffer = '';
+                                    stream.on('data', (chunk) => { buffer += chunk.toString(); });
+                                    stream.on('end', () => {
+                                        buffer.split(/\r?\n/).filter(Boolean).forEach((line) => broadcastLog(type, line));
+                                        lastSize = endSize;
+                                    });
+                                    stream.on('error', (err) => {
+                                        console.warn('[logs] tail error:', err?.message || err);
+                                    });
                                 }
                             } catch {}
                         }
