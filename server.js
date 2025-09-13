@@ -1021,6 +1021,28 @@ const saveSettings = () => saveJSON(SETTINGS_FILE, currentSettings);
 // ---------- Server state ----------
 
 const activeBrowserUsers = new Set();
+// Cache last-known user status to avoid 409s when user is briefly busy
+const STATUS_CACHE_TTL = 10 * 60_000; // 10 minutes
+const statusCache = new Map(); // id -> { data, ts }
+const setStatusCache = (id, data) => {
+    try { statusCache.set(String(id), { data, ts: Date.now() }); } catch {}
+};
+const getStatusCache = (id) => {
+    const e = statusCache.get(String(id));
+    if (!e) return null;
+    if (Date.now() - e.ts > STATUS_CACHE_TTL) {
+        statusCache.delete(String(id));
+        return null;
+    }
+    return e.data;
+};
+const waitForNotBusy = async (id, timeoutMs = 5_000) => {
+    const t0 = Date.now();
+    while (activeBrowserUsers.has(id) && Date.now() - t0 < timeoutMs) {
+        await sleep(200);
+    }
+    return !activeBrowserUsers.has(id);
+};
 const activeTemplateUsers = new Set();
 const templateQueue = [];
 let activePaintingTasks = 0;
@@ -1714,11 +1736,23 @@ app.delete('/user/:id', async (req, res) => {
 
 app.get('/user/status/:id', async (req, res) => {
     const { id } = req.params;
-    if (!users[id] || activeBrowserUsers.has(id)) return res.sendStatus(HTTP_STATUS.CONFLICT);
+    if (!users[id]) return res.status(HTTP_STATUS.CONFLICT).json({ error: 'User not found' });
+
+    // If busy, wait briefly; if still busy, try to return cached status
+    if (activeBrowserUsers.has(id)) {
+        const ok = await waitForNotBusy(id, 5_000);
+        if (!ok) {
+            const cached = getStatusCache(id);
+            if (cached) return res.status(HTTP_STATUS.OK).json({ ...cached, cached: true });
+            return res.status(HTTP_STATUS.CONFLICT).json({ error: 'User is busy' });
+        }
+    }
+
     activeBrowserUsers.add(id);
     const wplacer = new WPlacer({});
     try {
         const userInfo = await wplacer.login(users[id].cookies);
+        setStatusCache(id, userInfo);
         res.status(HTTP_STATUS.OK).json(userInfo);
     } catch (error) {
         logUserError(error, id, users[id].name, 'validate cookie');
@@ -1745,6 +1779,7 @@ app.post('/users/status', async (_req, res) => {
         const wplacer = new WPlacer({});
         try {
             const userInfo = await wplacer.login(users[id].cookies);
+            setStatusCache(id, userInfo);
             results[id] = { success: true, data: userInfo };
         } catch (error) {
             logUserError(error, id, users[id].name, 'bulk check');

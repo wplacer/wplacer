@@ -187,7 +187,9 @@ const handleError = (error) => {
     console.error(error);
     let message = 'An unknown error occurred. Check the console for details.';
 
-    if (error.code === 'ERR_NETWORK') {
+    if (error?.response && error.response.status === 409) {
+        message = 'User is busy or not found. Wait a few seconds and try again, or stop templates using this user.';
+    } else if (error.code === 'ERR_NETWORK') {
         message = 'Could not connect to the server. Please ensure the bot is running and accessible.';
     } else if (error.response && error.response.data && error.response.data.error) {
         const errMsg = error.response.data.error;
@@ -376,6 +378,26 @@ clearLogsBtn.addEventListener('click', () => {
 
 
 // users
+async function axiosGetWithRetry(url, attempts = 3, delayMs = 2000) {
+    let lastErr;
+    for (let i = 0; i < attempts; i++) {
+        try {
+            return await axios.get(url);
+        } catch (err) {
+            const status = err?.response?.status;
+            // Retry on 409 (busy) and 429 (rate limit)
+            if (status === 409 || status === 429) {
+                lastErr = err;
+                if (i < attempts - 1) {
+                    await new Promise((r) => setTimeout(r, delayMs));
+                    continue;
+                }
+            }
+            throw err;
+        }
+    }
+    throw lastErr;
+}
 const loadUsers = async (f) => {
     try {
         const users = await axios.get('/users');
@@ -951,7 +973,7 @@ openManageUsers.addEventListener('click', () => {
             });
             user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
-                    const response = await axios.get(`/user/status/${id}`);
+                    const response = await axiosGetWithRetry(`/user/status/${id}`, 3, 2000);
                     let { status: isBanned, until } = response.data.ban;
                     let info;
                     if (isBanned == true) {

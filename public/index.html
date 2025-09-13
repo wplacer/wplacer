@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="icons/favicon.png">
     <link rel="stylesheet" href="styles/index.css">
-    <script src="https://cdn.jsdelivr.net/npm/axios@1.21.1/dist/axios.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/axios/1.11.0/axios.min.js"
+        referrerpolicy="no-referrer"></script>
     <title>wplacer</title>
 </head>
 
@@ -15,9 +16,12 @@
         <h1><img src="icons/favicon.png" alt="wplacer logo">wplacer</h1>
 
         <div id="main">
-            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg" alt="">Manage Users</button>
-            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add Template</button>
-            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg" alt="">Manage Templates</button>
+            <button id="openManageUsers" class="primary-button"><img src="icons/manageUsers.svg" alt="">Manage
+                Users</button>
+            <button id="openAddTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add
+                Template</button>
+            <button id="openManageTemplates" class="primary-button"><img src="icons/manageTemplates.svg" alt="">Manage
+                Templates</button>
             <button id="openLogsViewer" class="primary-button"><img src="icons/code.svg" alt="">View Logs</button>
             <button id="openSettings" class="primary-button"><img src="icons/settings.svg" alt="">Settings</button>
         </div>
@@ -39,7 +43,8 @@
                 </select>
             </div>
             <div id="logsContainer" class="logs-container"><span class="logs-placeholder">Loading logs...</span></div>
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg"
+                    alt="">Return</button>
         </div>
 
         <div id="manageUsers" style="display: none;">
@@ -49,7 +54,8 @@
                 <input type="password" id="jcookie" required>
                 <label for="scookie">Session Cookie (s) [optional]</label>
                 <input type="password" id="scookie">
-                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg" alt="">Add User</button>
+                <button type="submit" id="submitUser" class="primary-button"><img src="icons/addUser.svg" alt="">Add
+                    User</button>
             </form>
 
             <h2 class="section-title" id="manageUsersTitle">Existing Users</h2>
@@ -58,18 +64,23 @@
                 <b>Total Droplets:</b> <span id="totalDroplets">?</span> |
                 <b>PPH:</b> <span id="totalPPH">?</span>
             </div>
-            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg" alt="">Check Account Status</button>
+            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg" alt="">Check Account
+                Status</button>
             <div id="userList"></div>
 
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg"
+                    alt="">Return</button>
         </div>
 
         <div id="addTemplate" style="display: none;">
             <h2 id="templateFormTitle">Add Template</h2>
             <div class="info-box">
-                <b>Tip:</b> For best results, process your image through the <a href="https://pepoafonso.github.io/color_converter_wplace/" target="_blank" rel="noopener noreferrer">wplace color converter</a> first!
+                <b>Tip:</b> For best results, process your image through the <a
+                    href="https://pepoafonso.github.io/color_converter_wplace/" target="_blank"
+                    rel="noopener noreferrer">wplace color converter</a> first!
             </div>
-            <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img src="icons/convert.svg" alt="">Convert Image</button>
+            <button id="convert" class="primary-button" onclick="document.getElementById('convertInput').click()"><img
+                    src="icons/convert.svg" alt="">Convert Image</button>
             <div id="details" style="display: none;">
                 <b>Size:</b> <span id="size"></span> | <b>Charges needed:</b> <span id="ink"></span>
                 <canvas id="templateCanvas"></canvas>
@@ -93,7 +104,8 @@
                 </div>
                 <label for="userSelectList">Users</label>
                 <div id="userSelectList"></div>
-                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg" alt="">Select All</button>
+                <button type="button" id="selectAllUsers" class="secondary-button"><img src="icons/manageUsers.svg"
+                        alt="">Select All</button>
 
                 <div class="setting-toggle">
                     <label for="canBuyMaxCharges">Buy Max Charge Upgrades</label>
@@ -146,12 +158,14 @@
                 </div>
                 <h3>Reorder Colors</h3>
                 <div class="color-grid" id="colorGrid"></div>
-                
+
                 <button class="btn-danger" onclick="resetOrder()">Reset to Default</button>
 
-                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg" alt="">Add Template</button>
+                <button type="submit" id="submitTemplate" class="primary-button"><img src="icons/addTemplate.svg"
+                        alt="">Add Template</button>
             </form>
-            <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
+            <button onclick="changeTab('main'); resetTemplateForm();" class="secondary-button"><img
+                    src="icons/return.svg" alt="">Return</button>
         </div>
 
         <div id="manageTemplates" style="display: none;">
@@ -161,7 +175,8 @@
                 <button id="stopAll" class="secondary-button"><img src="icons/pauseAll.svg" alt="">Stop All</button>
             </div>
             <div id="templateList"></div>
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg"
+                    alt="">Return</button>
         </div>
 
         <div id="settings" style="display: none;">
@@ -216,7 +231,7 @@
             <input type="number" id="antiGriefStandby" min="1" value="10">
             <label for="chargeThreshold">Charge Threshold (%)</label>
             <input type="number" id="chargeThreshold" min="0" max="100" value="50">
-            
+
             <h2 class="section-title">Proxy Settings</h2>
             <div class="setting-toggle">
                 <label for="proxyEnabled">Enable Rotating Proxies</label>
@@ -226,7 +241,11 @@
                 </label>
             </div>
             <div id="proxyFormContainer" style="display: none;">
-                <p class="info-box" style="text-align: left;">Proxies are loaded from the <code>proxies.txt</code> file in your <code>/data</code> folder. Add one proxy per line in the format <code>protocol://user:pass@host:port</code>. You can get high quality proxies at <a href="https://dataimpulse.com/?aff=199137" target="_blank" rel="noopener noreferrer">DataImpulse</a>.</p>
+                <p class="info-box" style="text-align: left;">Proxies are loaded from the <code>proxies.txt</code> file
+                    in your <code>/data</code> folder. Add one proxy per line in the format
+                    <code>protocol://user:pass@host:port</code>. You can get high quality proxies at <a
+                        href="https://dataimpulse.com/?aff=199137" target="_blank"
+                        rel="noopener noreferrer">DataImpulse</a>.</p>
                 <div class="setting-toggle">
                     <label for="logProxyUsage">Log Proxy Connections</label>
                     <label class="switch">
@@ -243,10 +262,13 @@
                 <button type="button" id="reloadProxiesBtn" class="secondary-button">Reload Proxies from File</button>
             </div>
 
-            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg" alt="">Return</button>
+            <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg"
+                    alt="">Return</button>
         </div>
 
-        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg" alt="GitHub"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg" alt="GitHub"></a>
+        <p class="credits">Made by <a href="https://github.com/luluwaffless">luluwaffless <img src="icons/github.svg"
+                    alt="GitHub"></a> and <a href="https://github.com/JinxTheCatto">Jinx <img src="icons/github.svg"
+                    alt="GitHub"></a>
         </p>
     </div>
 
