@@ -196,7 +196,7 @@ const ChargeCache = {
     _m: new Map(),
     REGEN_MS: 30_000,
     SYNC_MS: 8 * 60_000,
-
+    
     _key(id) {
         return String(id);
     },
@@ -213,12 +213,12 @@ const ChargeCache = {
         const k = this._key(userInfo.id);
         const base = Math.floor(userInfo.charges.count ?? 0);
         const max = Math.floor(userInfo.charges.max ?? 0);
-        this._m.set(k, { base, max, lastSync: now });
+        this._m.set(k, { base, max, lastSync: now, lastUpdated: now });
     },
     predict(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
         if (!u) return null;
-        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        const grown = Math.floor((now - (u.lastUpdated || u.lastSync)) / this.REGEN_MS);
         const count = Math.min(u.max, u.base + Math.max(0, grown));
         return { count, max: u.max, cooldownMs: this.REGEN_MS };
     },
@@ -226,13 +226,23 @@ const ChargeCache = {
         const k = this._key(id);
         const u = this._m.get(k);
         if (!u) return;
-        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        const grown = Math.floor((now - (u.lastUpdated || u.lastSync)) / this.REGEN_MS);
         const avail = Math.min(u.max, u.base + Math.max(0, grown));
         const newCount = Math.max(0, avail - n);
         u.base = newCount;
         // align to last regen tick
         u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+        u.lastUpdated = now;
         this._m.set(k, u);
+    },
+    
+    // Calculate available pixels based on elapsed time since last update
+    getAvailablePixels(id, now = Date.now()) {
+        const u = this._m.get(this._key(id));
+        if (!u) return null;
+        const elapsed = now - (u.lastUpdated || u.lastSync);
+        const regenerated = Math.floor(elapsed / this.REGEN_MS);
+        return Math.min(u.base + regenerated, u.max);
     },
 };
 
@@ -780,8 +790,48 @@ const loadJSON = (filename) =>
     existsSync(filename) ? JSON.parse(readFileSync(filename, 'utf8')) : {};
 const saveJSON = (filename, data) => writeFileSync(filename, JSON.stringify(data, null, 2));
 
+// Function to initialize ChargeCache from saved user data
+const initChargeCache = (userData) => {
+    const now = Date.now();
+    for (const userId in userData) {
+        const user = userData[userId];
+        if (user.charges) {
+            const lastUpdated = user.lastUpdated || now;
+            const elapsed = now - lastUpdated;
+            const regenerated = Math.floor(elapsed / ChargeCache.REGEN_MS);
+            const count = Math.min(user.charges.max, user.charges.count + regenerated);
+            
+            ChargeCache._m.set(ChargeCache._key(userId), {
+                base: count,
+                max: user.charges.max,
+                lastSync: now,
+                lastUpdated: now
+            });
+        }
+    }
+};
+
 const users = loadJSON(USERS_FILE);
-const saveUsers = () => saveJSON(USERS_FILE, users);
+const saveUsers = () => {
+    // Save charges data for each user before writing to file
+    for (const userId in users) {
+        const predicted = ChargeCache.predict(userId);
+        if (predicted) {
+            if (!users[userId].charges) {
+                users[userId].charges = {
+                    cooldownMs: ChargeCache.REGEN_MS,
+                    count: predicted.count,
+                    max: predicted.max
+                };
+            } else {
+                users[userId].charges.count = predicted.count;
+                users[userId].charges.max = predicted.max;
+            }
+            users[userId].lastUpdated = Date.now();
+        }
+    }
+    saveJSON(USERS_FILE, users);
+};
 
 let templates = {}; // id -> TemplateManager
 
@@ -1300,13 +1350,13 @@ class TemplateManager {
                 continue;
             }
             
-            // Get predicted charges
-            const predicted = ChargeCache.predict(userId, now);
-            if (predicted && predicted.count > 0) {
+            // Get available pixels using our new function
+            const availablePixels = ChargeCache.getAvailablePixels(userId, now);
+            if (availablePixels && availablePixels > 0) {
                 // Store user with their available pixel count
                 usersByAvailablePixels.push({
                     userId,
-                    availablePixels: Math.floor(predicted.count)
+                    availablePixels: Math.floor(availablePixels)
                 });
             } else {
                 normalPriorityUsers.push(userId);
@@ -1367,7 +1417,7 @@ class TemplateManager {
         const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
-        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}" (Priority: ${this.priority})...`);
+        log('SYSTEM', 'wplacer', `Γû╢∩╕Å Starting template "${this.name}"...`);
         activePaintingTasks++;
 
 
@@ -1503,13 +1553,13 @@ class TemplateManager {
                                     continue;
                                 }
                                 
-                                // Get predicted charges
-                                const predicted = ChargeCache.predict(userId, now);
-                                if (predicted && predicted.count > 0) {
+                                // Get available pixels using our new function
+                                const availablePixels = ChargeCache.getAvailablePixels(userId, now);
+                                if (availablePixels && availablePixels > 0) {
                                     // Store user with their available pixel count
                                     usersByAvailablePixels.push({
                                         userId,
-                                        availablePixels: Math.floor(predicted.count)
+                                        availablePixels: Math.floor(availablePixels)
                                     });
                                 } else {
                                     normalPriorityUsers.push(userId);
@@ -1635,69 +1685,19 @@ app.use(express.json({ limit: JSON_LIMIT }));
 // Autostart cache
 const autostartedTemplates = [];
 
-// ---------- Queue processor and priority management ----------
-
-// Function to check if higher priority templates need attention
-const checkHigherPriorityTemplates = () => {
+// ---------- Queue processor ----------
+const checkTemplates = () => {
     // Get all running templates
     const runningTemplates = Object.entries(templates)
         .filter(([_, manager]) => manager.running)
         .map(([id, manager]) => ({ id, manager }));
-    
-    // Sort by priority (lowest number = highest priority)
-    runningTemplates.sort((a, b) => a.manager.priority - b.manager.priority);
-    
-    // If we have multiple running templates with different priorities
-    if (runningTemplates.length > 1) {
-        // Check if any higher priority template has mismatches
-        for (let i = 0; i < runningTemplates.length - 1; i++) {
-            const higherPriorityTemplate = runningTemplates[i];
-            
-            // If this template has mismatches and is not the lowest priority
-            if (higherPriorityTemplate.manager.pixelsRemaining > 0) {
-                // Find all lower priority templates that are running
-                const lowerPriorityTemplates = runningTemplates.slice(i + 1);
-                
-                // Stop one lower priority template to free up resources
-                for (const lowerTemplate of lowerPriorityTemplates) {
-                    if (lowerTemplate.manager.running) {
-                        // Stop the lower priority template
-                        log('SYSTEM', 'wplacer', `[${lowerTemplate.manager.name}] ⏸️ Pausing lower priority template to handle higher priority template ${higherPriorityTemplate.manager.name}.`);
-                        lowerTemplate.manager.stop();
-                        
-                        // Add it back to the queue
-                        if (!templateQueue.includes(lowerTemplate.id)) {
-                            templateQueue.push(lowerTemplate.id);
-                            lowerTemplate.manager.status = 'Queued (Priority yield)';
-                        }
-                        
-                        // Only stop one template per check
-                        break;
-                    }
-                }
-            }
-        }
-    }
 };
 
 // Set up periodic check for priority management
-setInterval(checkHigherPriorityTemplates, 60000); // Check every minute
+setInterval(checkTemplates, 60000); // Check every minute
 
 const processQueue = () => {
-    // Sort the queue by priority (1: high, 2: normal, 3: low)
-    const sortedQueue = [...templateQueue].sort((a, b) => {
-        const managerA = templates[a];
-        const managerB = templates[b];
-        if (!managerA) return 1; // Push invalid templates to the end
-        if (!managerB) return -1;
-        return managerA.priority - managerB.priority; // Lower number = higher priority
-    });
-    
-    // Replace the original queue with the sorted one
-    templateQueue.length = 0;
-    templateQueue.push(...sortedQueue);
-    
-    // Process the queue as before, but now it's priority-ordered
+    // Process templates in the order they were added to the queue
     for (let i = 0; i < templateQueue.length; i++) {
         const templateId = templateQueue[i];
         const manager = templates[templateId];
@@ -2082,7 +2082,6 @@ app.post('/template', (req, res) => {
         skipPaintedPixels,
         enableAutostart,
         userIds,
-        priority: parseInt(priority, 10),
     });
     saveTemplates();
     
@@ -2118,50 +2117,7 @@ app.put('/template/edit/:id', (req, res) => {
         skipPaintedPixels,
         enableAutostart,
         template,
-        priority,
     } = req.body || {};
-    
-    // Check for overlapping users with same priority
-    const priorityValue = priority ? parseInt(priority, 10) : manager.priority;
-    const conflictingTemplates = [];
-    
-    for (const [templateId, existingTemplate] of Object.entries(templates)) {
-        // Skip the current template being edited
-        if (templateId === id) continue;
-        
-        // Skip if it's a different priority level
-        if (existingTemplate.priority !== priorityValue) continue;
-        
-        // Check for user overlap
-        const overlappingUsers = userIds.filter(userId => 
-            existingTemplate.userIds.includes(userId)
-        );
-        
-        if (overlappingUsers.length > 0) {
-            conflictingTemplates.push({
-                name: existingTemplate.name,
-                users: overlappingUsers.map(uid => users[uid]?.name || uid)
-            });
-        }
-    }
-    
-    // If conflicts found, log a warning and prepare warning data for client
-    let warningData = null;
-    if (conflictingTemplates.length > 0) {
-        log('SYSTEM', 'wplacer', `⚠️ Warning: Template "${templateName}" shares users with other templates at priority ${priorityValue}:`);
-        for (const conflict of conflictingTemplates) {
-            log('SYSTEM', 'wplacer', `  - Template "${conflict.name}" shares users: ${conflict.users.join(', ')}`);
-        }
-        log('SYSTEM', 'wplacer', `  Consider using different priority levels for templates that share users.`);
-        
-        // Prepare warning data for client
-        warningData = {
-            templateName: templateName,
-            priority: priorityValue,
-            sharedUsersCount: conflictingTemplates.reduce((total, conflict) => total + conflict.users.length, 0),
-            conflictingTemplates: conflictingTemplates.map(t => t.name)
-        };
-    }
 
     manager.name = templateName;
     manager.coords = coords;
@@ -2183,12 +2139,7 @@ app.put('/template/edit/:id', (req, res) => {
     manager.masterName = users[manager.masterId].name;
     saveTemplatesCompressed();
     
-    // Send response with warning data if applicable
-    if (warningData) {
-        res.status(HTTP_STATUS.OK).json({ warning: warningData });
-    } else {
-        res.sendStatus(HTTP_STATUS.OK);
-    }
+    res.sendStatus(HTTP_STATUS.OK);
 });
 
 app.put('/template/:id', (req, res) => {
@@ -2203,8 +2154,7 @@ app.put('/template/:id', (req, res) => {
             if (!templateQueue.includes(id)) {
                 templateQueue.push(id);
                 manager.status = 'Queued';
-                log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy (Priority: ${manager.priority}).`);
-                // Sort queue by priority
+                log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy.`);
                 processQueue();
             }
         } else {
@@ -2535,6 +2485,9 @@ const diffVer = (v1, v2) => {
     //Load color ordering on startup
     colorOrdering = loadColorOrdering();
 
+    // Initialize ChargeCache with saved user data
+    initChargeCache(users);
+    
     loadProxies();
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);
 

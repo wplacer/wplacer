@@ -188,12 +188,7 @@ const handleError = (error) => {
     let message = 'An unknown error occurred. Check the console for details.';
 
     if (error?.response && error.response.status === 409) {
-        // Check for priority conflict error
-        if (error.response.data && error.response.data.error) {
-            message = error.response.data.error;
-        } else {
-            message = 'User is busy or not found. Wait a few seconds and try again, or stop templates using this user.';
-        }
+        message = 'User is busy or not found. Wait a few seconds and try again, or stop templates using this user.';
     } else if (error.code === 'ERR_NETWORK') {
         message = 'Could not connect to the server. Please ensure the bot is running and accessible.';
     } else if (error.response && error.response.data && error.response.data.error) {
@@ -887,11 +882,10 @@ templateForm.addEventListener('submit', async (e) => {
         
         if (isEditMode) {
             templateId = templateForm.dataset.editId;
-            const response = await axios.put(`/template/edit/${templateId}`, data);
+            await axios.put(`/template/edit/${templateId}`, data);
             // Save the color ordering for this template
             colorOrderSaved = await saveColorOrder(templateId);
             showMessage('Success', 'Template updated!');
-        
         } else {
             const response = await axios.post('/template', data);
             templateId = response.data.id;
@@ -1269,7 +1263,6 @@ const createTemplateCard = (t, id) => {
         templateOutlineMode.checked = t.outlineMode;
         templateSkipPaintedPixels.checked = t.skipPaintedPixels;
         enableAutostart.checked = t.enableAutostart;
-        
         setTimeout(() => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);
