@@ -872,6 +872,7 @@ templateForm.addEventListener('submit', async (e) => {
         outlineMode: templateOutlineMode.checked,
         skipPaintedPixels: templateSkipPaintedPixels.checked,
         enableAutostart: enableAutostart.checked,
+        priority: parseInt(document.getElementById('templatePriority').value),
     };
     if (currentTemplate && currentTemplate.width > 0) {
         data.template = currentTemplate;
@@ -1208,9 +1209,22 @@ const createTemplateCard = (t, id) => {
     // Header: Name and Pixels
     const info = document.createElement('div');
     info.className = 'template-info';
+    
+    // Define priority labels
+    const priorityLabels = {
+        1: 'High',
+        2: 'Normal',
+        3: 'Low'
+    };
+    
+    // Get priority or default to normal (2)
+    const priority = t.priority || 2;
+    const priorityLabel = priorityLabels[priority];
+    
     info.innerHTML = `
         <span><b>Name:</b> <span class="template-data">${t.name}</span></span>
         <span><b>Pixels:</b> <span class="template-data pixel-count">${completed} / ${total}</span></span>
+        <span><b>Priority:</b> <span class="template-data priority-${priority.toString().toLowerCase()}">${priorityLabel}</span></span>
     `;
     card.appendChild(info);
 
@@ -1232,6 +1246,41 @@ const createTemplateCard = (t, id) => {
     const actions = document.createElement('div');
     actions.className = 'template-actions';
     actions.appendChild(createToggleButton(t, id, actions, pbt, percent));
+    
+    // Add priority selector
+    const prioritySelector = document.createElement('select');
+    prioritySelector.className = 'priority-selector';
+    prioritySelector.innerHTML = `
+        <option value="1" ${t.priority === 1 ? 'selected' : ''}>High Priority</option>
+        <option value="2" ${t.priority === 2 || !t.priority ? 'selected' : ''}>Normal Priority</option>
+        <option value="3" ${t.priority === 3 ? 'selected' : ''}>Low Priority</option>
+    `;
+    prioritySelector.addEventListener('change', async () => {
+        try {
+            const newPriority = parseInt(prioritySelector.value);
+            // Include the current running state to prevent stopping the template
+            await axios.put(`/template/${id}`, { 
+                priority: newPriority,
+                running: t.running // Preserve the current running state
+            });
+            showMessage('Success', `Priority updated to ${prioritySelector.options[prioritySelector.selectedIndex].text}`);
+            // Update the priority label in the template info
+            const priorityLabel = card.querySelector('.priority-' + (t.priority || 2).toString().toLowerCase());
+            if (priorityLabel) {
+                priorityLabel.className = `template-data priority-${newPriority.toString().toLowerCase()}`;
+                priorityLabel.textContent = prioritySelector.options[prioritySelector.selectedIndex].text.split(' ')[0];
+                t.priority = newPriority;
+            }
+        } catch (error) {
+            handleError(error);
+        }
+    });
+    
+    const priorityContainer = document.createElement('div');
+    priorityContainer.className = 'priority-container';
+    priorityContainer.innerHTML = '<span>Priority: </span>';
+    priorityContainer.appendChild(prioritySelector);
+    actions.appendChild(priorityContainer);
 
     const shareBtn = document.createElement('button');
     shareBtn.className = 'secondary-button';
@@ -1263,6 +1312,10 @@ const createTemplateCard = (t, id) => {
         templateOutlineMode.checked = t.outlineMode;
         templateSkipPaintedPixels.checked = t.skipPaintedPixels;
         enableAutostart.checked = t.enableAutostart;
+        
+        // Set priority dropdown value
+        const prioritySelect = document.getElementById('templatePriority');
+        prioritySelect.value = t.priority || 2; // Default to normal priority if not set
         setTimeout(() => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);

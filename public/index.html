@@ -156,6 +156,16 @@
                         <span class="slider"></span>
                     </label>
                 </div>
+                
+                <div class="form-group">
+                    <label for="templatePriority">Template Priority</label>
+                    <select id="templatePriority" name="templatePriority">
+                        <option value="1">High Priority</option>
+                        <option value="2" selected>Normal Priority</option>
+                        <option value="3">Low Priority</option>
+                    </select>
+                    <small>Higher priority templates will be processed before lower priority ones and can interrupt lower priority templates.</small>
+                </div>
                 <h3>Reorder Colors</h3>
                 <div class="color-grid" id="colorGrid"></div>
 

@@ -499,6 +499,67 @@ canvas {
     margin: 20px 0;
 }
 
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.form-group select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+}
+
+.form-group small {
+    display: block;
+    color: #666;
+    font-size: 0.85em;
+    margin-top: 5px;
+}
+
+/* Priority styling */
+.priority-1 {
+    color: #ff5252;
+    font-weight: bold;
+}
+
+.priority-2 {
+    color: #4caf50;
+}
+
+.priority-3 {
+    color: #2196f3;
+}
+
+.priority-container {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+    gap: 5px;
+}
+
+.priority-selector {
+    padding: 4px 8px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    font-size: 0.9em;
+}
+
+.template-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+}
+
 .setting-toggle label[for] {
     margin: 0;
 }

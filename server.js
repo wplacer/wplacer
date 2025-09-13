@@ -1130,6 +1130,7 @@ class TemplateManager {
         skipPaintedPixels,
         enableAutostart,
         userIds,
+        priority = 2, // Default priority: 2 (normal), 1 is high, 3 is low
     }) {
         this.templateId = templateId;
         this.name = name;
@@ -1143,6 +1144,7 @@ class TemplateManager {
         this.skipPaintedPixels = skipPaintedPixels;
         this.enableAutostart = enableAutostart;
         this.userIds = userIds;
+        this.priority = priority; // 1: high, 2: normal, 3: low
 
         this.running = false;
         this.status = 'Waiting to be started.';
@@ -1282,7 +1284,42 @@ class TemplateManager {
     }
 
     async _findWorkingUserAndCheckPixels() {
-        // Iterate through all users in the queue to find one that works.
+        // Refresh all users' charge predictions
+        const now = Date.now();
+        const highPriorityUsers = [];
+        const normalPriorityUsers = [];
+        
+        // First pass: categorize users by charge level
+        for (let i = 0; i < this.userQueue.length; i++) {
+            const userId = this.userQueue.shift();
+            
+            // Skip suspended or non-existent users
+            if (!users[userId] || (users[userId].suspendedUntil && now < users[userId].suspendedUntil)) {
+                this.userQueue.push(userId); // Put back in queue
+                continue;
+            }
+            
+            // Get predicted charges
+            const predicted = ChargeCache.predict(userId, now);
+            if (predicted && predicted.count > 0) {
+                // Calculate charge percentage
+                const chargePercentage = (predicted.count / predicted.max) * 100;
+                
+                // Prioritize users with >90% charges
+                if (chargePercentage > 90) {
+                    highPriorityUsers.push(userId);
+                } else {
+                    normalPriorityUsers.push(userId);
+                }
+            } else {
+                normalPriorityUsers.push(userId);
+            }
+        }
+        
+        // Rebuild the queue with high priority users first, then normal priority
+        this.userQueue = [...highPriorityUsers, ...normalPriorityUsers];
+        
+        // Now proceed with the regular selection logic
         for (let i = 0; i < this.userQueue.length; i++) {
             const userId = this.userQueue.shift();
             this.userQueue.push(userId); // Immediately cycle user to the back of the queue.
@@ -1322,7 +1359,7 @@ class TemplateManager {
         const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
-        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}" (Priority: ${this.priority})...`);
         activePaintingTasks++;
 
 
@@ -1440,8 +1477,43 @@ class TemplateManager {
                             }
 
                             let foundUserForTurn = false;
+                            const now = Date.now();
+                            const highPriorityUsers = [];
+                            const normalPriorityUsers = [];
+                            
+                            // First pass: categorize users by charge level
                             const queueSize = this.userQueue.length;
                             for (let i = 0; i < queueSize; i++) {
+                                const userId = this.userQueue.shift();
+                                
+                                // Skip suspended or non-existent users
+                                if (!users[userId] || (users[userId].suspendedUntil && now < users[userId].suspendedUntil)) {
+                                    normalPriorityUsers.push(userId);
+                                    continue;
+                                }
+                                
+                                // Get predicted charges
+                                const predicted = ChargeCache.predict(userId, now);
+                                if (predicted && predicted.count > 0) {
+                                    // Calculate charge percentage
+                                    const chargePercentage = (predicted.count / predicted.max) * 100;
+                                    
+                                    // Prioritize users with >90% charges
+                                    if (chargePercentage > 90) {
+                                        highPriorityUsers.push(userId);
+                                    } else {
+                                        normalPriorityUsers.push(userId);
+                                    }
+                                } else {
+                                    normalPriorityUsers.push(userId);
+                                }
+                            }
+                            
+                            // Rebuild the queue with high priority users first, then normal priority
+                            this.userQueue = [...highPriorityUsers, ...normalPriorityUsers];
+                            
+                            // Now proceed with the regular selection logic
+                            for (let i = 0; i < this.userQueue.length; i++) {
                                 const userId = this.userQueue.shift();
                                 const now = Date.now();
 
@@ -1545,9 +1617,69 @@ app.use(express.json({ limit: JSON_LIMIT }));
 // Autostart cache
 const autostartedTemplates = [];
 
-// ---------- Queue processor ----------
+// ---------- Queue processor and priority management ----------
+
+// Function to check if higher priority templates need attention
+const checkHigherPriorityTemplates = () => {
+    // Get all running templates
+    const runningTemplates = Object.entries(templates)
+        .filter(([_, manager]) => manager.running)
+        .map(([id, manager]) => ({ id, manager }));
+    
+    // Sort by priority (lowest number = highest priority)
+    runningTemplates.sort((a, b) => a.manager.priority - b.manager.priority);
+    
+    // If we have multiple running templates with different priorities
+    if (runningTemplates.length > 1) {
+        // Check if any higher priority template has mismatches
+        for (let i = 0; i < runningTemplates.length - 1; i++) {
+            const higherPriorityTemplate = runningTemplates[i];
+            
+            // If this template has mismatches and is not the lowest priority
+            if (higherPriorityTemplate.manager.pixelsRemaining > 0) {
+                // Find all lower priority templates that are running
+                const lowerPriorityTemplates = runningTemplates.slice(i + 1);
+                
+                // Stop one lower priority template to free up resources
+                for (const lowerTemplate of lowerPriorityTemplates) {
+                    if (lowerTemplate.manager.running) {
+                        // Stop the lower priority template
+                        log('SYSTEM', 'wplacer', `[${lowerTemplate.manager.name}] ⏸️ Pausing lower priority template to handle higher priority template ${higherPriorityTemplate.manager.name}.`);
+                        lowerTemplate.manager.stop();
+                        
+                        // Add it back to the queue
+                        if (!templateQueue.includes(lowerTemplate.id)) {
+                            templateQueue.push(lowerTemplate.id);
+                            lowerTemplate.manager.status = 'Queued (Priority yield)';
+                        }
+                        
+                        // Only stop one template per check
+                        break;
+                    }
+                }
+            }
+        }
+    }
+};
+
+// Set up periodic check for priority management
+setInterval(checkHigherPriorityTemplates, 60000); // Check every minute
 
 const processQueue = () => {
+    // Sort the queue by priority (1: high, 2: normal, 3: low)
+    const sortedQueue = [...templateQueue].sort((a, b) => {
+        const managerA = templates[a];
+        const managerB = templates[b];
+        if (!managerA) return 1; // Push invalid templates to the end
+        if (!managerB) return -1;
+        return managerA.priority - managerB.priority; // Lower number = higher priority
+    });
+    
+    // Replace the original queue with the sorted one
+    templateQueue.length = 0;
+    templateQueue.push(...sortedQueue);
+    
+    // Process the queue as before, but now it's priority-ordered
     for (let i = 0; i < templateQueue.length; i++) {
         const templateId = templateQueue[i];
         const manager = templates[templateId];
@@ -1989,6 +2121,19 @@ app.put('/template/:id', (req, res) => {
     const { id } = req.params;
     if (!id || !templates[id]) return res.sendStatus(HTTP_STATUS.BAD_REQ);
     const manager = templates[id];
+    
+    // Update priority if provided
+    if (req.body.priority !== undefined) {
+        const priority = parseInt(req.body.priority);
+        if ([1, 2, 3].includes(priority)) { // 1: high, 2: normal, 3: low
+            manager.priority = priority;
+            log('SYSTEM', 'wplacer', `[${manager.name}] 🔄 Template priority updated to ${priority}.`);
+            // If template is in queue, reprocess the queue to respect new priority
+            if (templateQueue.includes(id)) {
+                processQueue();
+            }
+        }
+    }
 
     if (req.body.running && !manager.running) {
         // STARTING a template
@@ -1997,7 +2142,9 @@ app.put('/template/:id', (req, res) => {
             if (!templateQueue.includes(id)) {
                 templateQueue.push(id);
                 manager.status = 'Queued';
-                log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy.`);
+                log('SYSTEM', 'wplacer', `[${manager.name}] ⏳ Template queued as its users are busy (Priority: ${manager.priority}).`);
+                // Sort queue by priority
+                processQueue();
             }
         } else {
             manager.userIds.forEach((uid) => activeTemplateUsers.add(uid));
