@@ -116,6 +116,36 @@ const tabs = {
     logsViewer,
 };
 
+// Lightweight axios fallback using fetch, in case CDN fails to load axios
+(() => {
+    if (window.axios) return;
+    const buildUrl = (url, params) => {
+        if (!params) return url;
+        const usp = new URLSearchParams(params);
+        return url + (url.includes('?') ? '&' : '?') + usp.toString();
+    };
+    const request = async (method, url, { params, data, headers } = {}) => {
+        const u = buildUrl(url, params);
+        const init = { method, headers: { 'Content-Type': 'application/json', ...(headers || {}) } };
+        if (data !== undefined) init.body = JSON.stringify(data);
+        const res = await fetch(u, init);
+        let body = null;
+        try { body = await res.json(); } catch { body = null; }
+        if (!res.ok) {
+            const err = new Error(`HTTP ${res.status}`);
+            err.response = { status: res.status, data: body };
+            throw err;
+        }
+        return { status: res.status, data: body };
+    };
+    window.axios = {
+        get: (url, config) => request('GET', url, config),
+        delete: (url, config) => request('DELETE', url, config),
+        post: (url, data, config) => request('POST', url, { ...(config || {}), data }),
+        put: (url, data, config) => request('PUT', url, { ...(config || {}), data }),
+    };
+})();
+
 const showMessage = (title, content) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
