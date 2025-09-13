@@ -883,16 +883,36 @@ templateForm.addEventListener('submit', async (e) => {
         
         if (isEditMode) {
             templateId = templateForm.dataset.editId;
-            await axios.put(`/template/edit/${templateId}`, data);
+            const response = await axios.put(`/template/edit/${templateId}`, data);
             // Save the color ordering for this template
             colorOrderSaved = await saveColorOrder(templateId);
-            showMessage('Success', 'Template updated!');
+            
+            // Check for warning about shared users
+            if (response.data && response.data.warning) {
+                const warning = response.data.warning;
+                showMessage('Template User Conflict Warning', 
+                    `The template <b>${warning.templateName}</b> shares users with other templates at priority <b>${warning.priority}</b>.<br><br>` +
+                    `This shares <b>${warning.sharedUsersCount}</b> users.<br><br>` +
+                    `Consider using different priority levels.`);
+            } else {
+                showMessage('Success', 'Template updated!');
+            }
         } else {
             const response = await axios.post('/template', data);
             templateId = response.data.id;
             // Save the color ordering for this template
             colorOrderSaved = await saveColorOrder(templateId);
-            showMessage('Success', 'Template created!');
+            
+            // Check for warning about shared users
+            if (response.data && response.data.warning) {
+                const warning = response.data.warning;
+                showMessage('Template User Conflict Warning', 
+                    `The template <b>${warning.templateName}</b> shares users with other templates at priority <b>${warning.priority}</b>.<br><br>` +
+                    `This shares <b>${warning.sharedUsersCount}</b> users.<br><br>` +
+                    `Consider using different priority levels.`);
+            } else {
+                showMessage('Success', 'Template created!');
+            }
         }
         
         resetTemplateForm();
@@ -1221,10 +1241,15 @@ const createTemplateCard = (t, id) => {
     const priority = t.priority || 2;
     const priorityLabel = priorityLabels[priority];
     
+    // Create a more prominent priority badge
+    const priorityBadge = `<span class="template-data priority-${priority.toString().toLowerCase()}">${priorityLabel}</span>`;
+    
     info.innerHTML = `
-        <span><b>Name:</b> <span class="template-data">${t.name}</span></span>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span><b>Name:</b> <span class="template-data">${t.name}</span></span>
+            <span><b>Priority:</b> ${priorityBadge}</span>
+        </div>
         <span><b>Pixels:</b> <span class="template-data pixel-count">${completed} / ${total}</span></span>
-        <span><b>Priority:</b> <span class="template-data priority-${priority.toString().toLowerCase()}">${priorityLabel}</span></span>
     `;
     card.appendChild(info);
 
@@ -1278,9 +1303,11 @@ const createTemplateCard = (t, id) => {
     
     const priorityContainer = document.createElement('div');
     priorityContainer.className = 'priority-container';
-    priorityContainer.innerHTML = '<span>Priority: </span>';
+    priorityContainer.innerHTML = '<span><b>Priority:</b> </span>';
     priorityContainer.appendChild(prioritySelector);
-    actions.appendChild(priorityContainer);
+    
+    // Make priority selector more prominent by placing it at the beginning of actions
+    actions.insertBefore(priorityContainer, actions.firstChild);
 
     const shareBtn = document.createElement('button');
     shareBtn.className = 'secondary-button';

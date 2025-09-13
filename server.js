@@ -1289,7 +1289,10 @@ class TemplateManager {
         const highPriorityUsers = [];
         const normalPriorityUsers = [];
         
-        // First pass: categorize users by charge level
+        // Create an array to sort users by available pixels
+        const usersByAvailablePixels = [];
+        
+        // First pass: categorize users by available pixels
         for (let i = 0; i < this.userQueue.length; i++) {
             const userId = this.userQueue.shift();
             
@@ -1302,19 +1305,26 @@ class TemplateManager {
             // Get predicted charges
             const predicted = ChargeCache.predict(userId, now);
             if (predicted && predicted.count > 0) {
-                // Calculate charge percentage
-                const chargePercentage = (predicted.count / predicted.max) * 100;
-                
-                // Prioritize users with >90% charges
-                if (chargePercentage > 90) {
-                    highPriorityUsers.push(userId);
-                } else {
-                    normalPriorityUsers.push(userId);
-                }
+                // Store user with their available pixel count
+                usersByAvailablePixels.push({
+                    userId,
+                    availablePixels: Math.floor(predicted.count)
+                });
             } else {
                 normalPriorityUsers.push(userId);
             }
         }
+        
+        // Sort users by available pixels (highest first)
+        usersByAvailablePixels.sort((a, b) => b.availablePixels - a.availablePixels);
+        
+        // Log the sorted users by available pixels
+        if (usersByAvailablePixels.length > 0) {
+            log('SYSTEM', 'wplacer', `[${this.name}] 🔄 Prioritizing users by available pixels: ${usersByAvailablePixels.map(u => `${users[u.userId]?.name}(${u.availablePixels})`).join(', ')}`);
+        }
+        
+        // Add sorted users to high priority list
+        highPriorityUsers.push(...usersByAvailablePixels.map(u => u.userId));
         
         // Rebuild the queue with high priority users first, then normal priority
         this.userQueue = [...highPriorityUsers, ...normalPriorityUsers];
@@ -1481,8 +1491,11 @@ class TemplateManager {
                             const highPriorityUsers = [];
                             const normalPriorityUsers = [];
                             
-                            // First pass: categorize users by charge level
+                            // First pass: categorize users by available pixels count
                             const queueSize = this.userQueue.length;
+                            // Create an array to sort users by available pixels
+                            const usersByAvailablePixels = [];
+                            
                             for (let i = 0; i < queueSize; i++) {
                                 const userId = this.userQueue.shift();
                                 
@@ -1495,19 +1508,26 @@ class TemplateManager {
                                 // Get predicted charges
                                 const predicted = ChargeCache.predict(userId, now);
                                 if (predicted && predicted.count > 0) {
-                                    // Calculate charge percentage
-                                    const chargePercentage = (predicted.count / predicted.max) * 100;
-                                    
-                                    // Prioritize users with >90% charges
-                                    if (chargePercentage > 90) {
-                                        highPriorityUsers.push(userId);
-                                    } else {
-                                        normalPriorityUsers.push(userId);
-                                    }
+                                    // Store user with their available pixel count
+                                    usersByAvailablePixels.push({
+                                        userId,
+                                        availablePixels: Math.floor(predicted.count)
+                                    });
                                 } else {
                                     normalPriorityUsers.push(userId);
                                 }
                             }
+                            
+                            // Sort users by available pixels (highest first)
+                             usersByAvailablePixels.sort((a, b) => b.availablePixels - a.availablePixels);
+                             
+                             // Log the sorted users by available pixels
+                             if (usersByAvailablePixels.length > 0) {
+                                 log('SYSTEM', 'wplacer', `[${this.name}] 🔄 Prioritizing users by available pixels: ${usersByAvailablePixels.map(u => `${users[u.userId]?.name}(${u.availablePixels})`).join(', ')}`);
+                             }
+                             
+                             // Add sorted users to high priority list
+                             highPriorityUsers.push(...usersByAvailablePixels.map(u => u.userId));
                             
                             // Rebuild the queue with high priority users first, then normal priority
                             this.userQueue = [...highPriorityUsers, ...normalPriorityUsers];
@@ -2044,11 +2064,49 @@ app.post('/template', (req, res) => {
         outlineMode,
         skipPaintedPixels,
         enableAutostart,
+        priority = 2,
     } = req.body || {};
     if (!templateName || !template || !coords || !userIds || !userIds.length)
         return res.sendStatus(HTTP_STATUS.BAD_REQ);
     if (Object.values(templates).some((t) => t.name === templateName))
         return res.status(HTTP_STATUS.CONFLICT).json({ error: 'A template with this name already exists.' });
+        
+    // Check for overlapping users with same priority
+    const conflictingTemplates = [];
+    for (const existingTemplate of Object.values(templates)) {
+        // Skip if it's a different priority level
+        if (existingTemplate.priority !== parseInt(priority, 10)) continue;
+        
+        // Check for user overlap
+        const overlappingUsers = userIds.filter(userId => 
+            existingTemplate.userIds.includes(userId)
+        );
+        
+        if (overlappingUsers.length > 0) {
+            conflictingTemplates.push({
+                name: existingTemplate.name,
+                users: overlappingUsers.map(id => users[id]?.name || id)
+            });
+        }
+    }
+    
+    // If conflicts found, log a warning and prepare warning data for client
+    let warningData = null;
+    if (conflictingTemplates.length > 0) {
+        log('SYSTEM', 'wplacer', `⚠️ Warning: Template "${templateName}" shares users with other templates at priority ${priority}:`);
+        for (const conflict of conflictingTemplates) {
+            log('SYSTEM', 'wplacer', `  - Template "${conflict.name}" shares users: ${conflict.users.join(', ')}`);
+        }
+        log('SYSTEM', 'wplacer', `  Consider using different priority levels for templates that share users.`);
+        
+        // Prepare warning data for client
+        warningData = {
+            templateName: templateName,
+            priority: parseInt(priority, 10),
+            sharedUsersCount: conflictingTemplates.reduce((total, conflict) => total + conflict.users.length, 0),
+            conflictingTemplates: conflictingTemplates.map(t => t.name)
+        };
+    }
 
     const templateId = Date.now().toString();
     templates[templateId] = new TemplateManager({
@@ -2064,9 +2122,16 @@ app.post('/template', (req, res) => {
         skipPaintedPixels,
         enableAutostart,
         userIds,
+        priority: parseInt(priority, 10),
     });
     saveTemplates();
-    res.status(HTTP_STATUS.OK).json({ id: templateId });
+    
+    // Send response with warning data if applicable
+    const response = { id: templateId };
+    if (warningData) {
+        response.warning = warningData;
+    }
+    res.status(HTTP_STATUS.OK).json(response);
 });
 
 app.delete('/template/:id', (req, res) => {
@@ -2093,7 +2158,50 @@ app.put('/template/edit/:id', (req, res) => {
         skipPaintedPixels,
         enableAutostart,
         template,
+        priority,
     } = req.body || {};
+    
+    // Check for overlapping users with same priority
+    const priorityValue = priority ? parseInt(priority, 10) : manager.priority;
+    const conflictingTemplates = [];
+    
+    for (const [templateId, existingTemplate] of Object.entries(templates)) {
+        // Skip the current template being edited
+        if (templateId === id) continue;
+        
+        // Skip if it's a different priority level
+        if (existingTemplate.priority !== priorityValue) continue;
+        
+        // Check for user overlap
+        const overlappingUsers = userIds.filter(userId => 
+            existingTemplate.userIds.includes(userId)
+        );
+        
+        if (overlappingUsers.length > 0) {
+            conflictingTemplates.push({
+                name: existingTemplate.name,
+                users: overlappingUsers.map(uid => users[uid]?.name || uid)
+            });
+        }
+    }
+    
+    // If conflicts found, log a warning and prepare warning data for client
+    let warningData = null;
+    if (conflictingTemplates.length > 0) {
+        log('SYSTEM', 'wplacer', `⚠️ Warning: Template "${templateName}" shares users with other templates at priority ${priorityValue}:`);
+        for (const conflict of conflictingTemplates) {
+            log('SYSTEM', 'wplacer', `  - Template "${conflict.name}" shares users: ${conflict.users.join(', ')}`);
+        }
+        log('SYSTEM', 'wplacer', `  Consider using different priority levels for templates that share users.`);
+        
+        // Prepare warning data for client
+        warningData = {
+            templateName: templateName,
+            priority: priorityValue,
+            sharedUsersCount: conflictingTemplates.reduce((total, conflict) => total + conflict.users.length, 0),
+            conflictingTemplates: conflictingTemplates.map(t => t.name)
+        };
+    }
 
     manager.name = templateName;
     manager.coords = coords;
@@ -2106,6 +2214,11 @@ app.put('/template/edit/:id', (req, res) => {
     manager.outlineMode = outlineMode;
     manager.skipPaintedPixels = skipPaintedPixels;
     manager.enableAutostart = enableAutostart;
+    
+    // Update priority if provided
+    if (priority) {
+        manager.priority = priorityValue;
+    }
 
     if (template) {
         manager.template = template;
@@ -2114,7 +2227,13 @@ app.put('/template/edit/:id', (req, res) => {
     manager.masterId = manager.userIds[0];
     manager.masterName = users[manager.masterId].name;
     saveTemplatesCompressed();
-    res.sendStatus(HTTP_STATUS.OK);
+    
+    // Send response with warning data if applicable
+    if (warningData) {
+        res.status(HTTP_STATUS.OK).json({ warning: warningData });
+    } else {
+        res.sendStatus(HTTP_STATUS.OK);
+    }
 });
 
 app.put('/template/:id', (req, res) => {
