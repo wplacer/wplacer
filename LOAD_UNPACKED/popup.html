@@ -3,6 +3,7 @@
 <head>
     <title>wplacer</title>
     <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
 <body>
     <div class="header">
@@ -10,14 +11,51 @@
         <h3>wplacer</h3>
     </div>
     <div class="content">
-        <div class="settings">
-            <label for="port">Server Port:</label>
-            <input type="number" id="port" min="1" max="65535" value="80">
-            <button id="saveSettingsBtn">Save</button>
+        <div class="status-indicator">
+            <div id="statusDot" class="status-dot"></div>
+            <p id="status">Ready. Tokens will be sent automatically.</p>
         </div>
-        <p id="status">Ready. Tokens will be sent automatically.</p>
-        <button id="sendCookieBtn">Manually Add/Update User</button>
-        <button id="logoutBtn" class="destructive">Quick Logout</button>
+        
+        <div class="tabs">
+            <div class="tab active" data-tab="actions">Actions</div>
+            <div class="tab" data-tab="settings">Settings</div>
+        </div>
+        
+        <div id="actions" class="tab-content active">
+            <button id="sendCookieBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                <span>Add/Update User</span>
+            </button>
+            <button id="clearPawtectBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line></svg>
+                <span>Clear Token Cache</span>
+            </button>
+            <button id="logoutBtn" class="destructive">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                <span>Quick Logout</span>
+            </button>
+        </div>
+        
+        <div id="settings" class="tab-content">
+            <div class="settings">
+                <label for="port">Server Port:</label>
+                <input type="number" id="port" min="1" max="65535" value="80">
+            </div>
+            <div class="settings">
+                <label for="autoReload">Auto Reload:</label>
+                <input type="checkbox" id="autoReload" checked>
+                <span class="setting-description">Automatically reload when tokens are needed</span>
+            </div>
+            <div class="settings">
+                <label for="autoClear">Auto Clear Cache:</label>
+                <input type="checkbox" id="autoClear" checked>
+                <span class="setting-description">Clear token cache if waiting too long</span>
+            </div>
+            <button id="saveSettingsBtn">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg>
+                <span>Save</span>
+            </button>
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>

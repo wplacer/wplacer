@@ -40,6 +40,56 @@ try {
     console.log('wplacer: fingerprint generated:', fp);
 } catch {}
 
+// Try to get the current color order from the page
+const getCurrentColorOrder = () => {
+    try {
+        // Look for color palette elements in the DOM
+        const colorPalette = document.querySelector('[data-testid="palette"]');
+        if (colorPalette) {
+            // Find all color buttons in the palette
+            const colorButtons = colorPalette.querySelectorAll('button');
+            if (colorButtons && colorButtons.length > 0) {
+                // Extract color indices from button attributes or styles
+                const colors = [];
+                colorButtons.forEach(button => {
+                    // Try to get color index from various possible attributes
+                    const colorIndex = button.getAttribute('data-color-index') || 
+                                      button.getAttribute('data-index') || 
+                                      button.getAttribute('data-id');
+                    if (colorIndex && !isNaN(parseInt(colorIndex))) {
+                        colors.push(parseInt(colorIndex));
+                    }
+                });
+                if (colors.length > 0) {
+                    console.log('wplacer: Found color order:', colors);
+                    return colors;
+                }
+            }
+        }
+        
+        // Alternative method: check for color order in window/global objects
+        if (window.app && window.app.palette && Array.isArray(window.app.palette.colors)) {
+            console.log('wplacer: Found color order in app object:', window.app.palette.colors);
+            return window.app.palette.colors;
+        }
+        
+        // Try to find color order in localStorage
+        const storedPalette = localStorage.getItem('wplace_palette');
+        if (storedPalette) {
+            try {
+                const palette = JSON.parse(storedPalette);
+                if (Array.isArray(palette)) {
+                    console.log('wplacer: Found color order in localStorage:', palette);
+                    return palette;
+                }
+            } catch {}
+        }
+    } catch (e) {
+        console.error('wplacer: Error getting color order:', e);
+    }
+    return null;
+};
+
 const postToken = (token, pawtectToken) => {
     if (!token || typeof token !== 'string' || sentTokens.has(token)) {
         return;
@@ -47,11 +97,19 @@ const postToken = (token, pawtectToken) => {
     sentTokens.add(token);
     console.log(`✅ wplacer: CAPTCHA Token Captured. Sending to server.`);
     const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
+    
+    // Get current color order
+    const colors = getCurrentColorOrder();
+    if (colors) {
+        console.log('wplacer: Sending token with color order:', colors);
+    }
+    
     chrome.runtime.sendMessage({
         type: "SEND_TOKEN",
         token: token,
         pawtect: pawtectToken,
-        fp
+        fp,
+        colors
     });
 };
 
