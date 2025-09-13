@@ -1130,7 +1130,6 @@ class TemplateManager {
         skipPaintedPixels,
         enableAutostart,
         userIds,
-        priority = 2, // Default priority: 2 (normal), 1 is high, 3 is low
     }) {
         this.templateId = templateId;
         this.name = name;
@@ -1144,7 +1143,6 @@ class TemplateManager {
         this.skipPaintedPixels = skipPaintedPixels;
         this.enableAutostart = enableAutostart;
         this.userIds = userIds;
-        this.priority = priority; // 1: high, 2: normal, 3: low
 
         this.running = false;
         this.status = 'Waiting to be started.';
@@ -2064,49 +2062,11 @@ app.post('/template', (req, res) => {
         outlineMode,
         skipPaintedPixels,
         enableAutostart,
-        priority = 2,
     } = req.body || {};
     if (!templateName || !template || !coords || !userIds || !userIds.length)
         return res.sendStatus(HTTP_STATUS.BAD_REQ);
     if (Object.values(templates).some((t) => t.name === templateName))
         return res.status(HTTP_STATUS.CONFLICT).json({ error: 'A template with this name already exists.' });
-        
-    // Check for overlapping users with same priority
-    const conflictingTemplates = [];
-    for (const existingTemplate of Object.values(templates)) {
-        // Skip if it's a different priority level
-        if (existingTemplate.priority !== parseInt(priority, 10)) continue;
-        
-        // Check for user overlap
-        const overlappingUsers = userIds.filter(userId => 
-            existingTemplate.userIds.includes(userId)
-        );
-        
-        if (overlappingUsers.length > 0) {
-            conflictingTemplates.push({
-                name: existingTemplate.name,
-                users: overlappingUsers.map(id => users[id]?.name || id)
-            });
-        }
-    }
-    
-    // If conflicts found, log a warning and prepare warning data for client
-    let warningData = null;
-    if (conflictingTemplates.length > 0) {
-        log('SYSTEM', 'wplacer', `⚠️ Warning: Template "${templateName}" shares users with other templates at priority ${priority}:`);
-        for (const conflict of conflictingTemplates) {
-            log('SYSTEM', 'wplacer', `  - Template "${conflict.name}" shares users: ${conflict.users.join(', ')}`);
-        }
-        log('SYSTEM', 'wplacer', `  Consider using different priority levels for templates that share users.`);
-        
-        // Prepare warning data for client
-        warningData = {
-            templateName: templateName,
-            priority: parseInt(priority, 10),
-            sharedUsersCount: conflictingTemplates.reduce((total, conflict) => total + conflict.users.length, 0),
-            conflictingTemplates: conflictingTemplates.map(t => t.name)
-        };
-    }
 
     const templateId = Date.now().toString();
     templates[templateId] = new TemplateManager({
@@ -2214,11 +2174,6 @@ app.put('/template/edit/:id', (req, res) => {
     manager.outlineMode = outlineMode;
     manager.skipPaintedPixels = skipPaintedPixels;
     manager.enableAutostart = enableAutostart;
-    
-    // Update priority if provided
-    if (priority) {
-        manager.priority = priorityValue;
-    }
 
     if (template) {
         manager.template = template;
@@ -2240,19 +2195,6 @@ app.put('/template/:id', (req, res) => {
     const { id } = req.params;
     if (!id || !templates[id]) return res.sendStatus(HTTP_STATUS.BAD_REQ);
     const manager = templates[id];
-    
-    // Update priority if provided
-    if (req.body.priority !== undefined) {
-        const priority = parseInt(req.body.priority);
-        if ([1, 2, 3].includes(priority)) { // 1: high, 2: normal, 3: low
-            manager.priority = priority;
-            log('SYSTEM', 'wplacer', `[${manager.name}] 🔄 Template priority updated to ${priority}.`);
-            // If template is in queue, reprocess the queue to respect new priority
-            if (templateQueue.includes(id)) {
-                processQueue();
-            }
-        }
-    }
 
     if (req.body.running && !manager.running) {
         // STARTING a template
