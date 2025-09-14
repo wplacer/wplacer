@@ -539,64 +539,6 @@ canvas {
     margin-top: 5px;
 }
 
-/* Priority styling */
-.priority-1 {
-    color: #ffffff;
-    font-weight: bold;
-    background-color: #ff5252;
-    padding: 3px 8px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.priority-2 {
-    color: #ffffff;
-    background-color: #4caf50;
-    padding: 3px 8px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.priority-3 {
-    color: #ffffff;
-    background-color: #2196f3;
-    padding: 3px 8px;
-    border-radius: 4px;
-    display: inline-block;
-}
-
-.priority-container {
-    display: flex;
-    align-items: center;
-    margin-right: 10px;
-    gap: 5px;
-    position: relative;
-    z-index: 5;
-}
-
-.priority-selector {
-    padding: 6px 10px;
-    border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background-color: var(--background-tertiary);
-    color: var(--text-primary);
-    font-size: 0.95em;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-.priority-selector:hover {
-    border-color: var(--accent-primary);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
-}
-
-.priority-selector:focus {
-    outline: none;
-    border-color: var(--accent-primary);
-    box-shadow: 0 0 0 2px rgba(255, 126, 50, 0.25);
-}
-
 .template-actions {
     display: flex;
     flex-wrap: wrap;
