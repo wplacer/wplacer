@@ -1853,6 +1853,36 @@ app.post('/t', (req, res) => {
 // Users
 app.get('/users', (_req, res) => res.json(users));
 
+// Load stored user data
+app.get('/stored-users', (_req, res) => {
+    try {
+        const storedUsers = loadJSON(USERS_FILE);
+        res.json(storedUsers);
+    } catch (error) {
+        console.error('Error loading stored users:', error);
+        res.status(500).json({ error: 'Failed to load stored user data' });
+    }
+});
+
+// Delete a user from stored data
+app.delete('/stored-user/:id', (req, res) => {
+    try {
+        const userId = req.params.id;
+        const storedUsers = loadJSON(USERS_FILE);
+        
+        if (storedUsers[userId]) {
+            delete storedUsers[userId];
+            saveJSON(USERS_FILE, storedUsers);
+            res.json({ success: true, message: 'User deleted from stored data' });
+        } else {
+            res.status(404).json({ error: 'User not found in stored data' });
+        }
+    } catch (error) {
+        console.error('Error deleting stored user:', error);
+        res.status(500).json({ error: 'Failed to delete stored user' });
+    }
+});
+
 app.post('/user', async (req, res) => {
     if (!req.body?.cookies || !req.body.cookies.j) return res.sendStatus(HTTP_STATUS.BAD_REQ);
     const wplacer = new WPlacer({});

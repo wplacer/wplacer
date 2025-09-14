@@ -931,29 +931,65 @@ stopAll.addEventListener('click', async () => {
     openManageTemplates.click();
 });
 
-openManageUsers.addEventListener('click', () => {
+// Function to load previously stored user data
+const loadStoredUsers = async () => {
+    try {
+        const response = await axios.get('/stored-users');
+        return response.data;
+    } catch (error) {
+        console.error('Error loading stored user data:', error);
+        return {};
+    }
+};
+
+openManageUsers.addEventListener('click', async () => {
     userList.innerHTML = '';
     userForm.reset();
     totalCharges.textContent = '?';
     totalMaxCharges.textContent = '?';
     totalDroplets.textContent = '?';
     totalPPH.textContent = '?';
+    
+    // Load previously stored user data
+    const storedUsers = await loadStoredUsers();
+    
     loadUsers((users) => {
-        const userCount = Object.keys(users).length;
+        // Merge stored users with current users for display
+        const mergedUsers = {...users};
+        
+        // Add stored users that aren't in the current users list
+        for (const id in storedUsers) {
+            if (!mergedUsers[id]) {
+                mergedUsers[id] = {
+                    ...storedUsers[id],
+                    isStoredOnly: true // Flag to indicate this is from stored data only
+                };
+            }
+        }
+        
+        const userCount = Object.keys(mergedUsers).length;
         manageUsersTitle.textContent = `Existing Users (${userCount})`;
-        for (const id of Object.keys(users)) {
+        for (const id of Object.keys(mergedUsers)) {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
-
-            const safeName = escapeHtml(String(users[id].name));
+            
+            const userData = mergedUsers[id];
+            const safeName = escapeHtml(String(userData.name));
+            
+            // Add visual indicator for stored-only users
+            const storedOnlyClass = userData.isStoredOnly ? 'stored-only' : '';
+            const storedOnlyIndicator = userData.isStoredOnly ? 
+                '<span class="stored-badge" title="This user data is from storage and not currently active">Stored</span>' : '';
+            
             user.innerHTML = `
-                <div class="user-info">
+                <div class="user-info ${storedOnlyClass}">
                     <span>${safeName}</span>
                     <span>(#${id})</span>
+                    ${storedOnlyIndicator}
                     <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Droplets: <b>?</b>
+                        Charges: <b>${userData.charges ? userData.charges.count : '?'}</b>/<b>${userData.charges ? userData.charges.max : '?'}</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
+                        Droplets: <b>${userData.droplets || '?'}</b>
                     </div>
                 </div>
                 <div class="user-actions">
@@ -962,13 +998,23 @@ openManageUsers.addEventListener('click', () => {
                 </div>`;
 
             user.querySelector('.delete-btn').addEventListener('click', () => {
+                const message = userData.isStoredOnly ?
+                    `Are you sure you want to delete ${safeName} (#${id}) from stored data?` :
+                    `Are you sure you want to delete ${safeName} (#${id})? This will also remove them from all templates.`;
+                
                 showConfirmation(
                     'Delete User',
-                    `Are you sure you want to delete ${safeName} (#${id})? This will also remove them from all templates.`,
+                    message,
                     async () => {
                         try {
-                            await axios.delete(`/user/${id}`);
-                            showMessage('Success', 'User deleted.');
+                            // Use different endpoint based on whether it's a stored-only user
+                            if (userData.isStoredOnly) {
+                                await axios.delete(`/stored-user/${id}`);
+                                showMessage('Success', 'Stored user data deleted.');
+                            } else {
+                                await axios.delete(`/user/${id}`);
+                                showMessage('Success', 'User deleted.');
+                            }
                             openManageUsers.click();
                         } catch (error) {
                             handleError(error);

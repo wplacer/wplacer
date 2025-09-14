@@ -282,6 +282,21 @@ label {
     transition: background-color 0.2s ease, border-color 0.2s ease;
 }
 
+.stored-only {
+    background-color: rgba(74, 144, 226, 0.1); /* Light blue background for stored-only users */
+    border-left: 4px solid #4a90e2;
+}
+
+.stored-badge {
+    display: inline-block;
+    background-color: #4a90e2;
+    color: white;
+    font-size: 0.8em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    margin-left: 8px;
+}
+
 .user-info {
     display: flex;
     flex-direction: column;
