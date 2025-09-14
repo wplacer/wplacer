@@ -1412,7 +1412,7 @@ class TemplateManager {
         const isColorMode = currentSettings.drawingOrder === 'color';
         this.running = true;
         this.status = 'Started.';
-        log('SYSTEM', 'wplacer', `Γû╢∩╕Å Starting template "${this.name}"...`);
+        log('SYSTEM', 'wplacer', `▶️ Starting template "${this.name}"...`);
         activePaintingTasks++;
 
 
@@ -1563,11 +1563,6 @@ class TemplateManager {
                             
                             // Sort users by available pixels (highest first)
                              usersByAvailablePixels.sort((a, b) => b.availablePixels - a.availablePixels);
-                             
-                             // Log the sorted users by available pixels
-                             if (usersByAvailablePixels.length > 0) {
-                                 log('SYSTEM', 'wplacer', `[${this.name}] 🔄 Prioritizing users by available pixels: ${usersByAvailablePixels.map(u => `${users[u.userId]?.name}(${u.availablePixels})`).join(', ')}`);
-                             }
                              
                              // Add sorted users to high priority list
                              highPriorityUsers.push(...usersByAvailablePixels.map(u => u.userId));
