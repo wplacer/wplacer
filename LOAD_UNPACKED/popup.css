@@ -6,7 +6,7 @@
     --text-primary: #E0E0E0;
     --text-secondary: #B3B3B3;
     --border-color: #282828;
-    --font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
     --success-color: #4CAF50;
     --warning-color: #FFC107;
     --error-color: hsl(0, 65%, 51%);
