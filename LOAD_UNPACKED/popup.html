@@ -3,21 +3,58 @@
 <head>
     <title>wplacer</title>
     <link rel="stylesheet" href="popup.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
     <div class="header">
         <img src="icons/favicon-32x32.png" class="logo">
         <h3>wplacer</h3>
     </div>
-    <div class="content">
-        <div class="settings">
-            <label for="port">Server Port:</label>
-            <input type="number" id="port" min="1" max="65535" value="80">
-            <button id="saveSettingsBtn">Save</button>
-        </div>
+
+    <!-- Status Indicator -->
+    <div class="status-indicator">
+        <div id="statusDot" class="status-dot active"></div>
         <p id="status">Ready. Tokens will be sent automatically.</p>
-        <button id="sendCookieBtn">Manually Add/Update User</button>
-        <button id="logoutBtn" class="destructive">Quick Logout</button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tabs">
+        <div class="tab active" data-tab="actions-tab">Actions</div>
+        <div class="tab" data-tab="settings-tab">Settings</div>
+    </div>
+    
+    <div class="content">
+        
+        <!-- Actions Tab Content -->
+        <div id="actions-tab" class="tab-content active">
+            <button id="sendCookieBtn"><i class="fas fa-user-plus"></i> Add/Update User</button>
+            <button id="clearPawtectBtn"><i class="fas fa-broom"></i> Clear Token Cache</button>
+            <button id="logoutBtn" class="destructive"><i class="fas fa-sign-out-alt"></i> Quick Logout</button>
+        </div>
+        
+        <!-- Settings Tab Content -->
+        <div id="settings-tab" class="tab-content">
+            <div class="settings-container">
+                <div class="settings">
+                    <label for="port">Server Port:</label>
+                    <input type="number" id="port" min="1" max="65535" value="80">
+                </div>
+                <div class="settings">
+                    <label for="autoReload">Auto Reload:</label>
+                    <input type="checkbox" id="autoReload" checked>
+                    <span class="setting-description">Automatically reload when tokens are needed</span>
+                </div>
+                <div class="settings">
+                    <label for="autoClear">Auto Clear Cache:</label>
+                    <input type="checkbox" id="autoClear" checked>
+                    <span class="setting-description">Clear token cache if waiting too long</span>
+                </div>
+                <button id="saveSettingsBtn">
+                    <i class="fas fa-save"></i>
+                    <span>Save</span>
+                </button>
+            </div>
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>
