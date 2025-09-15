@@ -82,18 +82,18 @@ const pollForTokenRequest = async () => {
             }
             
             // Only initiate reload if auto-reload is enabled
-if (settings.autoReload) {
-    console.log("wplacer: Auto-reload enabled. Initiating reload.");
-    await initiateReload();
-    
-    // If auto-clear is also enabled and we've been waiting for a while, clear the cache
-    if (settings.autoClear && (Date.now() - tokenWaitStartTime) > TOKEN_WAIT_THRESHOLD_MS / 2) {
-        console.log("wplacer: Auto-clear enabled and waiting for token. Clearing cache after reload.");
-        await clearPawtectCache();
-    }
-} else {
-    console.log("wplacer: Auto-reload disabled. Skipping reload.");
-}
+            if (settings.autoReload) {
+                console.log("wplacer: Auto-reload enabled. Initiating reload.");
+                await initiateReload();
+                
+                // If auto-clear is also enabled and we've been waiting for a while, clear the cache
+                if (settings.autoClear && (Date.now() - tokenWaitStartTime) > TOKEN_WAIT_THRESHOLD_MS / 2) {
+                    console.log("wplacer: Auto-clear enabled and waiting for token. Clearing cache after reload.");
+                    await clearPawtectCache();
+                }
+            } else {
+                console.log("wplacer: Auto-reload disabled. Skipping reload.");
+            }
         } else {
             // Reset token wait timer if no token is needed
             if (tokenWaitStartTime) {
@@ -205,7 +205,8 @@ const clearPawtectCache = (callback) => {
                         target: { tabId: tab.id },
                         world: 'MAIN',
                         func: () => {
-                            console.log("wplacer: Removing wplacerPawtectChunk from localStorage");
+                            console.log("wplacer: Removing cached pawtect data from localStorage");
+                            localStorage.removeItem('wplacer_pawtect_path');
                             localStorage.removeItem('wplacerPawtectChunk');
                             window.__wplacerPawtectChunk = null;
                             return true;
@@ -305,51 +306,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         window.__wplacerPawtectHooked = true;
 
                         const backend = 'https://backend.wplace.live';
-                        const resolvePawtectChunkUrl = async () => {
-                            try {
-                                if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                const cached = localStorage.getItem('wplacerPawtectChunk');
-                                if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
-
-                                const urls = new Set();
-                                // script tags
-                                Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
-                                // modulepreload and script links (SvelteKit)
-                                Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
-                                // performance entries already loaded
-                                try {
-                                    (performance.getEntriesByType('resource') || []).forEach(e => {
-                                        if (e && typeof e.name === 'string') urls.add(e.name);
-                                    });
-                                } catch { }
-
-                                const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                console.log('wplacer: pawtect chunk candidates', scripts);
-
-                                for (const src of scripts) {
-                                    try {
-                                        const text = await fetch(src, { credentials: 'omit' }).then(r => r.text());
-                                        if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
-                                            localStorage.setItem('wplacerPawtectChunk', src);
-                                            window.__wplacerPawtectChunk = src;
-                                            return src;
-                                        }
-                                    } catch { }
-                                }
-                                return null;
-                            } catch { return null; }
+                        
+                        // Optimized pawtect URL resolution - prioritize cached path
+                        const getOptimizedPawtectUrl = () => {
+                            // Check cached path first
+                            const cached = localStorage.getItem('wplacer_pawtect_path');
+                            if (cached) {
+                                console.log('wplacer: Using cached pawtect path:', cached);
+                                window.__wplacerPawtectChunk = cached;
+                                return cached;
+                            }
+                            
+                            // Check global variable
+                            if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') {
+                                return window.__wplacerPawtectChunk;
+                            }
+                            
+                            return null;
                         };
+                        
                         const importModule = async () => {
-                            const discovered = await resolvePawtectChunkUrl();
-                            console.log('wplacer: pawtect chunk discovered', discovered);
-
+                            // Try optimized path first
+                            const cachedUrl = getOptimizedPawtectUrl();
+                            
                             const candidates = [];
-                            if (discovered) candidates.push(discovered);
+                            if (cachedUrl) candidates.push(cachedUrl);
                             candidates.push(new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href);
                             candidates.push('https://wplace.live/_app/immutable/chunks/BdJF80pX.js');
+                            
                             let lastErr;
                             for (const url of candidates) {
-                                try { return await import(url); } catch (e) { lastErr = e; }
+                                try { 
+                                    console.log('wplacer: Attempting to import pawtect module from:', url);
+                                    return await import(url); 
+                                } catch (e) { 
+                                    lastErr = e; 
+                                    console.warn('wplacer: Failed to import from:', url, e.message);
+                                }
                             }
                             console.warn('pawtect: module import failed', lastErr?.message || lastErr);
                             return null;
@@ -469,24 +462,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
-                                const resolvePawtectChunkUrl = async () => {
-                                    try {
-                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                        const cached = localStorage.getItem('wplacerPawtectChunk');
-                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
-                                        const urls = new Set();
-                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
-                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
-                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch { }
-                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                        for (const src of scripts) {
-                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch { }
-                                        }
-                                        return null;
-                                    } catch { return null; }
-                                };
-                                const discovered = await resolvePawtectChunkUrl();
-                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
+                                
+                                // Use cached path directly
+                                const cachedUrl = localStorage.getItem('wplacer_pawtect_path');
+                                const mod = cachedUrl ? 
+                                    await import(cachedUrl) : 
+                                    await import('/_app/immutable/chunks/BdJF80pX.js');
+                                    
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
@@ -532,24 +514,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
-                                const resolvePawtectChunkUrl = async () => {
-                                    try {
-                                        if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') return window.__wplacerPawtectChunk;
-                                        const cached = localStorage.getItem('wplacerPawtectChunk');
-                                        if (cached) { window.__wplacerPawtectChunk = cached; return cached; }
-                                        const urls = new Set();
-                                        Array.from(document.querySelectorAll('script[src]')).forEach(s => { try { urls.add(new URL(s.src, location.href).href); } catch { } });
-                                        Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => { try { urls.add(new URL(l.href, location.href).href); } catch { } });
-                                        try { (performance.getEntriesByType('resource') || []).forEach(e => { if (e && typeof e.name === 'string') urls.add(e.name); }); } catch { }
-                                        const scripts = Array.from(urls).filter(src => /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src));
-                                        for (const src of scripts) {
-                                            try { const text = await fetch(src, { credentials: 'omit' }).then(r => r.text()); if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) { localStorage.setItem('wplacerPawtectChunk', src); window.__wplacerPawtectChunk = src; return src; } } catch { }
-                                        }
-                                        return null;
-                                    } catch { return null; }
-                                };
-                                const discovered = await resolvePawtectChunkUrl();
-                                const mod = discovered ? await import(discovered) : await import('/_app/immutable/chunks/BdJF80pX.js');
+                                
+                                // Use cached path directly
+                                const cachedUrl = localStorage.getItem('wplacer_pawtect_path');
+                                const mod = cachedUrl ? 
+                                    await import(cachedUrl) : 
+                                    await import('/_app/immutable/chunks/BdJF80pX.js');
+                                    
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
