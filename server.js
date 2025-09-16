@@ -1449,7 +1449,7 @@ class TemplateManager {
         return paintedTotal;
     }
 
-    async _findWorkingUserAndCheckPixels() {
+    async _findWorkingUserAndCheckPixels(forceRefresh = false) {
         // Iterate through all users in the queue to find one that works.
         for (let i = 0; i < this.userQueue.length; i++) {
             const userId = this.userQueue.shift();
@@ -1474,9 +1474,19 @@ class TemplateManager {
             try {
                 log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
                 await wplacer.login(users[userId].cookies);
+                
+                // Force fresh tile loading for anti-grief checks
+                if (forceRefresh) {
+                    wplacer.tiles.clear(); // Clear any existing tile cache
+                }
+                
                 await wplacer.loadTiles();
-                const mismatchedPixels = wplacer._getMismatchedPixels(1, null); // Check all pixels, no skip, no color filter.
-                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels.`);
+                
+                // For anti-grief monitoring, always check with skip=1 to catch all griefed pixels
+                const checkSkip = forceRefresh ? 1 : this.currentPixelSkip;
+                const mismatchedPixels = wplacer._getMismatchedPixels(checkSkip, null);
+                
+                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels (skip: 1/${checkSkip}).`);
                 return { wplacer, mismatchedPixels }; // Success
             } catch (error) {
                 logUserError(error, userId, users[userId].name, 'cycle pixel check');
@@ -1551,7 +1561,27 @@ class TemplateManager {
                         this.status = 'Monitoring for changes.';
                         log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
                         await this.cancellableSleep(currentSettings.antiGriefStandby);
-                        continue; // Restart the while loop to re-check for changes.
+                        
+                        // Force a fresh check after anti-grief wait
+                        log('SYSTEM', 'wplacer', `[${this.name}] 🔍 Performing anti-grief check with fresh tiles...`);
+                        const antiGriefCheck = await this._findWorkingUserAndCheckPixels(true); // forceRefresh = true
+                        
+                        if (!antiGriefCheck) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ❌ No working users found for anti-grief check. Retrying in 30s.`);
+                            await this.cancellableSleep(30_000);
+                            continue;
+                        }
+                        
+                        // Update pixel count based on fresh check
+                        this.pixelsRemaining = antiGriefCheck.mismatchedPixels.length;
+                        
+                        if (this.pixelsRemaining > 0) {
+                            log('SYSTEM', 'wplacer', `[${this.name}] 🚨 GRIEF DETECTED! Found ${this.pixelsRemaining} griefed pixels. Resuming painting...`);
+                            // Don't continue here - let the code fall through to painting logic
+                        } else {
+                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ No grief detected. Template still complete.`);
+                            continue; // Continue monitoring
+                        }
                     } else {
                         log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
                         this.status = 'Finished.';
