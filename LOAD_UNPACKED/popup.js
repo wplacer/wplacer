@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggleOverlayText = document.getElementById('toggleOverlayText');
     const autoReloadCheckbox = document.getElementById('autoReload');
     const autoClearCheckbox = document.getElementById('autoClear');
-    const enableOverlayCheckbox = document.getElementById('enableOverlay');
+    // Removed enableOverlayCheckbox since we're not using it in settings tab anymore
     const tabs = document.querySelectorAll('.tab');
     const tabContents = document.querySelectorAll('.tab-content');
     
@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         autoReloadCheckbox.checked = autoReload;
         autoClearCheckbox.checked = autoClear;
-        enableOverlayCheckbox.checked = enableOverlay;
+        // Removed enableOverlayCheckbox.checked assignment
         
         // Update toggle overlay button text based on current setting
         updateToggleOverlayButton(enableOverlay);
@@ -51,10 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Update storage
             chrome.storage.local.set({ enableOverlay: newSetting }, () => {
-                // Update checkbox in settings tab
-                if (enableOverlayCheckbox) {
-                    enableOverlayCheckbox.checked = newSetting;
-                }
+                // Removed enableOverlayCheckbox update since we don't have it anymore
                 
                 // Update button text
                 updateToggleOverlayButton(newSetting);
@@ -142,7 +139,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkTokenStatus();
     setInterval(checkTokenStatus, 2000);
 
-    // Save settings
+    // Save settings - updated to only save port, autoReload, and autoClear
     saveBtn.addEventListener('click', () => {
         const port = parseInt(portInput.value, 10);
         if (isNaN(port) || port < 1 || port > 65535) {
@@ -155,8 +152,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.storage.local.set({ 
             wplacerPort: port,
             autoReload: autoReloadCheckbox.checked,
-            autoClear: autoClearCheckbox.checked,
-            enableOverlay: enableOverlayCheckbox.checked
+            autoClear: autoClearCheckbox.checked
+            // Removed enableOverlay from settings save since it's handled by the toggle button
         }, () => {
             setButtonLoading(saveBtn, false);
             statusEl.textContent = `Settings saved. Server on port ${port}.`;
@@ -186,29 +183,7 @@ document.addEventListener('DOMContentLoaded', () => {
         chrome.storage.local.set({ autoClear: autoClearCheckbox.checked });
     });
     
-    // Enable overlay setting change
-    enableOverlayCheckbox.addEventListener('change', () => {
-        const newSetting = enableOverlayCheckbox.checked;
-        chrome.storage.local.set({ enableOverlay: newSetting }, () => {
-            // Update toggle overlay button text
-            updateToggleOverlayButton(newSetting);
-            
-            // Show status message
-            statusEl.textContent = `Overlay ${newSetting ? 'enabled' : 'disabled'}. Reloading page...`;
-            statusEl.classList.add('success');
-            
-            // Reload the active tab to apply changes immediately
-            chrome.tabs.query({active: true, currentWindow: true}, function(tabs) {
-                if (tabs[0]) {
-                    chrome.tabs.reload(tabs[0].id);
-                }
-            });
-            
-            setTimeout(() => {
-                statusEl.classList.remove('success');
-            }, 2000);
-        });
-    });
+    // Removed enableOverlayCheckbox change event listener since we don't have that checkbox anymore
 
     // Helper function to show loading state on buttons
     const setButtonLoading = (button, isLoading) => {

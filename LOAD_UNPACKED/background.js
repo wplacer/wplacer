@@ -250,6 +250,7 @@ const clearPawtectCache = (callback) => {
                             console.log("wplacer: Removing cached pawtect data from localStorage");
                             // Use consistent cache key name
                             localStorage.removeItem('wplacer_pawtect_path');
+                            localStorage.removeItem('wplacerPawtectChunk')
                             window.__wplacerPawtectChunk = null;
                             return true;
                         }
