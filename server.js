@@ -672,55 +672,106 @@ class WPlacer {
     /*
      * Load all tiles intersecting the template bounding box into memory.
      * Converts to palette IDs for quick mismatch checks.
+     * @param {boolean} forceFresh - Force fresh tile fetch (cache busting)
     */
-    async loadTiles() {
+    async loadTiles(forceFresh = false) {
+        console.log(`[${this.name}] Loading tiles for template ${this.template.width}x${this.template.height} at coords [${this.coords.join(',')}]${forceFresh ? ' (FORCE FRESH)' : ''}`);
+        
         this.tiles.clear();
         const [tx, ty, px, py] = this.coords;
         const endPx = px + this.template.width;
         const endPy = py + this.template.height;
         const endTx = tx + Math.floor(endPx / 1000);
         const endTy = ty + Math.floor(endPy / 1000);
+        
+        // Calculate total tiles to load
+        const totalTiles = (endTx - tx + 1) * (endTy - ty + 1);
+        console.log(`[${this.name}] Need to load ${totalTiles} tiles (${tx},${ty} to ${endTx},${endTy})`);
+
+        // Track success/failure
+        let loadedTiles = 0;
+        let failedTiles = 0;
 
         const promises = [];
         for (let X = tx; X <= endTx; X++) {
             for (let Y = ty; Y <= endTy; Y++) {
-                const p = this._fetch(`${TILE_URL(X, Y)}?t=${Date.now()}`)
-                    .then(async (r) => (r.ok ? Buffer.from(await r.arrayBuffer()) : null))
+                // Add cache busting parameter if forceFresh is true
+                const cacheBuster = forceFresh ? `?t=${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : `?t=${Date.now()}`;
+                const tileUrl = `${TILE_URL(X, Y)}${cacheBuster}`;
+                
+                const p = this._fetch(tileUrl)
+                    .then(async (r) => {
+                        if (!r.ok) {
+                            console.warn(`[${this.name}] Failed to fetch tile ${X}_${Y}: ${r.status} ${r.statusText}`);
+                            failedTiles++;
+                            return null;
+                        }
+                        try {
+                            return Buffer.from(await r.arrayBuffer());
+                        } catch (e) {
+                            console.error(`[${this.name}] Error processing tile ${X}_${Y} response:`, e);
+                            failedTiles++;
+                            return null;
+                        }
+                    })
                     .then((buf) => {
                         if (!buf) return null;
-                        const image = new Image();
-                        image.src = buf; // node-canvas accepts Buffer
-                        const canvas = createCanvas(image.width, image.height);
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(image, 0, 0);
-                        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                        const tile = {
-                            width: canvas.width,
-                            heigh: canvas.height,
-                            data: Array.from({ length: canvas.width }, () => Array(canvas.height)),
-                        };
-                        for (let x = 0; x < canvas.width; x++) {
-                            for (let y = 0; y < canvas.height; y++) {
-                                const i = (y * canvas.width + x) * 4;
-                                const r = d.data[i],
-                                    g = d.data[i + 1],
-                                    b = d.data[i + 2],
-                                    a = d.data[i + 3];
-                                tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
+                        try {
+                            const image = new Image();
+                            image.src = buf; // node-canvas accepts Buffer
+                            
+                            // Validate image dimensions
+                            if (image.width !== 1000 || image.height !== 1000) {
+                                console.warn(`[${this.name}] Tile ${X}_${Y} has unexpected dimensions: ${image.width}x${image.height}`);
                             }
+                            
+                            const canvas = createCanvas(image.width, image.height);
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(image, 0, 0);
+                            const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            
+                            const tile = {
+                                width: canvas.width,
+                                height: canvas.height, // Fixed typo: heigh -> height
+                                data: Array.from({ length: canvas.width }, () => Array(canvas.height)),
+                            };
+                            
+                            // Process image data
+                            for (let x = 0; x < canvas.width; x++) {
+                                for (let y = 0; y < canvas.height; y++) {
+                                    const i = (y * canvas.width + x) * 4;
+                                    const r = d.data[i],
+                                        g = d.data[i + 1],
+                                        b = d.data[i + 2],
+                                        a = d.data[i + 3];
+                                    tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
+                                }
+                            }
+                            return tile;
+                        } catch (e) {
+                            console.error(`[${this.name}] Error processing tile ${X}_${Y} image:`, e);
+                            failedTiles++;
+                            return null;
                         }
-                        return tile;
                     })
                     .then((tileData) => {
                         if (tileData) {
                             this.tiles.set(`${X}_${Y}`, tileData);
+                            loadedTiles++;
                         }
+                    })
+                    .catch(e => {
+                        console.error(`[${this.name}] Unexpected error loading tile ${X}_${Y}:`, e);
+                        failedTiles++;
                     });
+                    
                 promises.push(p);
             }
         }
+        
         await Promise.all(promises);
-        return true;
+        console.log(`[${this.name}] Tile loading complete: ${loadedTiles}/${totalTiles} loaded (${failedTiles} failed)`);
+        return loadedTiles > 0; // Return true only if at least one tile was loaded
     }
 
     hasColor(id) {
@@ -781,26 +832,66 @@ class WPlacer {
     _getMismatchedPixels(currentSkip = 1, colorFilter = null) {
         const [startX, startY, startPx, startPy] = this.coords;
         const out = [];
+        let totalChecked = 0;
+        let skippedBounds = 0;
+        let skippedFilter = 0;
+        let skippedSkip = 0;
+
+        // Debug info
+        console.log(`[${this.name}] Scanning pixels: template=${this.template.width}x${this.template.height}, coords=[${this.coords.join(',')}], skip=${currentSkip}, filter=${colorFilter}`);
 
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
-                if ((x + y) % currentSkip !== 0) continue;
+                // Skip pattern check
+                if ((x + y) % currentSkip !== 0) {
+                    skippedSkip++;
+                    continue;
+                }
 
                 const tplColor = this.template.data[x][y];
-                if (colorFilter !== null && tplColor !== colorFilter) continue;
+                
+                // Color filter check
+                if (colorFilter !== null && tplColor !== colorFilter) {
+                    skippedFilter++;
+                    continue;
+                }
 
-                const globalPx = startPx + x,
-                    globalPy = startPy + y;
+                // Calculate global coordinates
+                const globalPx = startPx + x;
+                const globalPy = startPy + y;
 
+                // Calculate target tile coordinates
                 const targetTx = startX + Math.floor(globalPx / 1000);
                 const targetTy = startY + Math.floor(globalPy / 1000);
-                const localPx = globalPx % 1000,
-                    localPy = globalPy % 1000;
+                
+                // Calculate local coordinates within the tile
+                const localPx = globalPx % 1000;
+                const localPy = globalPy % 1000;
 
+                // Bounds checking with detailed logging
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile || !tile.data[localPx]) continue;
+                if (!tile) {
+                    console.warn(`[${this.name}] Missing tile ${targetTx}_${targetTy} for template pixel (${x},${y})`);
+                    skippedBounds++;
+                    continue;
+                }
 
+                if (!tile.data[localPx]) {
+                    console.warn(`[${this.name}] Missing column ${localPx} in tile ${targetTx}_${targetTy} (template pixel ${x},${y})`);
+                    skippedBounds++;
+                    continue;
+                }
+
+                if (tile.data[localPx][localPy] === undefined) {
+                    console.warn(`[${this.name}] Missing pixel data at ${localPx},${localPy} in tile ${targetTx}_${targetTy} (template pixel ${x},${y})`);
+                    skippedBounds++;
+                    continue;
+                }
+
+                totalChecked++;
                 const canvasColor = tile.data[localPx][localPy];
+
+                // Calculate edge detection
                 const neighbors = [
                     this.template.data[x - 1]?.[y],
                     this.template.data[x + 1]?.[y],
@@ -809,7 +900,7 @@ class WPlacer {
                 ];
                 const isEdge = neighbors.some((n) => n === 0 || n === undefined);
 
-                // erase non-template
+                // Erase mode: non-template pixels that are filled
                 if (this.templateSettings.eraseMode && tplColor === 0 && canvasColor !== 0) {
                     out.push({
                         tx: targetTx,
@@ -820,10 +911,12 @@ class WPlacer {
                         isEdge: false,
                         localX: x,
                         localY: y,
+                        reason: 'erase_mode'
                     });
                     continue;
                 }
-                // treat -1 as "clear if filled"
+
+                // Clear mode: -1 means "clear if filled"
                 if (tplColor === -1 && canvasColor !== 0) {
                     out.push({
                         tx: targetTx,
@@ -834,14 +927,17 @@ class WPlacer {
                         isEdge,
                         localX: x,
                         localY: y,
+                        reason: 'clear_mode'
                     });
                     continue;
                 }
-                // positive colors
+
+                // Positive colors: check if we have the color and if it needs painting
                 if (tplColor > 0 && this.hasColor(tplColor)) {
                     const shouldPaint = this.templateSettings.skipPaintedPixels
-                        ? canvasColor === 0
-                        : tplColor !== canvasColor;
+                        ? canvasColor === 0  // Only paint if canvas is empty
+                        : tplColor !== canvasColor;  // Paint if colors don't match
+
                     if (shouldPaint) {
                         out.push({
                             tx: targetTx,
@@ -852,11 +948,30 @@ class WPlacer {
                             isEdge,
                             localX: x,
                             localY: y,
+                            reason: this.templateSettings.skipPaintedPixels ? 'fill_empty' : 'color_mismatch',
+                            expectedColor: tplColor,
+                            actualColor: canvasColor
                         });
                     }
                 }
             }
         }
+
+        // Detailed logging
+        console.log(`[${this.name}] Pixel scan complete:
+        Total template pixels: ${this.template.width * this.template.height}
+        Checked: ${totalChecked}
+        Skipped (pattern): ${skippedSkip}
+        Skipped (filter): ${skippedFilter} 
+        Skipped (bounds): ${skippedBounds}
+        Mismatched found: ${out.length}`);
+
+        // Log sample of mismatched pixels for debugging
+        if (out.length > 0 && out.length <= 10) {
+            console.log(`[${this.name}] Mismatched pixels:`, 
+                out.map(p => `(${p.localX},${p.localY}): ${p.reason} - expected ${p.expectedColor || p.color}, got ${p.actualColor}`));
+        }
+
         return out;
     }
 
@@ -1472,21 +1587,17 @@ class TemplateManager {
             });
 
             try {
-                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
+                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}${forceRefresh ? ' (FORCE REFRESH)' : ''}...`);
                 await wplacer.login(users[userId].cookies);
                 
-                // Force fresh tile loading for anti-grief checks
-                if (forceRefresh) {
-                    wplacer.tiles.clear(); // Clear any existing tile cache
-                }
-                
-                await wplacer.loadTiles();
+                // Use the enhanced loadTiles method with forceFresh parameter
+                await wplacer.loadTiles(forceRefresh);
                 
                 // For anti-grief monitoring, always check with skip=1 to catch all griefed pixels
                 const checkSkip = forceRefresh ? 1 : this.currentPixelSkip;
                 const mismatchedPixels = wplacer._getMismatchedPixels(checkSkip, null);
                 
-                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels (skip: 1/${checkSkip}).`);
+                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels (skip: ${checkSkip}).`);
                 return { wplacer, mismatchedPixels }; // Success
             } catch (error) {
                 logUserError(error, userId, users[userId].name, 'cycle pixel check');
