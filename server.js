@@ -55,6 +55,7 @@ const DATA_DIR = './data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
+const CHARGE_CACHE_FILE = path.join(DATA_DIR, 'charge_cache.json');
 
 const JSON_LIMIT = '50mb';
 
@@ -196,44 +197,222 @@ const ChargeCache = {
     _m: new Map(),
     REGEN_MS: 30_000,
     SYNC_MS: 8 * 60_000,
+    CACHE_EXPIRY_MS: 8 * 60 * 60_000, // 8 hours - allows for longer downtimes
+    MAX_EXTRAPOLATION_MS: 24 * 60 * 60_000, // 24 hours - max time we'll extrapolate charges
 
     _key(id) {
         return String(id);
     },
+
+    // Load cache from disk on startup
+    load() {
+        try {
+            if (existsSync(CHARGE_CACHE_FILE)) {
+                const data = JSON.parse(readFileSync(CHARGE_CACHE_FILE, 'utf8'));
+                const now = Date.now();
+                let loaded = 0;
+                let expired = 0;
+                let extrapolated = 0;
+
+                for (const [userId, entry] of Object.entries(data)) {
+                    const age = now - entry.lastSync;
+                    
+                    if (age < this.CACHE_EXPIRY_MS) {
+                        // Fresh data - load as-is
+                        this._m.set(userId, entry);
+                        loaded++;
+                    } else if (age < this.MAX_EXTRAPOLATION_MS) {
+                        // Stale but not ancient - mark for careful extrapolation
+                        entry.isExtrapolated = true;
+                        entry.originalAge = age;
+                        this._m.set(userId, entry);
+                        extrapolated++;
+                        console.log(`[ChargeCache] User ${userId} data is ${Math.round(age/60000)}min old - will extrapolate carefully`);
+                    } else {
+                        // Too old - discard
+                        expired++;
+                    }
+                }
+
+                console.log(`[ChargeCache] Loaded ${loaded} fresh, ${extrapolated} extrapolated, discarded ${expired} expired entries`);
+            }
+        } catch (error) {
+            console.warn(`[ChargeCache] Failed to load cache: ${error.message}`);
+            // Continue with empty cache
+        }
+    },
+
+    // Save cache to disk
+    save() {
+        try {
+            const data = Object.fromEntries(this._m);
+            // Clean extrapolation flags before saving
+            for (const entry of Object.values(data)) {
+                delete entry.isExtrapolated;
+                delete entry.originalAge;
+            }
+            writeFileSync(CHARGE_CACHE_FILE, JSON.stringify(data, null, 2));
+        } catch (error) {
+            console.warn(`[ChargeCache] Failed to save cache: ${error.message}`);
+        }
+    },
+
+    // Auto-save periodically and on significant changes
+    _lastSaveTime: 0,
+    _saveThrottle: 60_000, // Save at most once per minute
+    
+    _maybeSave() {
+        const now = Date.now();
+        if (now - this._lastSaveTime > this._saveThrottle) {
+            this._lastSaveTime = now;
+            this.save();
+        }
+    },
+
     has(id) {
         return this._m.has(this._key(id));
     },
+
     stale(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
         if (!u) return true;
+        
+        // If data is extrapolated, it's always considered stale for sync purposes
+        if (u.isExtrapolated) return true;
+        
         return now - u.lastSync > this.SYNC_MS;
     },
+
     markFromUserInfo(userInfo, now = Date.now()) {
         if (!userInfo?.id || !userInfo?.charges) return;
         const k = this._key(userInfo.id);
         const base = Math.floor(userInfo.charges.count ?? 0);
         const max = Math.floor(userInfo.charges.max ?? 0);
-        this._m.set(k, { base, max, lastSync: now });
+        
+        // Clear extrapolation flags when we get fresh data
+        this._m.set(k, { 
+            base, 
+            max, 
+            lastSync: now,
+            isExtrapolated: false
+        });
+        this._maybeSave();
     },
+
     predict(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
         if (!u) return null;
-        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        
+        const timeSinceSync = now - u.lastSync;
+        
+        // For extrapolated data, be more conservative
+        if (u.isExtrapolated) {
+            // Calculate charges but apply a confidence penalty
+            const theoreticalGrowth = Math.floor(timeSinceSync / this.REGEN_MS);
+            const theoreticalCount = Math.min(u.max, u.base + Math.max(0, theoreticalGrowth));
+            
+            // Apply confidence penalty based on age - older data gets more penalty
+            const agePenalty = Math.min(0.8, u.originalAge / (2 * 60 * 60_000)); // Up to 80% penalty for 2+ hour old data
+            const conservativeCount = Math.floor(theoreticalCount * (1 - agePenalty));
+            
+            return { 
+                count: Math.max(0, conservativeCount), 
+                max: u.max, 
+                cooldownMs: this.REGEN_MS,
+                isExtrapolated: true,
+                confidence: 1 - agePenalty
+            };
+        }
+        
+        // Normal prediction for fresh data
+        const grown = Math.floor(timeSinceSync / this.REGEN_MS);
         const count = Math.min(u.max, u.base + Math.max(0, grown));
-        return { count, max: u.max, cooldownMs: this.REGEN_MS };
+        return { 
+            count, 
+            max: u.max, 
+            cooldownMs: this.REGEN_MS,
+            isExtrapolated: false,
+            confidence: 1.0
+        };
     },
+
     consume(id, n = 1, now = Date.now()) {
         const k = this._key(id);
         const u = this._m.get(k);
         if (!u) return;
-        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
-        const avail = Math.min(u.max, u.base + Math.max(0, grown));
-        const newCount = Math.max(0, avail - n);
+        
+        const timeSinceSync = now - u.lastSync;
+        const grown = Math.floor(timeSinceSync / this.REGEN_MS);
+        
+        let availableCharges;
+        if (u.isExtrapolated) {
+            // For extrapolated data, recalculate with penalty
+            const theoreticalAvailable = Math.min(u.max, u.base + Math.max(0, grown));
+            const agePenalty = Math.min(0.8, u.originalAge / (2 * 60 * 60_000));
+            availableCharges = Math.floor(theoreticalAvailable * (1 - agePenalty));
+        } else {
+            availableCharges = Math.min(u.max, u.base + Math.max(0, grown));
+        }
+        
+        const newCount = Math.max(0, availableCharges - n);
         u.base = newCount;
-        // align to last regen tick
-        u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+        
+        // Align to last regen tick and clear extrapolation flags since we're updating
+        u.lastSync = now - (timeSinceSync % this.REGEN_MS);
+        u.isExtrapolated = false;
+        delete u.originalAge;
+        
         this._m.set(k, u);
+        this._maybeSave();
     },
+
+    // Enhanced cleanup that handles extrapolated entries differently
+    cleanup() {
+        const now = Date.now();
+        const before = this._m.size;
+        let expiredCount = 0;
+        let extrapolatedCount = 0;
+        
+        for (const [key, entry] of this._m.entries()) {
+            const age = now - entry.lastSync;
+            
+            if (age > this.MAX_EXTRAPOLATION_MS) {
+                this._m.delete(key);
+                expiredCount++;
+            } else if (age > this.CACHE_EXPIRY_MS && !entry.isExtrapolated) {
+                // Convert fresh data to extrapolated when it gets old
+                entry.isExtrapolated = true;
+                entry.originalAge = age;
+                extrapolatedCount++;
+            }
+        }
+        
+        if (expiredCount > 0 || extrapolatedCount > 0) {
+            console.log(`[ChargeCache] Cleanup: expired ${expiredCount}, marked ${extrapolatedCount} as extrapolated`);
+            this.save();
+        }
+    },
+
+    // Helper method to get cache statistics
+    getStats() {
+        const now = Date.now();
+        let fresh = 0;
+        let extrapolated = 0;
+        let stale = 0;
+        
+        for (const entry of this._m.values()) {
+            const age = now - entry.lastSync;
+            if (entry.isExtrapolated) {
+                extrapolated++;
+            } else if (age < this.SYNC_MS) {
+                fresh++;
+            } else {
+                stale++;
+            }
+        }
+        
+        return { fresh, extrapolated, stale, total: this._m.size };
+    }
 };
 
 // ---------- Proxy loader ----------
@@ -1684,7 +1863,29 @@ app.post('/t', (req, res) => {
 });
 
 // Users
-app.get('/users', (_req, res) => res.json(users));
+app.get('/users', (_req, res) => {
+    const now = Date.now();
+    const usersWithPixels = {};
+    
+    // Add pixel data from cache to each user
+    for (const userId in users) {
+        usersWithPixels[userId] = { ...users[userId] };
+        
+        // Get pixel data from cache if available
+        const pixelData = ChargeCache.predict(userId, now);
+        if (pixelData) {
+            usersWithPixels[userId].pixels = {
+                count: pixelData.count,
+                max: pixelData.max,
+                percentage: (pixelData.count / Math.max(1, pixelData.max)) * 100,
+                isExtrapolated: pixelData.isExtrapolated || false,
+                confidence: pixelData.confidence || 1.0
+            };
+        }
+    }
+    
+    res.json(usersWithPixels);
+});
 
 app.post('/user', async (req, res) => {
     if (!req.body?.cookies || !req.body.cookies.j) return res.sendStatus(HTTP_STATUS.BAD_REQ);
@@ -1809,6 +2010,7 @@ app.post('/users/status', async (_req, res) => {
 // Templates
 app.get('/templates', (req, res) => {
     const templateList = {};
+    const now = Date.now();
 
     for (const id in templates) {
         const manager = templates[id];
@@ -1821,6 +2023,26 @@ app.get('/templates', (req, res) => {
                 console.warn(`Could not generate share code for template ${id}: ${shareCodeError.message}`);
                 shareCode = null; // Don't include invalid share code
             }
+            
+            // Get pixel availability for each user and sort by percentage available
+            const userIdsWithPixels = manager.userIds.map(userId => {
+                const predicted = ChargeCache.predict(userId, now) || { count: 0, max: 1 };
+                const percentage = (predicted.count / Math.max(1, predicted.max)) * 100;
+                return {
+                    userId,
+                    pixels: predicted.count,
+                    maxPixels: predicted.max,
+                    percentage,
+                    isExtrapolated: predicted.isExtrapolated || false,
+                    confidence: predicted.confidence || 1.0
+                };
+            });
+            
+            // Sort users by percentage of available pixels (highest first)
+            userIdsWithPixels.sort((a, b) => b.percentage - a.percentage);
+            
+            // Extract just the user IDs for the sorted list
+            const sortedUserIds = userIdsWithPixels.map(u => u.userId);
 
             templateList[id] = {
                 id: id,
@@ -1833,7 +2055,8 @@ app.get('/templates', (req, res) => {
                 outlineMode: manager.outlineMode,
                 skipPaintedPixels: manager.skipPaintedPixels,
                 enableAutostart: manager.enableAutostart,
-                userIds: manager.userIds,
+                userIds: sortedUserIds, // Use the sorted user IDs
+                userPixels: userIdsWithPixels, // Include the full pixel data for UI
                 running: manager.running,
                 status: manager.status,
                 masterId: manager.masterId,
@@ -2310,6 +2533,9 @@ const diffVer = (v1, v2) => {
     //Load color ordering on startup
     colorOrdering = loadColorOrdering();
 
+    // Load charge cache from disk
+    ChargeCache.load();
+    
     loadProxies();
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);
 
@@ -2381,6 +2607,9 @@ const diffVer = (v1, v2) => {
 
             setInterval(runKeepAlive, currentSettings.keepAliveCooldown);
             log('SYSTEM', 'KeepAlive', `🔄 User session keep-alive started. Interval: ${duration(currentSettings.keepAliveCooldown)}.`);
+            
+            // Set up periodic charge cache cleanup
+            setInterval(() => ChargeCache.cleanup(), 30 * 60_000); // Every 30 minutes
 
             autostartedTemplates.forEach((id) => {
                 const manager = templates[id];
@@ -2417,4 +2646,22 @@ const diffVer = (v1, v2) => {
         });
     };
     tryListen(0);
+    
+    // Add graceful shutdown handlers
+    process.on('SIGINT', () => {
+        console.log('\nShutting down gracefully...');
+        ChargeCache.save();
+        
+        // Log cache stats on shutdown for debugging
+        const stats = ChargeCache.getStats();
+        console.log(`Cache stats: ${stats.fresh} fresh, ${stats.extrapolated} extrapolated, ${stats.stale} stale`);
+        
+        process.exit(0);
+    });
+
+    process.on('SIGTERM', () => {
+        console.log('\nShutting down gracefully...');
+        ChargeCache.save();
+        process.exit(0);
+    });
 })();

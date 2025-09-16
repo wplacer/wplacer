@@ -935,19 +935,49 @@ openManageUsers.addEventListener('click', () => {
     loadUsers((users) => {
         const userCount = Object.keys(users).length;
         manageUsersTitle.textContent = `Existing Users (${userCount})`;
+        
+        // Calculate totals for all users
+        let totalChargesCount = 0;
+        let totalMaxChargesCount = 0;
+        let totalDropletsCount = 0;
+        let totalPixelsPerHour = 0;
+        
         for (const id of Object.keys(users)) {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
 
             const safeName = escapeHtml(String(users[id].name));
+            
+            // Get pixel data from cache if available
+            const pixelData = users[id].pixels;
+            const chargeCount = pixelData ? pixelData.count : '?';
+            const chargeMax = pixelData ? pixelData.max : '?';
+            const percentage = pixelData ? pixelData.percentage.toFixed(1) : '?';
+            const isExtrapolated = pixelData?.isExtrapolated ? ' (est)' : '';
+            
+            // Add to totals if data is available
+            if (pixelData) {
+                totalChargesCount += pixelData.count;
+                totalMaxChargesCount += pixelData.max;
+                // Calculate pixels per hour (PPH) - each charge is one pixel
+                const pph = (pixelData.count / 24); // Regeneration over 24 hours
+                totalPixelsPerHour += pph;
+            }
+            
+            // Get droplets if available
+            const droplets = users[id].droplets || '?';
+            if (droplets !== '?') {
+                totalDropletsCount += droplets;
+            }
+            
             user.innerHTML = `
                 <div class="user-info">
                     <span>${safeName}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Droplets: <b>?</b>
+                        Charges: <b>${chargeCount}</b>/<b>${chargeMax}</b> | Level <b>?</b> <span class="level-progress">(${percentage}%${isExtrapolated})</span><br>
+                        Droplets: <b>${droplets}</b>
                     </div>
                 </div>
                 <div class="user-actions">
@@ -971,6 +1001,7 @@ openManageUsers.addEventListener('click', () => {
                     true
                 );
             });
+
             user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
                     const response = await axiosGetWithRetry(`/user/status/${id}`, 3, 2000);
@@ -1015,6 +1046,12 @@ openManageUsers.addEventListener('click', () => {
             });
             userList.appendChild(user);
         }
+        
+        // Update the totals display after processing all users
+        totalCharges.textContent = totalChargesCount.toFixed(0);
+        totalMaxCharges.textContent = totalMaxChargesCount.toFixed(0);
+        totalDroplets.textContent = totalDropletsCount.toFixed(0);
+        totalPPH.textContent = totalPixelsPerHour.toFixed(1);
     });
     changeTab('manageUsers');
 });
