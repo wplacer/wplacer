@@ -49,6 +49,7 @@ window.addEventListener('keydown', (e) => {
 }, true);
 
 // --- Overlay UI (full-page) ---
+// --- Overlay UI (full-page) ---
 (() => {
     const on = (el, evt, fn, opts) => el && el.addEventListener(evt, fn, opts || false);
 
@@ -60,6 +61,23 @@ window.addEventListener('keydown', (e) => {
         }
     });
 
+    // Move checkOverlayEnabled to the top level of the closure
+    const checkOverlayEnabled = async () => {
+        try {
+            return new Promise((resolve) => {
+                chrome.storage.local.get(['enableOverlay'], (result) => {
+                    // Default to true if setting doesn't exist
+                    const enabled = result.enableOverlay !== undefined ? result.enableOverlay : true;
+                    console.log('wplacer: Overlay enabled from extension settings:', enabled);
+                    resolve(enabled);
+                });
+            });
+        } catch (e) {
+            console.log('wplacer: Could not check overlay settings, defaulting to enabled', e);
+            return true; // Default to enabled if there's an error
+        }
+    };
+
     const createLauncher = () => {
         if (document.getElementById(LAUNCHER_ID)) return;
         const btn = document.createElement('button');
@@ -67,22 +85,40 @@ window.addEventListener('keydown', (e) => {
         btn.textContent = 'Open wplacer';
         btn.style.cssText = [
             'position:fixed',
-            'bottom:16px',
-            'right:16px',
+            'bottom:20px',
+            'right:20px',
             'z-index:2147483646',
-            'padding:8px 12px',
-            'border-radius:8px',
+            'padding:10px 16px',
+            'border-radius:10px',
             'border:none',
-            'background:#ff7a1a',
+            'background:linear-gradient(135deg, #ff7a1a, #ff5f1a)',
             'color:#fff',
-            'font:600 12px/1 "Segoe UI",sans-serif',
-            'box-shadow:0 6px 18px rgba(0,0,0,0.3)',
-            'cursor:pointer'
+            'font:600 14px/1 "Segoe UI",sans-serif',
+            'box-shadow:0 6px 18px rgba(255, 122, 26, 0.4)',
+            'cursor:pointer',
+            'transition:all 0.3s ease',
+            'outline:none'
         ].join(';');
+        
+        on(btn, 'mouseover', () => {
+            btn.style.transform = 'translateY(-2px)';
+            btn.style.boxShadow = '0 8px 20px rgba(255, 122, 26, 0.5)';
+        });
+        
+        on(btn, 'mouseout', () => {
+            btn.style.transform = 'translateY(0)';
+            btn.style.boxShadow = '0 6px 18px rgba(255, 122, 26, 0.4)';
+        });
         btn.title = 'Open wplacer overlay (Ctrl+Shift+W)';
         on(btn, 'click', () => {
-            sessionStorage.removeItem(OVERLAY_CLOSED_FLAG);
-            ensureOverlay(true);
+            checkOverlayEnabled().then(enabled => {
+                if (enabled) {
+                    sessionStorage.removeItem(OVERLAY_CLOSED_FLAG);
+                    ensureOverlay(true);
+                } else {
+                    console.log('wplacer: Overlay is disabled in settings, not showing');
+                }
+            });
         });
         document.body.appendChild(btn);
     };
@@ -120,7 +156,9 @@ window.addEventListener('keydown', (e) => {
             'inset:0',
             'z-index:50000',
             'background:#0b0b0f',
-            'display:block'
+            'display:block',
+            'box-shadow:0 0 20px rgba(0,0,0,0.5)',
+            'transition:all 0.3s ease'
         ].join(';');
 
         const bar = document.createElement('div');
@@ -133,30 +171,41 @@ window.addEventListener('keydown', (e) => {
             'display:flex',
             'align-items:center',
             'justify-content:space-between',
-            'padding:0 10px',
-            'background:rgba(0,0,0,0.6)',
+            'padding:0 15px',
+            'background:linear-gradient(to right, #1a1a2e, #16213e)',
             'color:#fff',
-            'font:600 12px/1 "Segoe UI",sans-serif',
-            'border-bottom:1px solid rgba(255,255,255,0.1)'
+            'font:600 14px/1 "Segoe UI",sans-serif',
+            'border-bottom:1px solid rgba(255,255,255,0.15)',
+            'box-shadow:0 2px 5px rgba(0,0,0,0.2)'
         ].join(';');
         const title = document.createElement('div');
         title.textContent = 'wplacer overlay';
         const controls = document.createElement('div');
 
         const btnStyle = [
-            'margin-left:8px',
-            'padding:6px 10px',
+            'margin-left:10px',
+            'padding:6px 12px',
             'border-radius:6px',
-            'border:1px solid rgba(255,255,255,0.2)',
-            'background:transparent',
+            'border:1px solid rgba(255,255,255,0.3)',
+            'background:rgba(255,255,255,0.1)',
             'color:#fff',
-            'cursor:pointer'
+            'cursor:pointer',
+            'font-weight:500',
+            'transition:all 0.2s ease',
+            'outline:none'
+        ].join(';');
+        
+        const btnHoverStyle = [
+            'background:rgba(255,255,255,0.2)',
+            'border-color:rgba(255,255,255,0.4)'
         ].join(';');
 
         const minimizeBtn = document.createElement('button');
         minimizeBtn.textContent = 'Minimize';
         minimizeBtn.style.cssText = btnStyle;
         on(minimizeBtn, 'click', () => hideOverlay());
+        on(minimizeBtn, 'mouseover', () => minimizeBtn.style.cssText = btnStyle + ';' + btnHoverStyle);
+        on(minimizeBtn, 'mouseout', () => minimizeBtn.style.cssText = btnStyle);
 
         const closeBtn = document.createElement('button');
         closeBtn.textContent = 'Close';
@@ -165,6 +214,8 @@ window.addEventListener('keydown', (e) => {
             sessionStorage.setItem(OVERLAY_CLOSED_FLAG, '1');
             removeOverlay();
         });
+        on(closeBtn, 'mouseover', () => closeBtn.style.cssText = btnStyle + ';' + btnHoverStyle);
+        on(closeBtn, 'mouseout', () => closeBtn.style.cssText = btnStyle);
 
         controls.appendChild(minimizeBtn);
         controls.appendChild(closeBtn);
@@ -216,34 +267,23 @@ window.addEventListener('keydown', (e) => {
         document.documentElement.appendChild(overlay);
     };
 
-    const ensureOverlay = (forceShow) => {
+    const ensureOverlay = async (forceShow) => {
         // Only on wplace.live pages
         if (!location.hostname.endsWith('wplace.live')) return;
         
-        // Check if overlay is enabled in server settings
-        const checkOverlayEnabled = async () => {
-            try {
-                const port = await getPort();
-                console.log('wplacer: Checking overlay settings on port', port);
-                const response = await fetch(`http://127.0.0.1:${port}/settings`);
-                if (response.ok) {
-                    const settings = await response.json();
-                    console.log('wplacer: Got settings response:', settings);
-                    // Check if enableOverlay exists and is true
-                    if (settings && 'enableOverlay' in settings) {
-                        return settings.enableOverlay === true;
-                    } else {
-                        console.log('wplacer: enableOverlay setting not found in response');
-                        return false;
-                    }
-                }
-                console.log('wplacer: Settings response not OK');
-                return false; // Default to disabled if can't reach server
-            } catch (e) {
-                console.log('wplacer: Could not check overlay settings, defaulting to disabled', e);
-                return false;
+        // Check if overlay is enabled in extension settings first
+        const enabled = await checkOverlayEnabled();
+        
+        if (!enabled) {
+            console.log('wplacer: Overlay is disabled in settings, destroying overlay if it exists');
+            // If overlay exists and setting is disabled, destroy it completely
+            const existingOverlay = document.getElementById(OVERLAY_ID);
+            if (existingOverlay) {
+                try { existingOverlay.remove(); } catch {}
+                console.log('wplacer: Existing overlay destroyed due to disabled setting');
             }
-        };
+            return;
+        }
         
         // If user closed this session and not forcing, show launcher
         if (!forceShow && sessionStorage.getItem(OVERLAY_CLOSED_FLAG) === '1') {
@@ -251,20 +291,16 @@ window.addEventListener('keydown', (e) => {
             return;
         }
         
-        // Check if overlay is enabled in server settings
-        checkOverlayEnabled().then(enabled => {
-            if (enabled || forceShow) {
-                createOverlay().then(() => showOverlay());
-            } else {
-                // Only show launcher if overlay is disabled in settings
-                createLauncher();
-            }
-        });
+        // Create and show overlay since it's enabled
+        await createOverlay();
+        showOverlay();
     };
 
-    // Show overlay on first load unless previously closed this session
+    // Show overlay on first load only if enabled and not previously closed this session
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => ensureOverlay(false));
+        document.addEventListener('DOMContentLoaded', () => {
+            ensureOverlay(false);
+        });
     } else {
         ensureOverlay(false);
     }
@@ -273,8 +309,18 @@ window.addEventListener('keydown', (e) => {
     window.addEventListener('keydown', (e) => {
         if (e.ctrlKey && e.shiftKey && (e.key === 'W' || e.key === 'w')) {
             const root = document.getElementById(OVERLAY_ID);
-            if (root && root.style.display !== 'none') hideOverlay();
-            else ensureOverlay(true);
+            if (root && root.style.display !== 'none') {
+                hideOverlay();
+            } else {
+                checkOverlayEnabled().then(enabled => {
+                    if (enabled) {
+                        ensureOverlay(true);
+                    } else {
+                        console.log('wplacer: Overlay is disabled in settings, not showing');
+                        createLauncher();
+                    }
+                });
+            }
         }
     }, true);
 })();
