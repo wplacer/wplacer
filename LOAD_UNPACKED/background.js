@@ -208,8 +208,8 @@ const clearPawtectCache = (callback) => {
                         world: 'MAIN',
                         func: () => {
                             console.log("wplacer: Removing cached pawtect data from localStorage");
+                            // Use consistent cache key name
                             localStorage.removeItem('wplacer_pawtect_path');
-                            localStorage.removeItem('wplacerPawtectChunk');
                             window.__wplacerPawtectChunk = null;
                             return true;
                         }
@@ -305,6 +305,7 @@ const handleTokenPair = async (turnstileToken, pawtectToken, fp, colors, sendRes
 
 // --- Event Listeners ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log("wplacer: Received message:", request);
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
         return true; // Required for async response
@@ -349,17 +350,20 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
                         const backend = 'https://backend.wplace.live';
                         
-                        // Optimized pawtect URL resolution - prioritize cached path
+                        // Use consistent cache key from old version for compatibility
+                        const CACHE_KEY = 'wplacerPawtectChunk';
+
+                        // Optimized URL resolution - prioritize cached path, but with fallbacks
                         const getOptimizedPawtectUrl = () => {
-                            // Check cached path first
-                            const cached = localStorage.getItem('wplacer_pawtect_path');
+                            // Check cached path first (from old version key)
+                            const cached = localStorage.getItem(CACHE_KEY);
                             if (cached) {
                                 console.log('wplacer: Using cached pawtect path:', cached);
                                 window.__wplacerPawtectChunk = cached;
                                 return cached;
                             }
                             
-                            // Check global variable
+                            // Check global variable as secondary cache
                             if (window.__wplacerPawtectChunk && typeof window.__wplacerPawtectChunk === 'string') {
                                 return window.__wplacerPawtectChunk;
                             }
@@ -367,13 +371,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             return null;
                         };
 
+                        // Improved discovery that combines old reliability with new optimizations
                         const discoverPawtectChunk = async () => {
                             try {
                                 console.log('wplacer: Starting chunk discovery...');
                                 
                                 const urls = new Set();
                                 
-                                // Collect URLs from multiple sources
+                                // Collect URLs from multiple sources (keeping new optimization)
                                 Array.from(document.querySelectorAll('script[src]')).forEach(s => {
                                     try { 
                                         urls.add(new URL(s.src, location.href).href); 
@@ -386,38 +391,40 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     } catch { }
                                 });
                                 
-                                // Add performance entries (already loaded resources)
+                                // Add performance entries for already loaded resources
                                 try {
                                     performance.getEntriesByType('resource').forEach(entry => {
                                         if (entry?.name) urls.add(entry.name);
                                     });
                                 } catch { }
                                 
-                                // Filter to likely chunk candidates
+                                // Filter to chunk candidates - be more permissive than new version
                                 const chunkCandidates = Array.from(urls).filter(src => 
-                                    /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src)
+                                    // Keep original pattern but also include broader matches
+                                    /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src) ||
+                                    /\/chunks\/.*\.js(\?.*)?$/i.test(src)
                                 );
                                 
                                 console.log(`wplacer: Found ${chunkCandidates.length} chunk candidates`);
                                 
-                                // Check each candidate for pawtect content
+                                // Use old version's more reliable content detection
                                 for (const url of chunkCandidates) {
                                     try {
                                         const response = await fetch(url, { 
                                             credentials: 'omit',
-                                            cache: 'force-cache' // Use cache if available for speed
+                                            cache: 'force-cache'
                                         });
                                         
                                         if (!response.ok) continue;
                                         
                                         const text = await response.text();
                                         
-                                        // Look for pawtect-specific signatures
-                                        if (/get_pawtected_endpoint_payload|__wbindgen_malloc/i.test(text)) {
+                                        // Use old version's simpler but more reliable pattern
+                                        if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
                                             console.log(`wplacer: Found pawtect chunk: ${url}`);
                                             
-                                            // Cache the discovered URL
-                                            localStorage.setItem('wplacer_pawtect_path', url);
+                                            // Cache using old version's key
+                                            localStorage.setItem(CACHE_KEY, url);
                                             window.__wplacerPawtectChunk = url;
                                             
                                             return url;
@@ -435,29 +442,27 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 return null;
                             }
                         };
-                        
+
+                        // Simplified import with better error handling
                         const importModule = async () => {
-                            // Fast path: try cached/known URLs first
+                            // Fast path: try cached URL first
                             const cachedUrl = getOptimizedPawtectUrl();
                             
-                            const fastCandidates = [];
-                            if (cachedUrl) fastCandidates.push(cachedUrl);
-                            fastCandidates.push(new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href);
-                            fastCandidates.push('https://wplace.live/_app/immutable/chunks/BdJF80pX.js');
-                            
-                            // Try fast candidates first
-                            for (const url of fastCandidates) {
+                            if (cachedUrl) {
                                 try { 
-                                    console.log('wplacer: Trying fast path:', url);
-                                    return await import(url); 
+                                    console.log('wplacer: Trying cached path:', cachedUrl);
+                                    return await import(cachedUrl); 
                                 } catch (e) { 
-                                    console.warn('wplacer: Fast path failed for:', url, e.message);
+                                    console.warn('wplacer: Cached path failed:', cachedUrl, e.message);
+                                    // Clear bad cache
+                                    localStorage.removeItem(CACHE_KEY);
+                                    window.__wplacerPawtectChunk = null;
                                 }
                             }
                             
-                            console.log('wplacer: Fast path exhausted, falling back to discovery...');
+                            console.log('wplacer: Cached path failed, starting discovery...');
                             
-                            // Slow path: discovery only when fast path fails
+                            // Discovery path: find the actual chunk
                             const discoveredUrl = await discoverPawtectChunk();
                             
                             if (discoveredUrl) {
@@ -466,6 +471,21 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     return await import(discoveredUrl);
                                 } catch (error) {
                                     console.error('wplacer: Discovered URL failed:', error);
+                                }
+                            }
+                            
+                            // Final fallback: try some common patterns
+                            const fallbackCandidates = [
+                                new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href,
+                                'https://wplace.live/_app/immutable/chunks/BdJF80pX.js'
+                            ];
+                            
+                            for (const url of fallbackCandidates) {
+                                try {
+                                    console.log('wplacer: Trying fallback:', url);
+                                    return await import(url);
+                                } catch (e) {
+                                    console.warn('wplacer: Fallback failed:', url, e.message);
                                 }
                             }
                             
@@ -587,25 +607,80 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                             try {
                                 const backend = 'https://backend.wplace.live';
                                 const url = `${backend}/s0/pixel/1/1`;
+                                const CACHE_KEY = 'wplacerPawtectChunk';
                                 
-                                // Use cached path directly
-                                const cachedUrl = localStorage.getItem('wplacer_pawtect_path');
-                                const mod = cachedUrl ? 
-                                    await import(cachedUrl) : 
-                                    await import('/_app/immutable/chunks/BdJF80pX.js');
+                                // Simplified module import with old version reliability
+                                const importPawtectModule = async () => {
+                                    // Try cached path first
+                                    const cached = localStorage.getItem(CACHE_KEY);
+                                    if (cached) {
+                                        try {
+                                            console.log('wplacer: seedPawtect using cached:', cached);
+                                            return await import(cached);
+                                        } catch (e) {
+                                            console.warn('wplacer: seedPawtect cached failed:', e.message);
+                                            localStorage.removeItem(CACHE_KEY);
+                                        }
+                                    }
                                     
+                                    // Discovery fallback using old version's simple logic
+                                    const urls = new Set();
+                                    Array.from(document.querySelectorAll('script[src]')).forEach(s => {
+                                        try { urls.add(new URL(s.src, location.href).href); } catch { }
+                                    });
+                                    Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => {
+                                        try { urls.add(new URL(l.href, location.href).href); } catch { }
+                                    });
+                                    try {
+                                        performance.getEntriesByType('resource').forEach(e => {
+                                            if (e?.name) urls.add(e.name);
+                                        });
+                                    } catch { }
+                                    
+                                    const scripts = Array.from(urls).filter(src => 
+                                        /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src) ||
+                                        /\/chunks\/.*\.js(\?.*)?$/i.test(src)
+                                    );
+                                    
+                                    for (const src of scripts) {
+                                        try {
+                                            const text = await fetch(src, { credentials: 'omit' }).then(r => r.text());
+                                            if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
+                                                localStorage.setItem(CACHE_KEY, src);
+                                                console.log('wplacer: seedPawtect discovered:', src);
+                                                return await import(src);
+                                            }
+                                        } catch { }
+                                    }
+                                    
+                                    // Final fallbacks
+                                    const fallbacks = [
+                                        new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href,
+                                        'https://wplace.live/_app/immutable/chunks/BdJF80pX.js'
+                                    ];
+                                    for (const url of fallbacks) {
+                                        try { return await import(url); } catch { }
+                                    }
+                                    return null;
+                                };
+                                
+                                const mod = await importPawtectModule();
+                                if (!mod) throw new Error('Could not import pawtect module');
+                                
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
                                 } catch { }
                                 if (typeof mod.r === 'function') mod.r(url);
+                                
                                 const enc = new TextEncoder();
                                 const dec = new TextDecoder();
                                 const bytes = enc.encode(rawBody);
                                 const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
                                 new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
                                 const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                                
                                 let token;
                                 if (Array.isArray(out)) {
                                     const [outPtr, outLen] = out;
@@ -618,7 +693,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
                                 }
                                 window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'seed' }, '*');
-                            } catch { }
+                            } catch (e) {
+                                console.error('wplacer: seedPawtect failed:', e);
+                            }
                         })();
                     },
                     args: [bodyStr]
@@ -631,7 +708,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'computePawtectForT') {
         try {
             if (sender.tab?.id) {
-                const turnstile = typeof request.bodyStr === 'string' ? (() => { try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } })() : '';
+                const turnstile = typeof request.bodyStr === 'string' ? (() => { 
+                    try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } 
+                })() : '';
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
@@ -639,34 +718,92 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
+                                const CACHE_KEY = 'wplacerPawtectChunk';
                                 
-                                // Use cached path directly
-                                const cachedUrl = localStorage.getItem('wplacer_pawtect_path');
-                                const mod = cachedUrl ? 
-                                    await import(cachedUrl) : 
-                                    await import('/_app/immutable/chunks/BdJF80pX.js');
+                                // Same simplified import logic
+                                const importPawtectModule = async () => {
+                                    // Try cached path first
+                                    const cached = localStorage.getItem(CACHE_KEY);
+                                    if (cached) {
+                                        try {
+                                            console.log('wplacer: computePawtectForT using cached:', cached);
+                                            return await import(cached);
+                                        } catch (e) {
+                                            console.warn('wplacer: computePawtectForT cached failed:', e.message);
+                                            localStorage.removeItem(CACHE_KEY);
+                                        }
+                                    }
                                     
+                                    // Discovery fallback
+                                    const urls = new Set();
+                                    Array.from(document.querySelectorAll('script[src]')).forEach(s => {
+                                        try { urls.add(new URL(s.src, location.href).href); } catch { }
+                                    });
+                                    Array.from(document.querySelectorAll('link[rel="modulepreload"][href], link[as="script"][href]')).forEach(l => {
+                                        try { urls.add(new URL(l.href, location.href).href); } catch { }
+                                    });
+                                    try {
+                                        performance.getEntriesByType('resource').forEach(e => {
+                                            if (e?.name) urls.add(e.name);
+                                        });
+                                    } catch { }
+                                    
+                                    const scripts = Array.from(urls).filter(src => 
+                                        /\/_app\/immutable\/chunks\/.*\.js(\?.*)?$/i.test(src) ||
+                                        /\/chunks\/.*\.js(\?.*)?$/i.test(src)
+                                    );
+                                    
+                                    for (const src of scripts) {
+                                        try {
+                                            const text = await fetch(src, { credentials: 'omit' }).then(r => r.text());
+                                            if (/get_pawtected_endpoint_payload|pawtect/i.test(text)) {
+                                                localStorage.setItem(CACHE_KEY, src);
+                                                console.log('wplacer: computePawtectForT discovered:', src);
+                                                return await import(src);
+                                            }
+                                        } catch { }
+                                    }
+                                    
+                                    // Final fallbacks
+                                    const fallbacks = [
+                                        new URL('/_app/immutable/chunks/BdJF80pX.js', location.origin).href,
+                                        'https://wplace.live/_app/immutable/chunks/BdJF80pX.js'
+                                    ];
+                                    for (const url of fallbacks) {
+                                        try { return await import(url); } catch { }
+                                    }
+                                    return null;
+                                };
+                                
+                                const mod = await importPawtectModule();
+                                if (!mod) throw new Error('Could not import pawtect module');
+                                
                                 const wasm = await mod._();
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
                                 } catch { }
-                                // Randomize pixel tile minimally (fixed 1/1) and coords for simplicity
+                                
+                                // Randomize pixel tile and coords
                                 const url = `${backend}/s0/pixel/1/1`;
                                 if (typeof mod.r === 'function') mod.r(url);
                                 const fp = (window.wplacerFP && String(window.wplacerFP)) || (() => {
-                                    const b = new Uint8Array(16); crypto.getRandomValues(b); return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
+                                    const b = new Uint8Array(16); 
+                                    crypto.getRandomValues(b); 
+                                    return Array.from(b).map(x => x.toString(16).padStart(2, '0')).join('');
                                 })();
                                 const rx = Math.floor(Math.random() * 1000);
                                 const ry = Math.floor(Math.random() * 1000);
                                 const bodyObj = { colors: [0], coords: [rx, ry], fp, t: String(tValue || '') };
                                 const rawBody = JSON.stringify(bodyObj);
+                                
                                 const enc = new TextEncoder();
                                 const dec = new TextDecoder();
                                 const bytes = enc.encode(rawBody);
                                 const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
                                 new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
                                 const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
+                                
                                 let token;
                                 if (Array.isArray(out)) {
                                     const [outPtr, outLen] = out;
@@ -679,7 +816,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
                                 }
                                 window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'simple' }, '*');
-                            } catch { }
+                            } catch (e) {
+                                console.error('wplacer: computePawtectForT failed:', e);
+                            }
                         })();
                     },
                     args: [turnstile]
@@ -713,6 +852,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             });
         });
     }
+
     if (request.action === "tokenPairReceived") {
         // Handle token pair (both turnstile and pawtect)
         if (request.turnstile && request.pawtect) {
@@ -721,6 +861,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             if (tokenWaitStartTime) {
                 console.log("wplacer: Token pair received. Resetting wait timer.");
                 tokenWaitStartTime = null;
+                
+                // Notify popup that token is no longer needed
+                chrome.runtime.sendMessage({
+                    action: "tokenStatusChanged",
+                    waiting: false
+                }).catch(() => {});
             }
             
             getServerUrl("/t").then(url => {
@@ -733,6 +879,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                         fp: request.fp || null,
                         colors: request.colors || null
                     })
+                }).then(response => {
+                    if (response.ok) {
+                        console.log("wplacer: Token pair sent successfully");
+                    } else {
+                        console.error("wplacer: Failed to send token pair, status:", response.status);
+                    }
+                }).catch(error => {
+                    console.error("wplacer: Error sending token pair:", error);
                 });
             });
             sendResponse({ success: true });
