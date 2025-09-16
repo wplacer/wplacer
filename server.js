@@ -2065,6 +2065,7 @@ app.post('/users/import', async (req, res) => {
     const tokens = req.body.tokens;
     let imported = 0;
     let duplicates = 0;
+    let userData = null;
     
     // Process each token
     for (const token of tokens) {
@@ -2092,6 +2093,15 @@ app.post('/users/import', async (req, res) => {
                 cookies: { j: token },
             };
             imported++;
+            
+            // Store user data for the first successful import (for client feedback)
+            if (!userData) {
+                userData = {
+                    id: userInfo.id,
+                    name: userInfo.name
+                };
+            }
+            
             log('SYSTEM', 'Users', `✅ Imported user ${userInfo.name}#${userInfo.id} from token.`);
         }
         catch (error) {
@@ -2101,7 +2111,7 @@ app.post('/users/import', async (req, res) => {
     }
     
     saveUsers();
-    res.json({ imported, duplicates });
+    res.json({ imported, duplicates, userData });
 });
 
 app.delete('/user/:id', async (req, res) => {
