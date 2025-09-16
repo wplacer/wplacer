@@ -2,11 +2,13 @@
 const TOKEN_WAIT_THRESHOLD_MS = 30000; // 30 seconds threshold for token waiting
 const POLL_ALARM_NAME = 'wplacer-poll';
 const COOKIE_ALARM_NAME = 'wplacer-cookie';
+const POLL_INTERVAL_MS = 30000; // 30 seconds for more responsive polling
 
 // --- State Variables ---
 let tokenWaitStartTime = null;
 let autoReloadEnabled = true;
 let autoClearEnabled = true;
+let isReloading = false; // Prevent multiple simultaneous reloads
 
 // --- Core Functions ---
 const getSettings = async () => {
@@ -14,6 +16,8 @@ const getSettings = async () => {
     // Update global settings
     autoReloadEnabled = result.autoReload !== undefined ? result.autoReload : true;
     autoClearEnabled = result.autoClear !== undefined ? result.autoClear : true;
+    
+    console.log("wplacer: Settings loaded - Auto-reload:", autoReloadEnabled, "Auto-clear:", autoClearEnabled);
     
     return {
         port: result.wplacerPort || 80,
@@ -50,6 +54,8 @@ const pollForTokenRequest = async () => {
         }
         
         const data = await response.json();
+        console.log("wplacer: Server response:", data);
+        
         if (data.needed) {
             console.log("wplacer: Server requires a token.");
             
@@ -64,10 +70,18 @@ const pollForTokenRequest = async () => {
                     waiting: true,
                     waitTime: 0
                 }).catch(() => {});
+                
+                // Immediately initiate reload if auto-reload is enabled
+                if (settings.autoReload && !isReloading) {
+                    console.log("wplacer: Token requested by server. Auto-reload enabled. Initiating immediate reload.");
+                    await initiateReload();
+                }
             } else {
-                // Check if we've been waiting too long for a token and auto-clear is enabled
+                // Check if we've been waiting too long for a token
                 const waitTime = Date.now() - tokenWaitStartTime;
                 const waitTimeSeconds = Math.floor(waitTime / 1000);
+                
+                console.log(`wplacer: Token still needed. Wait time: ${waitTimeSeconds}s`);
                 
                 // Update popup with current wait time
                 chrome.runtime.sendMessage({
@@ -76,31 +90,22 @@ const pollForTokenRequest = async () => {
                     waitTime: waitTimeSeconds
                 }).catch(() => {});
                 
+                // Clear cache if we've been waiting too long and auto-clear is enabled
                 if (waitTime > TOKEN_WAIT_THRESHOLD_MS && settings.autoClear) {
-                    console.log(`wplacer: Token wait time exceeded threshold (${waitTime}ms). Clearing pawtect cache before reload.`);
+                    console.log(`wplacer: Token wait time exceeded threshold (${waitTime}ms). Clearing pawtect cache.`);
                     await clearPawtectCache();
                     tokenWaitStartTime = Date.now(); // Reset the timer
                 }
-            }
-            
-            // Only initiate reload if auto-reload is enabled
-            if (settings.autoReload) {
-                console.log("wplacer: Auto-reload enabled. Initiating reload.");
-                await initiateReload();
                 
-                // If auto-clear is also enabled and we've been waiting for a while, clear the cache
-                if (settings.autoClear && (Date.now() - tokenWaitStartTime) > TOKEN_WAIT_THRESHOLD_MS / 2) {
-                    console.log("wplacer: Auto-clear enabled and waiting for token. Clearing cache after reload.");
-                    await clearPawtectCache();
-                }
-            } else {
-                console.log("wplacer: Auto-reload disabled. Skipping reload.");
+                // Don't reload again immediately if we just reloaded
+                // Instead, wait for the next polling cycle
             }
         } else {
             // Reset token wait timer if no token is needed
             if (tokenWaitStartTime) {
                 console.log("wplacer: Token no longer needed. Resetting wait timer.");
                 tokenWaitStartTime = null;
+                isReloading = false; // Reset reload flag
                 
                 // Notify popup that token is no longer needed
                 chrome.runtime.sendMessage({
@@ -115,6 +120,13 @@ const pollForTokenRequest = async () => {
 };
 
 const initiateReload = async () => {
+    if (isReloading) {
+        console.log("wplacer: Reload already in progress, skipping.");
+        return;
+    }
+    
+    isReloading = true;
+    
     try {
         // First notify the popup that we're reloading
         chrome.runtime.sendMessage({ 
@@ -131,9 +143,19 @@ const initiateReload = async () => {
             }).catch(() => {});
             return;
         }
+        
         const targetTab = tabs.find(t => t.active) || tabs[0];
-        console.log(`wplacer: Sending reload command to tab #${targetTab.id}`);
-        await chrome.tabs.sendMessage(targetTab.id, { action: "reloadForToken" });
+        console.log(`wplacer: Attempting to reload tab #${targetTab.id}`);
+        
+        try {
+            // Try to send message to content script first
+            await chrome.tabs.sendMessage(targetTab.id, { action: "reloadForToken" });
+            console.log("wplacer: Reload message sent to content script successfully.");
+        } catch (error) {
+            // Content script not loaded, use direct reload
+            console.log("wplacer: Content script not available, using direct reload.");
+            await chrome.tabs.reload(targetTab.id);
+        }
         
         // Notify popup that reload is complete
         setTimeout(() => {
@@ -141,26 +163,44 @@ const initiateReload = async () => {
                 action: "statusUpdate", 
                 status: "Page reloaded successfully."
             }).catch(() => {});
-        }, 1500); // Give the page time to reload
+            isReloading = false; // Reset reload flag after delay
+        }, 3000); // Give more time for page to reload
+        
     } catch (error) {
-        // It's possible the content script isn't loaded yet, so we can try a direct reload as a fallback.
-        console.error("wplacer: Error sending reload message to tab, falling back to direct reload.", error);
-        const targetTab = (await chrome.tabs.query({ url: "https://wplace.live/*" }))[0];
-        if (targetTab) {
-            chrome.tabs.reload(targetTab.id);
-            // Notify popup that reload is complete
-            setTimeout(() => {
-                chrome.runtime.sendMessage({ 
-                    action: "statusUpdate", 
-                    status: "Page reloaded successfully."
-                }).catch(() => {});
-            }, 1500);
-        } else {
-            chrome.runtime.sendMessage({ 
-                action: "statusUpdate", 
-                status: "No wplace.live tabs found to reload."
-            }).catch(() => {});
-        }
+        console.error("wplacer: Error during reload:", error);
+        chrome.runtime.sendMessage({ 
+            action: "statusUpdate", 
+            status: "Reload failed: " + error.message
+        }).catch(() => {});
+        isReloading = false;
+    }
+};
+
+// --- Improved Polling with setInterval instead of alarms ---
+let pollInterval = null;
+
+const startPolling = () => {
+    // Clear any existing interval
+    if (pollInterval) {
+        clearInterval(pollInterval);
+    }
+    
+    // Start immediate poll
+    pollForTokenRequest();
+    
+    // Set up regular polling
+    pollInterval = setInterval(() => {
+        pollForTokenRequest();
+    }, POLL_INTERVAL_MS);
+    
+    console.log(`wplacer: Started polling every ${POLL_INTERVAL_MS}ms`);
+};
+
+const stopPolling = () => {
+    if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+        console.log("wplacer: Stopped polling");
     }
 };
 
@@ -306,6 +346,16 @@ const handleTokenPair = async (turnstileToken, pawtectToken, fp, colors, sendRes
 // --- Event Listeners ---
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("wplacer: Received message:", request);
+    
+    // Add debug logging for settings
+    if (request.action === "getSettings") {
+        getSettings().then(settings => {
+            console.log("wplacer: Current settings:", settings);
+            sendResponse(settings);
+        });
+        return true;
+    }
+
     if (request.action === "sendCookie") {
         sendCookie(sendResponse);
         return true; // Required for async response
@@ -325,14 +375,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         return true;
     }
     if (request.action === "settingsUpdated") {
-        // Reload settings
+        // Reload settings and restart polling if needed
         getSettings().then(() => {
             console.log("wplacer: Settings updated. Auto-reload:", autoReloadEnabled, "Auto-clear:", autoClearEnabled);
-            // If port changed, we need to reconnect SSE
-            if (request.portChanged) {
-                console.log("wplacer: Port changed. Reconnecting SSE.");
-                // Any port-specific reconnection logic here
-            }
+            
+            // Restart polling to apply new settings
+            startPolling();
+            
             sendResponse({ success: true });
         });
         return true;
@@ -900,44 +949,52 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
     if (changeInfo.status === 'complete' && tab.url?.startsWith("https://wplace.live")) {
-        console.log("wplacer: wplace.live tab loaded. Sending cookie.");
+        console.log("wplacer: wplace.live tab loaded. Sending cookie and ensuring polling is active.");
         sendCookie(response => console.log(`wplacer: Cookie send status: ${response.success ? 'Success' : 'Failed'}`));
+        
+        // Ensure polling is active when wplace.live tabs are loaded
+        if (!pollInterval) {
+            console.log("wplacer: Starting polling because wplace.live tab loaded.");
+            startPolling();
+        }
     }
 });
 
 // --- Initialization ---
-const initializeAlarms = () => {
-    // Clear any existing alarms
+const initializeExtension = async () => {
+    console.log("wplacer: Initializing extension...");
+    
+    // Load settings first
+    await getSettings();
+    
+    // Start polling
+    startPolling();
+    
+    // Keep alarm-based cookie refresh
     chrome.alarms.clearAll();
-    
-    // Create alarm for polling (every 45 seconds)
-    chrome.alarms.create(POLL_ALARM_NAME, {
-        periodInMinutes: 45/60 // 45 seconds in minutes
-    });
-    
-    // Create alarm for cookie refresh (every 20 minutes)
     chrome.alarms.create(COOKIE_ALARM_NAME, {
-        periodInMinutes: 20 // 20 minutes
+        periodInMinutes: 20
     });
     
-    // Listen for alarm events
     chrome.alarms.onAlarm.addListener((alarm) => {
-        if (alarm.name === POLL_ALARM_NAME) {
-            pollForTokenRequest();
-        } else if (alarm.name === COOKIE_ALARM_NAME) {
+        if (alarm.name === COOKIE_ALARM_NAME) {
             console.log("wplacer: Periodic cookie refresh triggered.");
             sendCookie(response => console.log(`wplacer: Periodic cookie refresh: ${response.success ? 'Success' : 'Failed'}`));
         }
     });
-    console.log("wplacer: Alarms initialized.");
+    
+    console.log("wplacer: Extension initialized.");
 };
 
 chrome.runtime.onStartup.addListener(() => {
     console.log("wplacer: Browser startup.");
-    initializeAlarms();
+    initializeExtension();
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     console.log("wplacer: Extension installed/updated.");
-    initializeAlarms();
+    initializeExtension();
 });
+
+// Start polling immediately when script loads
+initializeExtension();

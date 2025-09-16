@@ -1086,6 +1086,8 @@ const TokenManager = {
         } else {
             this.tokenQueue.push(newToken);
             log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received. Queue size: ${this.tokenQueue.length}`);
+            // Reset isTokenNeeded flag since we now have tokens in the queue
+            this.isTokenNeeded = false;
         }
     },
     invalidateToken() {
@@ -1093,6 +1095,11 @@ const TokenManager = {
         const invalidated = this.tokenQueue.shift();
         if (invalidated) {
             log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🔄 Invalidating token. ${this.tokenQueue.length} left.`);
+            // If we've used our last token, set isTokenNeeded to true
+            if (this.tokenQueue.length === 0 && !this.resolvePromise) {
+                this.isTokenNeeded = true;
+                log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ⚠️ Token queue empty, setting isTokenNeeded to true.`);
+            }
         }
     },
 };
