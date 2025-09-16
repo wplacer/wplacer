@@ -85,8 +85,8 @@ window.addEventListener('keydown', (e) => {
         btn.textContent = 'Open wplacer';
         btn.style.cssText = [
             'position:fixed',
-            'bottom:20px',
-            'right:20px',
+            'bottom: 20px',
+            'left: 80px',
             'z-index:2147483646',
             'padding:10px 16px',
             'border-radius:10px',
