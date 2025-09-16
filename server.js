@@ -2087,7 +2087,8 @@ app.post('/users/import', async (req, res) => {
             };
             imported++;
             log('SYSTEM', 'Users', `✅ Imported user ${userInfo.name}#${userInfo.id} from token.`);
-        } catch (error) {
+        }
+        catch (error) {
             log('ERROR', 'Users', `Failed to import token: ${error.message}`);
             // Continue with next token even if this one fails
         }
