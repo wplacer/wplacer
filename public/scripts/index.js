@@ -1045,8 +1045,8 @@ openManageUsers.addEventListener('click', () => {
             if (pixelData) {
                 totalChargesCount += pixelData.count;
                 totalMaxChargesCount += pixelData.max;
-                // Calculate pixels per hour (PPH) - each charge is one pixel
-                const pph = (pixelData.count / 24); // Regeneration over 24 hours
+                // Calculate pixels per hour (PPH) - 1 pixel every 30 seconds when charges available
+                const pph = pixelData.count > 0 ? 120 : 0; // Only count accounts with charges
                 totalPixelsPerHour += pph;
             }
             
