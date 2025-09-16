@@ -1385,6 +1385,15 @@ const createTemplateCard = (t, id) => {
         templateOutlineMode.checked = t.outlineMode;
         templateSkipPaintedPixels.checked = t.skipPaintedPixels;
         enableAutostart.checked = t.enableAutostart;
+        
+        // Load template image and preview
+        currentTemplate = t.template;
+        drawTemplate(t.template, templateCanvas);
+        size.innerHTML = `${t.template.width}x${t.template.height}px`;
+        ink.innerHTML = t.template.data.flat().filter(color => color !== 0).length;
+        templateCanvas.style.display = 'block';
+        details.style.display = 'block';
+        
         setTimeout(() => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);
@@ -1392,6 +1401,27 @@ const createTemplateCard = (t, id) => {
 
             // Load grid
             initializeGrid(id);
+            
+            // Update the color grid to show only colors in this template
+            if (t.template && t.template.data) {
+                // Get unique colors from template data
+                const uniqueColors = new Set();
+                for (let x = 0; x < t.template.width; x++) {
+                    for (let y = 0; y < t.template.height; y++) {
+                        const colorId = t.template.data[x][y];
+                        if (colorId !== 0) uniqueColors.add(colorId);
+                    }
+                }
+                
+                // Update available colors
+                availableColors.clear();
+                uniqueColors.forEach(colorId => availableColors.add(colorId));
+                
+                // Update color grid
+                if (uniqueColors.size > 0) {
+                    updateColorGridForImage(Array.from(uniqueColors));
+                }
+            }
         }, 100);
     });
     actions.appendChild(editBtn);
