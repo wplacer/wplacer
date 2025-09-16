@@ -550,7 +550,10 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                 if (me?.id && typeof mod.i === 'function') mod.i(me.id);
                             } catch { }
-                            if (typeof mod.r === 'function') mod.r(url);
+                            // Ensure url is a string before passing to mod.r
+                            if (typeof mod.r === 'function' && typeof url === 'string') {
+                                mod.r(url);
+                            }
                             const enc = new TextEncoder();
                             const dec = new TextDecoder();
                             const bytes = enc.encode(bodyStr);
@@ -716,30 +719,87 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 const mod = await importPawtectModule();
                                 if (!mod) throw new Error('Could not import pawtect module');
                                 
-                                const wasm = await mod._();
+                                // Ensure mod._ is a function before calling it
+                                if (typeof mod._ !== 'function') {
+                                    throw new Error('Invalid pawtect module: _ is not a function');
+                                }
+                                // Safely initialize wasm module
+                                let wasm;
+                                try {
+                                    wasm = await mod._();
+                                    if (!wasm || typeof wasm !== 'object') {
+                                        throw new Error('Invalid wasm module returned');
+                                    }
+                                } catch (err) {
+                                    console.error('wplacer: Failed to initialize wasm module:', err);
+                                    throw new Error('Failed to initialize wasm module');
+                                }
+                                
                                 try {
                                     const me = await fetch(`${backend}/me`, { credentials: 'include' }).then(r => r.ok ? r.json() : null);
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
-                                } catch { }
-                                if (typeof mod.r === 'function') mod.r(url);
+                                } catch (err) {
+                                    console.warn('wplacer: Failed to fetch user info:', err);
+                                }
+                                // Ensure mod.r is a function before calling it with url
+                                if (typeof mod.r === 'function' && typeof url === 'string') {
+                                    mod.r(url);
+                                }
                                 
+                                // Safely handle wasm memory operations
                                 const enc = new TextEncoder();
                                 const dec = new TextDecoder();
                                 const bytes = enc.encode(rawBody);
+                                
+                                // Check if wasm has required methods
+                                if (!wasm.__wbindgen_malloc || typeof wasm.__wbindgen_malloc !== 'function') {
+                                    throw new Error('wasm.__wbindgen_malloc is not a function');
+                                }
+                                if (!wasm.memory || !wasm.memory.buffer) {
+                                    throw new Error('wasm.memory.buffer is not available');
+                                }
+                                if (!wasm.get_pawtected_endpoint_payload || typeof wasm.get_pawtected_endpoint_payload !== 'function') {
+                                    throw new Error('wasm.get_pawtected_endpoint_payload is not a function');
+                                }
+                                
                                 const inPtr = wasm.__wbindgen_malloc(bytes.length, 1);
                                 new Uint8Array(wasm.memory.buffer, inPtr, bytes.length).set(bytes);
                                 const out = wasm.get_pawtected_endpoint_payload(inPtr, bytes.length);
                                 
                                 let token;
-                                if (Array.isArray(out)) {
-                                    const [outPtr, outLen] = out;
-                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
-                                    try { wasm.__wbindgen_free(outPtr, outLen, 1); } catch { }
-                                } else if (typeof out === 'string') {
-                                    token = out;
-                                } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
-                                    token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
-                                    try { wasm.__wbindgen_free(out.ptr, out.len, 1); } catch { }
+                                try {
+                                    if (Array.isArray(out)) {
+                                        const [outPtr, outLen] = out;
+                                        if (typeof outPtr === 'number' && typeof outLen === 'number') {
+                                            token = dec.decode(new Uint8Array(wasm.memory.buffer, outPtr, outLen));
+                                            try { 
+                                                if (typeof wasm.__wbindgen_free === 'function') {
+                                                    wasm.__wbindgen_free(outPtr, outLen, 1); 
+                                                }
+                                            } catch (err) { 
+                                                console.warn('wplacer: Failed to free memory:', err);
+                                            }
+                                        }
+                                    } else if (typeof out === 'string') {
+                                        token = out;
+                                    } else if (out && typeof out.ptr === 'number' && typeof out.len === 'number') {
+                                        token = dec.decode(new Uint8Array(wasm.memory.buffer, out.ptr, out.len));
+                                        try { 
+                                            if (typeof wasm.__wbindgen_free === 'function') {
+                                                wasm.__wbindgen_free(out.ptr, out.len, 1); 
+                                            }
+                                        } catch (err) { 
+                                            console.warn('wplacer: Failed to free memory:', err);
+                                        }
+                                    }
+                                    
+                                    // Ensure token is a string
+                                    if (token !== undefined && token !== null && typeof token !== 'string') {
+                                        token = String(token);
+                                    }
+                                } catch (err) {
+                                    console.error('wplacer: Error processing wasm output:', err);
+                                    token = null;
                                 }
                                 window.postMessage({ type: 'WPLACER_PAWTECT_TOKEN', token, origin: 'seed' }, '*');
                             } catch (e) {
@@ -758,12 +818,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         try {
             if (sender.tab?.id) {
                 const turnstile = typeof request.bodyStr === 'string' ? (() => { 
-                    try { return JSON.parse(request.bodyStr).t || ''; } catch { return ''; } 
+                    try { 
+                        const parsed = JSON.parse(request.bodyStr);
+                        // Ensure we always return a string, even if parsed.t is null or undefined
+                        return String(parsed.t || '');
+                    } catch { return ''; } 
                 })() : '';
                 chrome.scripting.executeScript({
                     target: { tabId: sender.tab.id },
                     world: 'MAIN',
                     func: (tValue) => {
+                        // Ensure tValue is a string
+                        tValue = String(tValue || '');
                         (async () => {
                             try {
                                 const backend = 'https://backend.wplace.live';
@@ -833,9 +899,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                     if (me?.id && typeof mod.i === 'function') mod.i(me.id);
                                 } catch { }
                                 
-                                // Randomize pixel tile and coords
-                                const url = `${backend}/s0/pixel/1/1`;
-                                if (typeof mod.r === 'function') mod.r(url);
+                                // Randomize pixel tile and coords - FIXED: Ensure url is string
+                                const pixelUrl = `${backend}/s0/pixel/1/1`;
+                                if (typeof mod.r === 'function' && typeof pixelUrl === 'string') {
+                                    mod.r(pixelUrl);
+                                }
                                 const fp = (window.wplacerFP && String(window.wplacerFP)) || (() => {
                                     const b = new Uint8Array(16); 
                                     crypto.getRandomValues(b); 
@@ -843,6 +911,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                                 })();
                                 const rx = Math.floor(Math.random() * 1000);
                                 const ry = Math.floor(Math.random() * 1000);
+                                // Ensure t is always a string
                                 const bodyObj = { colors: [0], coords: [rx, ry], fp, t: String(tValue || '') };
                                 const rawBody = JSON.stringify(bodyObj);
                                 

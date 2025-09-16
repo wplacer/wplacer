@@ -150,12 +150,14 @@ window.addEventListener('message', (event) => {
         return;
     }
     try {
-        const token = event.data.token || event.data.response || event.data['cf-turnstile-response'];
+        // Ensure token is always a string
+            const token = String(event.data.token || event.data.response || event.data['cf-turnstile-response'] || '');
         if (token) {
             pending.turnstile = token;
             // Kick off pawtect compute seeded with this turnstile token
             const fp = window.wplacerFP || sessionStorage.getItem('wplacer_fp') || generateRandomHex(32);
-            const body = { colors: [0], coords: [1, 1], fp, t: token };
+            // Ensure all values are properly typed
+            const body = { colors: [0], coords: [1, 1], fp: String(fp), t: String(token) };
             try {
                 chrome.runtime.sendMessage({
                     action: 'computePawtectForT',
