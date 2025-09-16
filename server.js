@@ -1778,6 +1778,12 @@ class TemplateManager {
                                         this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
 
+                                        // First buy charges and upgrades before placing pixels
+                                        // This maximizes the number of pixels we can place in a single turn
+                                        await this.handleUpgrades(wplacer);
+                                        await this.handleChargePurchases(wplacer);
+                                        
+                                        // Now perform the paint turn with potentially more charges
                                         await this._performPaintTurn(wplacer, color);
 
                                         // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
