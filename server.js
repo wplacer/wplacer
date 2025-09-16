@@ -1910,6 +1910,52 @@ app.post('/user', async (req, res) => {
     }
 });
 
+app.post('/users/import', async (req, res) => {
+    if (!req.body?.tokens || !Array.isArray(req.body.tokens)) {
+        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid request format' });
+    }
+    
+    const tokens = req.body.tokens;
+    let imported = 0;
+    let duplicates = 0;
+    
+    // Process each token
+    for (const token of tokens) {
+        // Skip empty tokens
+        if (!token.trim()) continue;
+        
+        // Check if this token already exists in any user
+        let isDuplicate = false;
+        for (const userId in users) {
+            if (users[userId].cookies?.j === token) {
+                duplicates++;
+                isDuplicate = true;
+                break;
+            }
+        }
+        
+        if (isDuplicate) continue;
+        
+        // Try to validate and add the token
+        const wplacer = new WPlacer({});
+        try {
+            const userInfo = await wplacer.login({ j: token });
+            users[userInfo.id] = {
+                name: userInfo.name,
+                cookies: { j: token },
+            };
+            imported++;
+            log('SYSTEM', 'Users', `✅ Imported user ${userInfo.name}#${userInfo.id} from token.`);
+        } catch (error) {
+            log('ERROR', 'Users', `Failed to import token: ${error.message}`);
+            // Continue with next token even if this one fails
+        }
+    }
+    
+    saveUsers();
+    res.json({ imported, duplicates });
+});
+
 app.delete('/user/:id', async (req, res) => {
     const userId = req.params.id;
     if (!userId || !users[userId]) return res.sendStatus(HTTP_STATUS.BAD_REQ);

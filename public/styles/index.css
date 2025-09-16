@@ -263,6 +263,19 @@ label {
     gap: 10px;
 }
 
+.user-actions {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+}
+
+.user-actions button {
+    width: auto;
+    flex: 1;
+    min-width: 180px;
+}
+
 #userList {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -299,14 +312,14 @@ label {
     color: var(--text-secondary);
 }
 
-.user-actions {
+.user .user-actions {
     display: flex;
     flex-direction: column;
     gap: 8px;
     align-items: flex-end;
 }
 
-.user-actions button {
+.user .user-actions button {
     padding: 8px;
     display: inline-flex;
     background: none;

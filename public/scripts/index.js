@@ -442,6 +442,8 @@ userForm.addEventListener('submit', async (e) => {
     }
 });
 
+// Export and Import J Tokens functionality will be implemented later in the file
+
 const colors = {
     '0,0,0': { id: 1, name: 'Black' },
     '60,60,60': { id: 2, name: 'Dark Gray' },
@@ -923,6 +925,89 @@ stopAll.addEventListener('click', async () => {
     }
     showMessage('Success', 'Finished! Check console for details.');
     openManageTemplates.click();
+});
+
+// Export J tokens to a text file
+const exportJTokens = document.getElementById('exportJTokens');
+const importJTokens = document.getElementById('importJTokens');
+const importJTokensInput = document.getElementById('importJTokensInput');
+
+exportJTokens.addEventListener('click', async () => {
+    try {
+        const response = await axios.get('/users');
+        const users = response.data;
+        
+        // Create a text file with one J token per line
+        let tokenText = '';
+        let tokenCount = 0;
+        for (const id in users) {
+            if (users[id].cookies?.j) {
+                tokenText += users[id].cookies.j + '\n';
+                tokenCount++;
+            }
+        }
+        
+        if (tokenCount === 0) {
+            showMessage('Error', 'No valid J tokens found to export.');
+            return;
+        }
+        
+        // Create a download link
+        const blob = new Blob([tokenText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'j_tokens.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showMessage('Success', `Exported ${tokenCount} J token(s) successfully!`);
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+importJTokens.addEventListener('click', () => {
+    importJTokensInput.click();
+});
+
+importJTokensInput.addEventListener('change', async (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const content = e.target.result;
+            const tokens = content.split('\n').filter(token => token.trim() !== '');
+            
+            if (tokens.length === 0) {
+                showMessage('Error', 'No valid tokens found in the file.');
+                return;
+            }
+            
+            showConfirmation(
+                'Import J Tokens',
+                `Found ${tokens.length} tokens in the file. Do you want to import them?`,
+                async () => {
+                    try {
+                        const response = await axios.post('/users/import', { tokens });
+                        showMessage('Success', `Imported ${response.data.imported} tokens. ${response.data.duplicates} duplicates skipped.`);
+                        openManageUsers.click(); // Refresh the user list
+                    } catch (error) {
+                        handleError(error);
+                    }
+                },
+                true
+            );
+        } catch (error) {
+            handleError(error);
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset the input
 });
 
 openManageUsers.addEventListener('click', () => {
