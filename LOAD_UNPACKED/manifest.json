@@ -36,5 +36,20 @@
       ],
       "run_at": "document_start"
     }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "turnstile_inject.js",
+        "pawtect_inject.js",
+        "solver.wasm/immutable/chunks/*.js",
+        "solver.wasm/immutable/chunks/*/*.js",
+        "solver.wasm/immutable/*.js",
+        "solver.wasm/immutable/assets/*.wasm",
+        "solver.wasm/pawtect_wasm_bg.*.wasm",
+        "solver.wasm/pawtect_wasm_bg.wasm"
+      ],
+      "matches": ["https://wplace.live/*"]
+    }
   ]
 }
