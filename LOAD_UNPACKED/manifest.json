@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
   "name": "wplacer",
-  "version": "4.2",
+  "version": "4.4",
   "description": "Automatically sends session and Turnstile tokens from wplace.live to a wplacer server.",
   "permissions": [
     "storage",
     "cookies",
-    "tabs",
     "alarms",
     "browsingData",
-    "scripting"
+    "scripting",
+    "tabs"
   ],
   "host_permissions": [
     "https://wplace.live/",
@@ -35,6 +35,21 @@
         "content.js"
       ],
       "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "turnstile_inject.js",
+        "pawtect_inject.js",
+        "solver.wasm/immutable/chunks/*.js",
+        "solver.wasm/immutable/chunks/*/*.js",
+        "solver.wasm/immutable/*.js",
+        "solver.wasm/immutable/assets/*.wasm",
+        "solver.wasm/pawtect_wasm_bg.*.wasm",
+        "solver.wasm/pawtect_wasm_bg.wasm"
+      ],
+      "matches": ["https://wplace.live/*"]
     }
   ]
 }

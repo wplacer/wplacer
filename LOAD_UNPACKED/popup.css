@@ -1,77 +1,289 @@
 :root {
+    --background-primary: #121212;
     --background-secondary: #1A1A1A;
+    --background-tertiary: #222222;
     --accent-primary: hsl(25, 95%, 55%);
     --accent-hover: hsl(25, 95%, 48%);
+    --accent-secondary: hsl(145, 63%, 42%);
     --text-primary: #E0E0E0;
     --text-secondary: #B3B3B3;
     --border-color: #282828;
     --font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+    --error-color: hsl(0, 65%, 51%);
+    --success-color: hsl(145, 63%, 42%);
+    --warning-color: hsl(45, 100%, 51%);
+    --shadow-color: rgba(0, 0, 0, 0.3);
+    --transition-speed: 0.2s;
 }
 
 body {
-    width: 280px;
+    width: 320px;
     margin: 0;
     font-family: var(--font-family);
     background-color: var(--background-secondary);
     color: var(--text-primary);
+    border-radius: 12px;
+    overflow: hidden;
 }
 
 .header {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.5em;
+    gap: 8px;
     padding: 10px;
     border-bottom: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px var(--shadow-color);
+    background-color: var(--background-primary);
 }
 
 .logo {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
 }
 
 h3 {
     margin: 0;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.tabs {
+    display: flex;
+    background-color: var(--background-secondary);
+    border-bottom: 2px solid var(--accent-primary);
+    margin-bottom: 8px;
+}
+
+.tab {
+    flex: 1;
+    text-align: center;
+    padding: 12px;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    border-bottom: 2px solid transparent;
     font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.tab:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.tab.active {
+    color: var(--accent-primary);
+    border-bottom: 2px solid var(--accent-primary);
+}
+
+.tab-content {
+    display: none;
+    padding: 8px;
+}
+
+.tab-content.active {
+    display: block;
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
 }
 
 .content {
-    padding: 15px;
+    padding: 8px;
     text-align: center;
+}
+
+.status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 10px 0;
+    gap: 8px;
+    padding: 6px 10px;
+    background-color: var(--background-tertiary);
+    border-radius: 16px;
+    box-shadow: inset 0 1px 3px var(--shadow-color);
+    transition: all var(--transition-speed);
+}
+
+.status-indicator.success {
+    background-color: rgba(76, 175, 80, 0.2);
+    animation: pulse 2s ease-in-out;
+}
+
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: var(--error-color);
+    transition: background-color var(--transition-speed) ease;
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.5);
+}
+
+.status-dot.active {
+    background-color: var(--success-color);
+    box-shadow: 0 0 8px var(--success-color);
+    animation: pulse 2s infinite;
+}
+
+.status-dot.waiting {
+    background-color: var(--warning-color);
+    box-shadow: 0 0 8px var(--warning-color);
+    animation: blink 1.5s infinite;
+}
+
+@keyframes blink {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); background-color: rgba(76, 175, 80, 0.2); }
+    50% { transform: scale(1.05); background-color: rgba(76, 175, 80, 0.4); }
+    100% { transform: scale(1); background-color: rgba(76, 175, 80, 0.2); }
 }
 
 p {
     color: var(--text-secondary);
-    font-size: 14px;
-    margin: 10px 0 15px 0;
-    min-height: 2em;
+    font-size: 13px;
+    margin: 3px 0;
+    min-height: 1.3em;
 }
 
 button {
-    font-family: var(--font-family);
-    font-weight: 500;
-    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     width: 100%;
-    padding: 10px;
-    border-radius: 8px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    border: none;
+    padding: 10px 16px;
+    margin-bottom: 8px;
     background-color: var(--accent-primary);
     color: white;
-    margin-top: 5px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all var(--transition-speed) ease;
+    text-align: center;
+    box-shadow: 0 2px 5px var(--shadow-color);
+    position: relative;
+    overflow: hidden;
 }
 
 button:hover {
     background-color: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px var(--shadow-color);
+}
+
+button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px var(--shadow-color);
 }
 
 button.destructive {
-    background-color: hsl(0, 65%, 51%);
+    background-color: var(--error-color);
 }
 
-button.destructive:hover {
-    background-color: hsl(0, 65%, 45%);
+/* Loading animation for buttons */
+button.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg, 
+        transparent, 
+        rgba(255, 255, 255, 0.2), 
+        transparent
+    );
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Checkbox styling */
+.checkbox-setting {
+    display: flex;
+    align-items: center;
+    margin: 15px 0;
+    text-align: left;
+}
+
+.settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 0;
+    text-align: left;
+    background-color: var(--background-tertiary);
+    padding: 10px;
+    border-radius: 12px;
+    box-shadow: inset 0 1px 3px var(--shadow-color);
+}
+
+.settings:last-child {
+    margin-bottom: 0;
+}
+
+label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+input[type="number"] {
+    width: 100%;
+    padding: 6px;
+    margin-bottom: 6px;
+    background-color: var(--background-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-primary);
+}
+
+input[type="checkbox"] {
+    margin-right: 10px;
+    accent-color: var(--accent-primary);
+    cursor: pointer;
+    width: 18px;
+    height: 18px;
+}
+
+.setting-description {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+    margin-left: 24px;
+    display: block;
+    line-height: 1.2;
+}
+
+.checkbox-setting label.checkbox-label {
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    position: relative;
+    padding-left: 5px;
+    font-family: var(--font-family);
 }
 
 .settings {
@@ -88,11 +300,11 @@ button.destructive:hover {
 }
 
 .settings input {
-    padding: 6px;
+    padding: 8px;
     background-color: #121212;
     border: 1px solid var(--border-color);
     color: var(--text-primary);
-    border-radius: 6px;
+    border-radius: 8px;
     font-family: var(--font-family);
 }
 

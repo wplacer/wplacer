@@ -64,8 +64,12 @@
                 <b>Total Droplets:</b> <span id="totalDroplets">?</span> |
                 <b>PPH:</b> <span id="totalPPH">?</span>
             </div>
-            <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg" alt="">Check Account
-                Status</button>
+            <div class="user-actions">
+                <button id="checkUserStatus" class="primary-button"><img src="icons/check.svg" alt="">Check Account Status</button>
+                <button id="exportJTokens" class="secondary-button"><img src="icons/download.svg" alt="">Export J Tokens</button>
+                <button id="importJTokens" class="secondary-button"><img src="icons/upload.svg" alt="">Import J Tokens</button>
+                <input type="file" id="importJTokensInput" accept=".txt" style="display: none;">
+            </div>
             <div id="userList"></div>
 
             <button onclick="changeTab('main');" class="secondary-button"><img src="icons/return.svg"

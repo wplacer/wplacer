@@ -442,6 +442,8 @@ userForm.addEventListener('submit', async (e) => {
     }
 });
 
+// Export and Import J Tokens functionality will be implemented later in the file
+
 const colors = {
     '0,0,0': { id: 1, name: 'Black' },
     '60,60,60': { id: 2, name: 'Dark Gray' },
@@ -925,6 +927,217 @@ stopAll.addEventListener('click', async () => {
     openManageTemplates.click();
 });
 
+// Export J tokens to a text file
+const exportJTokens = document.getElementById('exportJTokens');
+const importJTokens = document.getElementById('importJTokens');
+const importJTokensInput = document.getElementById('importJTokensInput');
+
+exportJTokens.addEventListener('click', async () => {
+    try {
+        const response = await axios.get('/users');
+        const users = response.data;
+        
+        // Create a text file with one J token per line
+        let tokenText = '';
+        let tokenCount = 0;
+        for (const id in users) {
+            if (users[id].cookies?.j) {
+                tokenText += users[id].cookies.j + '\n';
+                tokenCount++;
+            }
+        }
+        
+        if (tokenCount === 0) {
+            showMessage('Error', 'No valid J tokens found to export.');
+            return;
+        }
+        
+        // Create a download link
+        const blob = new Blob([tokenText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'j_tokens.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showMessage('Success', `Exported ${tokenCount} J token(s) successfully!`);
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+importJTokens.addEventListener('click', () => {
+    importJTokensInput.click();
+});
+
+importJTokensInput.addEventListener('change', async (event) => { //CREDITS - Motzumoto
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    // Set busy state
+    importJTokens.disabled = true;
+    importJTokens.innerHTML = '<img src="icons/restart.svg" alt="" class="spin"> Importing...';
+    
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const content = e.target.result;
+            // Improved parsing: trim lines, ignore comments, and deduplicate
+            const lines = content.split('\n');
+            const tokens = [];
+            const uniqueTokens = new Set();
+            
+            for (let line of lines) {
+                line = line.trim();
+                // Skip empty lines and comments
+                if (!line || line.startsWith('#')) continue;
+                
+                // Add to tokens if not already seen
+                if (!uniqueTokens.has(line)) {
+                    uniqueTokens.add(line);
+                    tokens.push(line);
+                }
+            }
+            
+            if (tokens.length === 0) {
+                showMessage('Error', 'No valid tokens found in the file.');
+                importJTokens.disabled = false;
+                importJTokens.innerHTML = '<img src="icons/upload.svg" alt="">Import J Tokens';
+                return;
+            }
+            
+            // Get existing users to filter out duplicates on client side
+            const existingUsers = await axios.get('/users');
+            const existingTokens = new Set();
+            for (const userId in existingUsers.data) {
+                if (existingUsers.data[userId].cookies?.j) {
+                    existingTokens.add(existingUsers.data[userId].cookies.j);
+                }
+            }
+            
+            // Filter out tokens that already exist
+            const newTokens = tokens.filter(token => !existingTokens.has(token));
+            
+            if (newTokens.length === 0) {
+                showMessage('Warning', 'All tokens in the file already exist in the system.');
+                importJTokens.disabled = false;
+                importJTokens.innerHTML = '<img src="icons/upload.svg" alt="">Import J Tokens';
+                return;
+            }
+            
+            // Process tokens with concurrency control
+            const MAX_CONCURRENT = 5; // Process 5 tokens at a time
+            let processed = 0;
+            let success = 0;
+            let failed = 0;
+            let skipped = tokens.length - newTokens.length;
+            const errors = [];
+            const addedUsers = [];
+            
+            // Helper function to run with limited concurrency
+            const runWithConcurrency = async (items, workerFn, maxConcurrent) => {
+                const results = [];
+                const running = [];
+                
+                for (const item of items) {
+                    const p = Promise.resolve().then(() => workerFn(item));
+                    results.push(p);
+                    
+                    if (maxConcurrent <= items.length) {
+                        const e = p.then(() => running.splice(running.indexOf(e), 1));
+                        running.push(e);
+                        if (running.length >= maxConcurrent) {
+                            await Promise.race(running);
+                        }
+                    }
+                }
+                
+                return Promise.all(results);
+            };
+            
+            // Worker function to process each token
+            const processToken = async (token) => {
+                try {
+                    const response = await axios.post('/users/import', { tokens: [token] });
+                    processed++;
+                    if (response.data.imported > 0) {
+                        success++;
+                        if (response.data.userData) {
+                            addedUsers.push(`${response.data.userData.name}#${response.data.userData.id}`);
+                        }
+                    } else {
+                        skipped++;
+                    }
+                } catch (error) {
+                    processed++;
+                    failed++;
+                    errors.push(error.response?.data?.error || error.message);
+                }
+                
+                // Update progress
+                const progress = Math.round((processed / newTokens.length) * 100);
+                importJTokens.innerHTML = `<img src="icons/restart.svg" alt="" class="spin"> Importing (${progress}%)...`;
+            };
+            
+            // Show confirmation with more details
+            showConfirmation(
+                'Import J Tokens',
+                `Found ${tokens.length} tokens in the file (${skipped} duplicates detected).<br>Do you want to import ${newTokens.length} new tokens?`,
+                async () => {
+                    try {
+                        await runWithConcurrency(newTokens, processToken, MAX_CONCURRENT);
+                        
+                        // Generate summary
+                        let summary = `<b>Import Summary:</b><br>`;
+                        summary += `- Input lines: ${lines.length}<br>`;
+                        summary += `- Unique tokens: ${tokens.length}<br>`;
+                        summary += `- Processed: ${processed}<br>`;
+                        summary += `- Success: ${success}<br>`;
+                        summary += `- Failed: ${failed}<br>`;
+                        summary += `- Skipped: ${skipped}<br>`;
+                        
+                        if (addedUsers.length > 0) {
+                            summary += `<br><b>Added users:</b><br>`;
+                            summary += addedUsers.map(u => `- ${u}`).join('<br>');
+                        }
+                        
+                        if (errors.length > 0) {
+                            summary += `<br><b>Errors:</b><br>`;
+                            summary += errors.slice(0, 5).map(e => `- ${e}`).join('<br>');
+                            if (errors.length > 5) {
+                                summary += `<br>- ...and ${errors.length - 5} more errors`;
+                            }
+                        }
+                        
+                        showMessage('Import Complete', summary);
+                        openManageUsers.click(); // Refresh the user list
+                    } catch (error) {
+                        handleError(error);
+                    } finally {
+                        importJTokens.disabled = false;
+                        importJTokens.innerHTML = '<img src="icons/upload.svg" alt="">Import J Tokens';
+                    }
+                },
+                true,
+                () => {
+                    // Cancel action
+                    importJTokens.disabled = false;
+                    importJTokens.innerHTML = '<img src="icons/upload.svg" alt="">Import J Tokens';
+                }
+            );
+        } catch (error) {
+            handleError(error);
+            importJTokens.disabled = false;
+            importJTokens.innerHTML = '<img src="icons/upload.svg" alt="">Import J Tokens';
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = ''; // Reset the input
+});
+
 openManageUsers.addEventListener('click', () => {
     userList.innerHTML = '';
     userForm.reset();
@@ -935,19 +1148,49 @@ openManageUsers.addEventListener('click', () => {
     loadUsers((users) => {
         const userCount = Object.keys(users).length;
         manageUsersTitle.textContent = `Existing Users (${userCount})`;
+        
+        // Calculate totals for all users
+        let totalChargesCount = 0;
+        let totalMaxChargesCount = 0;
+        let totalDropletsCount = 0;
+        let totalPixelsPerHour = 0;
+        
         for (const id of Object.keys(users)) {
             const user = document.createElement('div');
             user.className = 'user';
             user.id = `user-${id}`;
 
             const safeName = escapeHtml(String(users[id].name));
+            
+            // Get pixel data from cache if available
+            const pixelData = users[id].pixels;
+            const chargeCount = pixelData ? pixelData.count : '?';
+            const chargeMax = pixelData ? pixelData.max : '?';
+            const percentage = pixelData ? pixelData.percentage.toFixed(1) : '?';
+            const isExtrapolated = pixelData?.isExtrapolated ? ' (est)' : '';
+            
+            // Add to totals if data is available
+            if (pixelData) {
+                totalChargesCount += pixelData.count;
+                totalMaxChargesCount += pixelData.max;
+                // Calculate pixels per hour (PPH) - 1 pixel every 30 seconds when charges available
+                const pph = pixelData.count > 0 ? 120 : 0; // Only count accounts with charges
+                totalPixelsPerHour += pph;
+            }
+            
+            // Get droplets if available
+            const droplets = users[id].droplets || '?';
+            if (droplets !== '?') {
+                totalDropletsCount += droplets;
+            }
+            
             user.innerHTML = `
                 <div class="user-info">
                     <span>${safeName}</span>
                     <span>(#${id})</span>
                     <div class="user-stats">
-                        Charges: <b>?</b>/<b>?</b> | Level <b>?</b> <span class="level-progress">(?%)</span><br>
-                        Droplets: <b>?</b>
+                        Charges: <b>${chargeCount}</b>/<b>${chargeMax}</b> | Level <b>?</b> <span class="level-progress">(${percentage}%${isExtrapolated})</span><br>
+                        Droplets: <b>${droplets}</b>
                     </div>
                 </div>
                 <div class="user-actions">
@@ -971,6 +1214,7 @@ openManageUsers.addEventListener('click', () => {
                     true
                 );
             });
+
             user.querySelector('.info-btn').addEventListener('click', async () => {
                 try {
                     const response = await axiosGetWithRetry(`/user/status/${id}`, 3, 2000);
@@ -1015,6 +1259,12 @@ openManageUsers.addEventListener('click', () => {
             });
             userList.appendChild(user);
         }
+        
+        // Update the totals display after processing all users
+        totalCharges.textContent = totalChargesCount.toFixed(0);
+        totalMaxCharges.textContent = totalMaxChargesCount.toFixed(0);
+        totalDroplets.textContent = totalDropletsCount.toFixed(0);
+        totalPPH.textContent = totalPixelsPerHour.toFixed(1);
     });
     changeTab('manageUsers');
 });
@@ -1263,6 +1513,15 @@ const createTemplateCard = (t, id) => {
         templateOutlineMode.checked = t.outlineMode;
         templateSkipPaintedPixels.checked = t.skipPaintedPixels;
         enableAutostart.checked = t.enableAutostart;
+        
+        // Load template image and preview
+        currentTemplate = t.template;
+        drawTemplate(t.template, templateCanvas);
+        size.innerHTML = `${t.template.width}x${t.template.height}px`;
+        ink.innerHTML = t.template.data.flat().filter(color => color !== 0).length;
+        templateCanvas.style.display = 'block';
+        details.style.display = 'block';
+        
         setTimeout(() => {
             document.querySelectorAll('input[name="user_checkbox"]').forEach((cb) => {
                 cb.checked = t.userIds.includes(cb.value);
@@ -1270,6 +1529,27 @@ const createTemplateCard = (t, id) => {
 
             // Load grid
             initializeGrid(id);
+            
+            // Update the color grid to show only colors in this template
+            if (t.template && t.template.data) {
+                // Get unique colors from template data
+                const uniqueColors = new Set();
+                for (let x = 0; x < t.template.width; x++) {
+                    for (let y = 0; y < t.template.height; y++) {
+                        const colorId = t.template.data[x][y];
+                        if (colorId !== 0) uniqueColors.add(colorId);
+                    }
+                }
+                
+                // Update available colors
+                availableColors.clear();
+                uniqueColors.forEach(colorId => availableColors.add(colorId));
+                
+                // Update color grid
+                if (uniqueColors.size > 0) {
+                    updateColorGridForImage(Array.from(uniqueColors));
+                }
+            }
         }, 100);
     });
     actions.appendChild(editBtn);
