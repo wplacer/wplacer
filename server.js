@@ -55,7 +55,6 @@ const DATA_DIR = './data';
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
 const TEMPLATES_PATH = path.join(DATA_DIR, 'templates.json');
-const CHARGE_CACHE_FILE = path.join(DATA_DIR, 'charge_cache.json');
 
 const JSON_LIMIT = '50mb';
 
@@ -197,222 +196,44 @@ const ChargeCache = {
     _m: new Map(),
     REGEN_MS: 30_000,
     SYNC_MS: 8 * 60_000,
-    CACHE_EXPIRY_MS: 8 * 60 * 60_000, // 8 hours - allows for longer downtimes
-    MAX_EXTRAPOLATION_MS: 24 * 60 * 60_000, // 24 hours - max time we'll extrapolate charges
 
     _key(id) {
         return String(id);
     },
-
-    // Load cache from disk on startup
-    load() {
-        try {
-            if (existsSync(CHARGE_CACHE_FILE)) {
-                const data = JSON.parse(readFileSync(CHARGE_CACHE_FILE, 'utf8'));
-                const now = Date.now();
-                let loaded = 0;
-                let expired = 0;
-                let extrapolated = 0;
-
-                for (const [userId, entry] of Object.entries(data)) {
-                    const age = now - entry.lastSync;
-                    
-                    if (age < this.CACHE_EXPIRY_MS) {
-                        // Fresh data - load as-is
-                        this._m.set(userId, entry);
-                        loaded++;
-                    } else if (age < this.MAX_EXTRAPOLATION_MS) {
-                        // Stale but not ancient - mark for careful extrapolation
-                        entry.isExtrapolated = true;
-                        entry.originalAge = age;
-                        this._m.set(userId, entry);
-                        extrapolated++;
-                        console.log(`[ChargeCache] User ${userId} data is ${Math.round(age/60000)}min old - will extrapolate carefully`);
-                    } else {
-                        // Too old - discard
-                        expired++;
-                    }
-                }
-
-                console.log(`[ChargeCache] Loaded ${loaded} fresh, ${extrapolated} extrapolated, discarded ${expired} expired entries`);
-            }
-        } catch (error) {
-            console.warn(`[ChargeCache] Failed to load cache: ${error.message}`);
-            // Continue with empty cache
-        }
-    },
-
-    // Save cache to disk
-    save() {
-        try {
-            const data = Object.fromEntries(this._m);
-            // Clean extrapolation flags before saving
-            for (const entry of Object.values(data)) {
-                delete entry.isExtrapolated;
-                delete entry.originalAge;
-            }
-            writeFileSync(CHARGE_CACHE_FILE, JSON.stringify(data, null, 2));
-        } catch (error) {
-            console.warn(`[ChargeCache] Failed to save cache: ${error.message}`);
-        }
-    },
-
-    // Auto-save periodically and on significant changes
-    _lastSaveTime: 0,
-    _saveThrottle: 60_000, // Save at most once per minute
-    
-    _maybeSave() {
-        const now = Date.now();
-        if (now - this._lastSaveTime > this._saveThrottle) {
-            this._lastSaveTime = now;
-            this.save();
-        }
-    },
-
     has(id) {
         return this._m.has(this._key(id));
     },
-
     stale(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
         if (!u) return true;
-        
-        // If data is extrapolated, it's always considered stale for sync purposes
-        if (u.isExtrapolated) return true;
-        
         return now - u.lastSync > this.SYNC_MS;
     },
-
     markFromUserInfo(userInfo, now = Date.now()) {
         if (!userInfo?.id || !userInfo?.charges) return;
         const k = this._key(userInfo.id);
         const base = Math.floor(userInfo.charges.count ?? 0);
         const max = Math.floor(userInfo.charges.max ?? 0);
-        
-        // Clear extrapolation flags when we get fresh data
-        this._m.set(k, { 
-            base, 
-            max, 
-            lastSync: now,
-            isExtrapolated: false
-        });
-        this._maybeSave();
+        this._m.set(k, { base, max, lastSync: now });
     },
-
     predict(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
         if (!u) return null;
-        
-        const timeSinceSync = now - u.lastSync;
-        
-        // For extrapolated data, be more conservative
-        if (u.isExtrapolated) {
-            // Calculate charges but apply a confidence penalty
-            const theoreticalGrowth = Math.floor(timeSinceSync / this.REGEN_MS);
-            const theoreticalCount = Math.min(u.max, u.base + Math.max(0, theoreticalGrowth));
-            
-            // Apply confidence penalty based on age - older data gets more penalty
-            const agePenalty = Math.min(0.8, u.originalAge / (2 * 60 * 60_000)); // Up to 80% penalty for 2+ hour old data
-            const conservativeCount = Math.floor(theoreticalCount * (1 - agePenalty));
-            
-            return { 
-                count: Math.max(0, conservativeCount), 
-                max: u.max, 
-                cooldownMs: this.REGEN_MS,
-                isExtrapolated: true,
-                confidence: 1 - agePenalty
-            };
-        }
-        
-        // Normal prediction for fresh data
-        const grown = Math.floor(timeSinceSync / this.REGEN_MS);
+        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
         const count = Math.min(u.max, u.base + Math.max(0, grown));
-        return { 
-            count, 
-            max: u.max, 
-            cooldownMs: this.REGEN_MS,
-            isExtrapolated: false,
-            confidence: 1.0
-        };
+        return { count, max: u.max, cooldownMs: this.REGEN_MS };
     },
-
     consume(id, n = 1, now = Date.now()) {
         const k = this._key(id);
         const u = this._m.get(k);
         if (!u) return;
-        
-        const timeSinceSync = now - u.lastSync;
-        const grown = Math.floor(timeSinceSync / this.REGEN_MS);
-        
-        let availableCharges;
-        if (u.isExtrapolated) {
-            // For extrapolated data, recalculate with penalty
-            const theoreticalAvailable = Math.min(u.max, u.base + Math.max(0, grown));
-            const agePenalty = Math.min(0.8, u.originalAge / (2 * 60 * 60_000));
-            availableCharges = Math.floor(theoreticalAvailable * (1 - agePenalty));
-        } else {
-            availableCharges = Math.min(u.max, u.base + Math.max(0, grown));
-        }
-        
-        const newCount = Math.max(0, availableCharges - n);
+        const grown = Math.floor((now - u.lastSync) / this.REGEN_MS);
+        const avail = Math.min(u.max, u.base + Math.max(0, grown));
+        const newCount = Math.max(0, avail - n);
         u.base = newCount;
-        
-        // Align to last regen tick and clear extrapolation flags since we're updating
-        u.lastSync = now - (timeSinceSync % this.REGEN_MS);
-        u.isExtrapolated = false;
-        delete u.originalAge;
-        
+        // align to last regen tick
+        u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
         this._m.set(k, u);
-        this._maybeSave();
     },
-
-    // Enhanced cleanup that handles extrapolated entries differently
-    cleanup() {
-        const now = Date.now();
-        const before = this._m.size;
-        let expiredCount = 0;
-        let extrapolatedCount = 0;
-        
-        for (const [key, entry] of this._m.entries()) {
-            const age = now - entry.lastSync;
-            
-            if (age > this.MAX_EXTRAPOLATION_MS) {
-                this._m.delete(key);
-                expiredCount++;
-            } else if (age > this.CACHE_EXPIRY_MS && !entry.isExtrapolated) {
-                // Convert fresh data to extrapolated when it gets old
-                entry.isExtrapolated = true;
-                entry.originalAge = age;
-                extrapolatedCount++;
-            }
-        }
-        
-        if (expiredCount > 0 || extrapolatedCount > 0) {
-            console.log(`[ChargeCache] Cleanup: expired ${expiredCount}, marked ${extrapolatedCount} as extrapolated`);
-            this.save();
-        }
-    },
-
-    // Helper method to get cache statistics
-    getStats() {
-        const now = Date.now();
-        let fresh = 0;
-        let extrapolated = 0;
-        let stale = 0;
-        
-        for (const entry of this._m.values()) {
-            const age = now - entry.lastSync;
-            if (entry.isExtrapolated) {
-                extrapolated++;
-            } else if (age < this.SYNC_MS) {
-                fresh++;
-            } else {
-                stale++;
-            }
-        }
-        
-        return { fresh, extrapolated, stale, total: this._m.size };
-    }
 };
 
 // ---------- Proxy loader ----------
@@ -672,106 +493,55 @@ class WPlacer {
     /*
      * Load all tiles intersecting the template bounding box into memory.
      * Converts to palette IDs for quick mismatch checks.
-     * @param {boolean} forceFresh - Force fresh tile fetch (cache busting)
     */
-    async loadTiles(forceFresh = false) {
-        console.log(`[${this.name}] Loading tiles for template ${this.template.width}x${this.template.height} at coords [${this.coords.join(',')}]${forceFresh ? ' (FORCE FRESH)' : ''}`);
-        
+    async loadTiles() {
         this.tiles.clear();
         const [tx, ty, px, py] = this.coords;
         const endPx = px + this.template.width;
         const endPy = py + this.template.height;
         const endTx = tx + Math.floor(endPx / 1000);
         const endTy = ty + Math.floor(endPy / 1000);
-        
-        // Calculate total tiles to load
-        const totalTiles = (endTx - tx + 1) * (endTy - ty + 1);
-        console.log(`[${this.name}] Need to load ${totalTiles} tiles (${tx},${ty} to ${endTx},${endTy})`);
-
-        // Track success/failure
-        let loadedTiles = 0;
-        let failedTiles = 0;
 
         const promises = [];
         for (let X = tx; X <= endTx; X++) {
             for (let Y = ty; Y <= endTy; Y++) {
-                // Add cache busting parameter if forceFresh is true
-                const cacheBuster = forceFresh ? `?t=${Date.now()}_${Math.random().toString(36).substring(2, 8)}` : `?t=${Date.now()}`;
-                const tileUrl = `${TILE_URL(X, Y)}${cacheBuster}`;
-                
-                const p = this._fetch(tileUrl)
-                    .then(async (r) => {
-                        if (!r.ok) {
-                            console.warn(`[${this.name}] Failed to fetch tile ${X}_${Y}: ${r.status} ${r.statusText}`);
-                            failedTiles++;
-                            return null;
-                        }
-                        try {
-                            return Buffer.from(await r.arrayBuffer());
-                        } catch (e) {
-                            console.error(`[${this.name}] Error processing tile ${X}_${Y} response:`, e);
-                            failedTiles++;
-                            return null;
-                        }
-                    })
+                const p = this._fetch(`${TILE_URL(X, Y)}?t=${Date.now()}`)
+                    .then(async (r) => (r.ok ? Buffer.from(await r.arrayBuffer()) : null))
                     .then((buf) => {
                         if (!buf) return null;
-                        try {
-                            const image = new Image();
-                            image.src = buf; // node-canvas accepts Buffer
-                            
-                            // Validate image dimensions
-                            if (image.width !== 1000 || image.height !== 1000) {
-                                console.warn(`[${this.name}] Tile ${X}_${Y} has unexpected dimensions: ${image.width}x${image.height}`);
+                        const image = new Image();
+                        image.src = buf; // node-canvas accepts Buffer
+                        const canvas = createCanvas(image.width, image.height);
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(image, 0, 0);
+                        const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                        const tile = {
+                            width: canvas.width,
+                            heigh: canvas.height,
+                            data: Array.from({ length: canvas.width }, () => Array(canvas.height)),
+                        };
+                        for (let x = 0; x < canvas.width; x++) {
+                            for (let y = 0; y < canvas.height; y++) {
+                                const i = (y * canvas.width + x) * 4;
+                                const r = d.data[i],
+                                    g = d.data[i + 1],
+                                    b = d.data[i + 2],
+                                    a = d.data[i + 3];
+                                tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
                             }
-                            
-                            const canvas = createCanvas(image.width, image.height);
-                            const ctx = canvas.getContext('2d');
-                            ctx.drawImage(image, 0, 0);
-                            const d = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            
-                            const tile = {
-                                width: canvas.width,
-                                height: canvas.height, // Fixed typo: heigh -> height
-                                data: Array.from({ length: canvas.width }, () => Array(canvas.height)),
-                            };
-                            
-                            // Process image data
-                            for (let x = 0; x < canvas.width; x++) {
-                                for (let y = 0; y < canvas.height; y++) {
-                                    const i = (y * canvas.width + x) * 4;
-                                    const r = d.data[i],
-                                        g = d.data[i + 1],
-                                        b = d.data[i + 2],
-                                        a = d.data[i + 3];
-                                    tile.data[x][y] = a === 255 ? palette[`${r},${g},${b}`] || 0 : 0;
-                                }
-                            }
-                            return tile;
-                        } catch (e) {
-                            console.error(`[${this.name}] Error processing tile ${X}_${Y} image:`, e);
-                            failedTiles++;
-                            return null;
                         }
+                        return tile;
                     })
                     .then((tileData) => {
                         if (tileData) {
                             this.tiles.set(`${X}_${Y}`, tileData);
-                            loadedTiles++;
                         }
-                    })
-                    .catch(e => {
-                        console.error(`[${this.name}] Unexpected error loading tile ${X}_${Y}:`, e);
-                        failedTiles++;
                     });
-                    
                 promises.push(p);
             }
         }
-        
         await Promise.all(promises);
-        console.log(`[${this.name}] Tile loading complete: ${loadedTiles}/${totalTiles} loaded (${failedTiles} failed)`);
-        return loadedTiles > 0; // Return true only if at least one tile was loaded
+        return true;
     }
 
     hasColor(id) {
@@ -832,66 +602,26 @@ class WPlacer {
     _getMismatchedPixels(currentSkip = 1, colorFilter = null) {
         const [startX, startY, startPx, startPy] = this.coords;
         const out = [];
-        let totalChecked = 0;
-        let skippedBounds = 0;
-        let skippedFilter = 0;
-        let skippedSkip = 0;
-
-        // Debug info
-        console.log(`[${this.name}] Scanning pixels: template=${this.template.width}x${this.template.height}, coords=[${this.coords.join(',')}], skip=${currentSkip}, filter=${colorFilter}`);
 
         for (let y = 0; y < this.template.height; y++) {
             for (let x = 0; x < this.template.width; x++) {
-                // Skip pattern check
-                if ((x + y) % currentSkip !== 0) {
-                    skippedSkip++;
-                    continue;
-                }
+                if ((x + y) % currentSkip !== 0) continue;
 
                 const tplColor = this.template.data[x][y];
-                
-                // Color filter check
-                if (colorFilter !== null && tplColor !== colorFilter) {
-                    skippedFilter++;
-                    continue;
-                }
+                if (colorFilter !== null && tplColor !== colorFilter) continue;
 
-                // Calculate global coordinates
-                const globalPx = startPx + x;
-                const globalPy = startPy + y;
+                const globalPx = startPx + x,
+                    globalPy = startPy + y;
 
-                // Calculate target tile coordinates
                 const targetTx = startX + Math.floor(globalPx / 1000);
                 const targetTy = startY + Math.floor(globalPy / 1000);
-                
-                // Calculate local coordinates within the tile
-                const localPx = globalPx % 1000;
-                const localPy = globalPy % 1000;
+                const localPx = globalPx % 1000,
+                    localPy = globalPy % 1000;
 
-                // Bounds checking with detailed logging
                 const tile = this.tiles.get(`${targetTx}_${targetTy}`);
-                if (!tile) {
-                    console.warn(`[${this.name}] Missing tile ${targetTx}_${targetTy} for template pixel (${x},${y})`);
-                    skippedBounds++;
-                    continue;
-                }
+                if (!tile || !tile.data[localPx]) continue;
 
-                if (!tile.data[localPx]) {
-                    console.warn(`[${this.name}] Missing column ${localPx} in tile ${targetTx}_${targetTy} (template pixel ${x},${y})`);
-                    skippedBounds++;
-                    continue;
-                }
-
-                if (tile.data[localPx][localPy] === undefined) {
-                    console.warn(`[${this.name}] Missing pixel data at ${localPx},${localPy} in tile ${targetTx}_${targetTy} (template pixel ${x},${y})`);
-                    skippedBounds++;
-                    continue;
-                }
-
-                totalChecked++;
                 const canvasColor = tile.data[localPx][localPy];
-
-                // Calculate edge detection
                 const neighbors = [
                     this.template.data[x - 1]?.[y],
                     this.template.data[x + 1]?.[y],
@@ -900,7 +630,7 @@ class WPlacer {
                 ];
                 const isEdge = neighbors.some((n) => n === 0 || n === undefined);
 
-                // Erase mode: non-template pixels that are filled
+                // erase non-template
                 if (this.templateSettings.eraseMode && tplColor === 0 && canvasColor !== 0) {
                     out.push({
                         tx: targetTx,
@@ -911,12 +641,10 @@ class WPlacer {
                         isEdge: false,
                         localX: x,
                         localY: y,
-                        reason: 'erase_mode'
                     });
                     continue;
                 }
-
-                // Clear mode: -1 means "clear if filled"
+                // treat -1 as "clear if filled"
                 if (tplColor === -1 && canvasColor !== 0) {
                     out.push({
                         tx: targetTx,
@@ -927,17 +655,14 @@ class WPlacer {
                         isEdge,
                         localX: x,
                         localY: y,
-                        reason: 'clear_mode'
                     });
                     continue;
                 }
-
-                // Positive colors: check if we have the color and if it needs painting
+                // positive colors
                 if (tplColor > 0 && this.hasColor(tplColor)) {
                     const shouldPaint = this.templateSettings.skipPaintedPixels
-                        ? canvasColor === 0  // Only paint if canvas is empty
-                        : tplColor !== canvasColor;  // Paint if colors don't match
-
+                        ? canvasColor === 0
+                        : tplColor !== canvasColor;
                     if (shouldPaint) {
                         out.push({
                             tx: targetTx,
@@ -948,30 +673,11 @@ class WPlacer {
                             isEdge,
                             localX: x,
                             localY: y,
-                            reason: this.templateSettings.skipPaintedPixels ? 'fill_empty' : 'color_mismatch',
-                            expectedColor: tplColor,
-                            actualColor: canvasColor
                         });
                     }
                 }
             }
         }
-
-        // Detailed logging
-        console.log(`[${this.name}] Pixel scan complete:
-        Total template pixels: ${this.template.width * this.template.height}
-        Checked: ${totalChecked}
-        Skipped (pattern): ${skippedSkip}
-        Skipped (filter): ${skippedFilter} 
-        Skipped (bounds): ${skippedBounds}
-        Mismatched found: ${out.length}`);
-
-        // Log sample of mismatched pixels for debugging
-        if (out.length > 0 && out.length <= 10) {
-            console.log(`[${this.name}] Mismatched pixels:`, 
-                out.map(p => `(${p.localX},${p.localY}): ${p.reason} - expected ${p.expectedColor || p.color}, got ${p.actualColor}`));
-        }
-
         return out;
     }
 
@@ -1380,8 +1086,6 @@ const TokenManager = {
         } else {
             this.tokenQueue.push(newToken);
             log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ✅ Token received. Queue size: ${this.tokenQueue.length}`);
-            // Reset isTokenNeeded flag since we now have tokens in the queue
-            this.isTokenNeeded = false;
         }
     },
     invalidateToken() {
@@ -1389,11 +1093,6 @@ const TokenManager = {
         const invalidated = this.tokenQueue.shift();
         if (invalidated) {
             log('SYSTEM', 'wplacer', `TOKEN_MANAGER: 🔄 Invalidating token. ${this.tokenQueue.length} left.`);
-            // If we've used our last token, set isTokenNeeded to true
-            if (this.tokenQueue.length === 0 && !this.resolvePromise) {
-                this.isTokenNeeded = true;
-                log('SYSTEM', 'wplacer', `TOKEN_MANAGER: ⚠️ Token queue empty, setting isTokenNeeded to true.`);
-            }
         }
     },
 };
@@ -1564,7 +1263,7 @@ class TemplateManager {
         return paintedTotal;
     }
 
-    async _findWorkingUserAndCheckPixels(forceRefresh = false) {
+    async _findWorkingUserAndCheckPixels() {
         // Iterate through all users in the queue to find one that works.
         for (let i = 0; i < this.userQueue.length; i++) {
             const userId = this.userQueue.shift();
@@ -1587,17 +1286,11 @@ class TemplateManager {
             });
 
             try {
-                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}${forceRefresh ? ' (FORCE REFRESH)' : ''}...`);
+                log('SYSTEM', 'wplacer', `[${this.name}] Checking template status with user ${users[userId].name}...`);
                 await wplacer.login(users[userId].cookies);
-                
-                // Use the enhanced loadTiles method with forceFresh parameter
-                await wplacer.loadTiles(forceRefresh);
-                
-                // For anti-grief monitoring, always check with skip=1 to catch all griefed pixels
-                const checkSkip = forceRefresh ? 1 : this.currentPixelSkip;
-                const mismatchedPixels = wplacer._getMismatchedPixels(checkSkip, null);
-                
-                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels (skip: ${checkSkip}).`);
+                await wplacer.loadTiles();
+                const mismatchedPixels = wplacer._getMismatchedPixels(1, null); // Check all pixels, no skip, no color filter.
+                log('SYSTEM', 'wplacer', `[${this.name}] Check complete. Found ${mismatchedPixels.length} mismatched pixels.`);
                 return { wplacer, mismatchedPixels }; // Success
             } catch (error) {
                 logUserError(error, userId, users[userId].name, 'cycle pixel check');
@@ -1672,27 +1365,7 @@ class TemplateManager {
                         this.status = 'Monitoring for changes.';
                         log('SYSTEM', 'wplacer', `[${this.name}] 🖼️ Template complete. Monitoring... Recheck in ${duration(currentSettings.antiGriefStandby)}.`);
                         await this.cancellableSleep(currentSettings.antiGriefStandby);
-                        
-                        // Force a fresh check after anti-grief wait
-                        log('SYSTEM', 'wplacer', `[${this.name}] 🔍 Performing anti-grief check with fresh tiles...`);
-                        const antiGriefCheck = await this._findWorkingUserAndCheckPixels(true); // forceRefresh = true
-                        
-                        if (!antiGriefCheck) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ❌ No working users found for anti-grief check. Retrying in 30s.`);
-                            await this.cancellableSleep(30_000);
-                            continue;
-                        }
-                        
-                        // Update pixel count based on fresh check
-                        this.pixelsRemaining = antiGriefCheck.mismatchedPixels.length;
-                        
-                        if (this.pixelsRemaining > 0) {
-                            log('SYSTEM', 'wplacer', `[${this.name}] 🚨 GRIEF DETECTED! Found ${this.pixelsRemaining} griefed pixels. Resuming painting...`);
-                            // Don't continue here - let the code fall through to painting logic
-                        } else {
-                            log('SYSTEM', 'wplacer', `[${this.name}] ✅ No grief detected. Template still complete.`);
-                            continue; // Continue monitoring
-                        }
+                        continue; // Restart the while loop to re-check for changes.
                     } else {
                         log('SYSTEM', 'wplacer', `[${this.name}] ✅ Template finished.`);
                         this.status = 'Finished.';
@@ -1778,12 +1451,6 @@ class TemplateManager {
                                         this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
                                         log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
 
-                                        // First buy charges and upgrades before placing pixels
-                                        // This maximizes the number of pixels we can place in a single turn
-                                        await this.handleUpgrades(wplacer);
-                                        await this.handleChargePurchases(wplacer);
-                                        
-                                        // Now perform the paint turn with potentially more charges
                                         await this._performPaintTurn(wplacer, color);
 
                                         // A paint was attempted, we assume the pass is not yet complete and will re-evaluate.
@@ -1829,6 +1496,8 @@ class TemplateManager {
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);
                                 log('SYSTEM', 'wplacer', `[${this.name}] 🫃 Woke up. Re-evaluating...`);
+                                // FIX: Break from the inner pass loop to allow a full re-scan of the canvas state.
+                                break;
                             }
                         }
                     }
@@ -2010,29 +1679,7 @@ app.post('/t', (req, res) => {
 });
 
 // Users
-app.get('/users', (_req, res) => {
-    const now = Date.now();
-    const usersWithPixels = {};
-    
-    // Add pixel data from cache to each user
-    for (const userId in users) {
-        usersWithPixels[userId] = { ...users[userId] };
-        
-        // Get pixel data from cache if available
-        const pixelData = ChargeCache.predict(userId, now);
-        if (pixelData) {
-            usersWithPixels[userId].pixels = {
-                count: pixelData.count,
-                max: pixelData.max,
-                percentage: (pixelData.count / Math.max(1, pixelData.max)) * 100,
-                isExtrapolated: pixelData.isExtrapolated || false,
-                confidence: pixelData.confidence || 1.0
-            };
-        }
-    }
-    
-    res.json(usersWithPixels);
-});
+app.get('/users', (_req, res) => res.json(users));
 
 app.post('/user', async (req, res) => {
     if (!req.body?.cookies || !req.body.cookies.j) return res.sendStatus(HTTP_STATUS.BAD_REQ);
@@ -2055,63 +1702,6 @@ app.post('/user', async (req, res) => {
         logUserError(error, 'NEW_USER', 'N/A', 'add new user');
         res.status(HTTP_STATUS.SRV_ERR).json({ error: error.message });
     }
-});
-
-app.post('/users/import', async (req, res) => {
-    if (!req.body?.tokens || !Array.isArray(req.body.tokens)) {
-        return res.status(HTTP_STATUS.BAD_REQ).json({ error: 'Invalid request format' });
-    }
-    
-    const tokens = req.body.tokens;
-    let imported = 0;
-    let duplicates = 0;
-    let userData = null;
-    
-    // Process each token
-    for (const token of tokens) {
-        // Skip empty tokens
-        if (!token.trim()) continue;
-        
-        // Check if this token already exists in any user
-        let isDuplicate = false;
-        for (const userId in users) {
-            if (users[userId].cookies?.j === token) {
-                duplicates++;
-                isDuplicate = true;
-                break;
-            }
-        }
-        
-        if (isDuplicate) continue;
-        
-        // Try to validate and add the token
-        const wplacer = new WPlacer({});
-        try {
-            const userInfo = await wplacer.login({ j: token });
-            users[userInfo.id] = {
-                name: userInfo.name,
-                cookies: { j: token },
-            };
-            imported++;
-            
-            // Store user data for the first successful import (for client feedback)
-            if (!userData) {
-                userData = {
-                    id: userInfo.id,
-                    name: userInfo.name
-                };
-            }
-            
-            log('SYSTEM', 'Users', `✅ Imported user ${userInfo.name}#${userInfo.id} from token.`);
-        }
-        catch (error) {
-            log('ERROR', 'Users', `Failed to import token: ${error.message}`);
-            // Continue with next token even if this one fails
-        }
-    }
-    
-    saveUsers();
-    res.json({ imported, duplicates, userData });
 });
 
 app.delete('/user/:id', async (req, res) => {
@@ -2214,7 +1804,6 @@ app.post('/users/status', async (_req, res) => {
 // Templates
 app.get('/templates', (req, res) => {
     const templateList = {};
-    const now = Date.now();
 
     for (const id in templates) {
         const manager = templates[id];
@@ -2227,26 +1816,6 @@ app.get('/templates', (req, res) => {
                 console.warn(`Could not generate share code for template ${id}: ${shareCodeError.message}`);
                 shareCode = null; // Don't include invalid share code
             }
-            
-            // Get pixel availability for each user and sort by percentage available
-            const userIdsWithPixels = manager.userIds.map(userId => {
-                const predicted = ChargeCache.predict(userId, now) || { count: 0, max: 1 };
-                const percentage = (predicted.count / Math.max(1, predicted.max)) * 100;
-                return {
-                    userId,
-                    pixels: predicted.count,
-                    maxPixels: predicted.max,
-                    percentage,
-                    isExtrapolated: predicted.isExtrapolated || false,
-                    confidence: predicted.confidence || 1.0
-                };
-            });
-            
-            // Sort users by percentage of available pixels (highest first)
-            userIdsWithPixels.sort((a, b) => b.percentage - a.percentage);
-            
-            // Extract just the user IDs for the sorted list
-            const sortedUserIds = userIdsWithPixels.map(u => u.userId);
 
             templateList[id] = {
                 id: id,
@@ -2259,8 +1828,7 @@ app.get('/templates', (req, res) => {
                 outlineMode: manager.outlineMode,
                 skipPaintedPixels: manager.skipPaintedPixels,
                 enableAutostart: manager.enableAutostart,
-                userIds: sortedUserIds, // Use the sorted user IDs
-                userPixels: userIdsWithPixels, // Include the full pixel data for UI
+                userIds: manager.userIds,
                 running: manager.running,
                 status: manager.status,
                 masterId: manager.masterId,
@@ -2737,9 +2305,6 @@ const diffVer = (v1, v2) => {
     //Load color ordering on startup
     colorOrdering = loadColorOrdering();
 
-    // Load charge cache from disk
-    ChargeCache.load();
-    
     loadProxies();
     console.log(`✅ Loaded ${Object.keys(templates).length} templates, ${Object.keys(users).length} users, ${loadedProxies.length} proxies.`);
 
@@ -2811,9 +2376,6 @@ const diffVer = (v1, v2) => {
 
             setInterval(runKeepAlive, currentSettings.keepAliveCooldown);
             log('SYSTEM', 'KeepAlive', `🔄 User session keep-alive started. Interval: ${duration(currentSettings.keepAliveCooldown)}.`);
-            
-            // Set up periodic charge cache cleanup
-            setInterval(() => ChargeCache.cleanup(), 30 * 60_000); // Every 30 minutes
 
             autostartedTemplates.forEach((id) => {
                 const manager = templates[id];
@@ -2850,22 +2412,4 @@ const diffVer = (v1, v2) => {
         });
     };
     tryListen(0);
-    
-    // Add graceful shutdown handlers
-    process.on('SIGINT', () => {
-        console.log('\nShutting down gracefully...');
-        ChargeCache.save();
-        
-        // Log cache stats on shutdown for debugging
-        const stats = ChargeCache.getStats();
-        console.log(`Cache stats: ${stats.fresh} fresh, ${stats.extrapolated} extrapolated, ${stats.stale} stale`);
-        
-        process.exit(0);
-    });
-
-    process.on('SIGTERM', () => {
-        console.log('\nShutting down gracefully...');
-        ChargeCache.save();
-        process.exit(0);
-    });
 })();
