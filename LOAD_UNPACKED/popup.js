@@ -26,7 +26,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Set auto reload and auto clear settings (default to true if not set)
         const autoReload = result.autoReload !== undefined ? result.autoReload : true;
         const autoClear = result.autoClear !== undefined ? result.autoClear : true;
-        const enableOverlay = result.enableOverlay !== undefined ? result.enableOverlay : true;
+        const enableOverlay = result.enableOverlay !== undefined ? result.enableOverlay : false;
         
         autoReloadCheckbox.checked = autoReload;
         autoClearCheckbox.checked = autoClear;
