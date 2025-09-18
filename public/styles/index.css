@@ -755,3 +755,9 @@ input:checked + .slider:before {
     gap: 10px;
     flex-wrap: wrap;
 }
+.credits-gif {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
