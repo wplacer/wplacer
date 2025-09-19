@@ -87,6 +87,7 @@ let templateUpdateInterval = null;
 let confirmCallback = {};
 let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
+let showCanvasPreview = true;
 
 
 let logsWs = null;
@@ -1577,12 +1578,9 @@ const createTemplateCard = (t, id) => {
     canvasContainer.appendChild(canvas);
     card.appendChild(canvasContainer);
     drawTemplate(t.template, canvas);
-    canvasContainer.style.display = window.showCanvasPreview ? '' : 'none';
+    canvasContainer.style.display = showCanvasPreview ? '' : 'none';
 
     // Move the canvas preview toggle next to Import Share Code button (topBar)
-    if (typeof window.showCanvasPreview === 'undefined') {
-        window.showCanvasPreview = true;
-    }
     // Only add once, and only if topBar exists
     setTimeout(() => {
         const topBar = document.querySelector('.template-actions-all');
@@ -1591,12 +1589,17 @@ const createTemplateCard = (t, id) => {
             previewToggleBtn.id = 'canvasPreviewToggleBtn';
             previewToggleBtn.className = 'secondary-button';
             previewToggleBtn.style.marginLeft = '10px';
-            previewToggleBtn.innerHTML = window.showCanvasPreview ? 'Disable Canvas Previews' : 'Enable Canvas Previews';
+
+            const updateBtnTextAndIcon = () => {
+                previewToggleBtn.innerHTML = `<img src="icons/manageTemplates.svg" alt=""> ${showCanvasPreview ? 'Disable' : 'Enable'} Canvas Previews`;
+            };
+            updateBtnTextAndIcon();
+
             previewToggleBtn.addEventListener('click', () => {
-                window.showCanvasPreview = !window.showCanvasPreview;
-                previewToggleBtn.innerHTML = window.showCanvasPreview ? 'Disable Canvas Previews' : 'Enable Canvas Previews';
+                showCanvasPreview = !showCanvasPreview;
+                updateBtnTextAndIcon();
                 document.querySelectorAll('.template-canvas-preview').forEach(el => {
-                    el.style.display = window.showCanvasPreview ? '' : 'none';
+                    el.style.display = showCanvasPreview ? '' : 'none';
                 });
             });
             // Insert after Import Share Code button

@@ -12,3 +12,4 @@ bun.lock
 .DS_Store
 *.idea
 .vscode/
+AUTO_LOGIN/
