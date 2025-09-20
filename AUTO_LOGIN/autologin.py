@@ -26,21 +26,12 @@ SOCKS_HOST, SOCKS_PORT = "127.0.0.1", 9150
 class AccountFailedLoginError(Exception):
     pass
 
-def create_file_if_not_exists(path, default_content=""):
-    """Creates a file with default content if it doesn't exist."""
+# ===================== PROXY HANDLING =====================
+def load_proxies(path=PROXIES_FILE):
     p = pathlib.Path(path)
     if not p.exists():
-        print(f"[INFO] File not found at '{path}'. Creating it for you.")
-        p.write_text(default_content, encoding="utf-8")
-        return True
-    return False
-
-def load_proxies(path=PROXIES_FILE):
-    if create_file_if_not_exists(path, "# Add your proxies here, one per line. Format: host:port or user:pass@host:port\n"):
-        print("[EXIT] Please add proxies to proxies.txt and restart the script.")
-        sys.exit(0)
-        
-    p = pathlib.Path(path)
+        print(f"[ERROR] Proxies file not found: {path}")
+        sys.exit(1)
     proxies = []
     for ln in p.read_text(encoding="utf-8").splitlines():
         s = ln.strip()
@@ -50,59 +41,36 @@ def load_proxies(path=PROXIES_FILE):
             proxies.append(f"http://{s}")
         else:
             proxies.append(s)
-            
     if not proxies:
-        print("[ERROR] No valid proxies found in proxies.txt. Please add some and restart.")
-        sys.exit(0)
-        
+        print("[ERROR] no valid proxies found")
+        sys.exit(1)
     return itertools.cycle(proxies)
-
-def parse_emails_file(path=EMAILS_FILE):
-    default_content = "# Add your accounts here, one per line.\n# Format: email|password|recovery_email (recovery_email is optional)\n"
-    if create_file_if_not_exists(path, default_content):
-        print("[EXIT] Please add accounts to emails.txt and restart the script.")
-        sys.exit(0)
-
-    p = pathlib.Path(path)
-    pairs = []
-    for ln in p.read_text(encoding="utf-8").splitlines():
-        s = ln.strip()
-        if not s or s.startswith("#"):
-            continue
-        
-        parts = s.split("|")
-        if len(parts) == 2:
-            email, password = parts
-            pairs.append((email.strip(), password.strip(), None))
-        elif len(parts) == 3:
-            email, password, recovery_email = parts
-            pairs.append((email.strip(), password.strip(), recovery_email.strip()))
-            
-    if not pairs:
-        print("[ERROR] No valid credentials found in emails.txt. Please add some and restart.")
-        sys.exit(0)
-    return pairs
 
 proxy_pool = load_proxies()
 
+# ===================== GOOGLE LOGIN HELPERS (ASYNC) =====================
 async def find_visible_element_in_frames(page: Page, selector: str):
     """Robustly finds a VISIBLE element on the main page or in any iframe."""
+    # Check main page first
     locator = page.locator(selector).first
     if await locator.count() > 0 and await locator.is_visible():
         return page
 
+    # Check all frames
     for frame in page.frames:
         try:
             frame_locator = frame.locator(selector).first
             if await frame_locator.count() > 0 and await frame_locator.is_visible():
                 return frame
         except Exception:
+            # Frame might have detached, ignore and continue
             pass
     return None
 
 async def click_consent_xpath(gpage, timeout_s=20):
     try:
         btn = gpage.locator(f'xpath={CONSENT_BTN_XPATH}').first
+        # The click action auto-waits for the button to be visible and enabled.
         await btn.click(timeout=timeout_s * 1000)
         return True
     except PWTimeout:
@@ -123,39 +91,35 @@ async def poll_cookie_any_context(browser, name="j", timeout_s=180):
         await asyncio.sleep(0.05)
     return None
 
-async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL0nmG"):
+# ===================== TURNSTILE SOLVER (ASYNC) =====================
+async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL_nmG"):
     proxy = next(proxy_pool)
     try:
         async with httpx.AsyncClient() as client:
             params = {"url": target_url, "sitekey": sitekey, "proxy": proxy}
-            print("    - Requesting captcha task from API server...")
             r = await client.get(api_url, params=params, timeout=30)
             if r.status_code != 202:
-                raise RuntimeError(f"API server returned bad status {r.status_code}: {r.text}")
-
+                raise RuntimeError(f"Bad status {r.status_code}: {r.text}")
+            
             task_id = r.json().get("task_id")
             if not task_id:
-                raise RuntimeError("API server did not return a task_id")
-            
-            print(f"    - Got task ID: {task_id}. Polling for result (up to 120s)...")
+                raise RuntimeError("No task_id returned")
 
-            for i in range(60):
+            for _ in range(60):
                 await asyncio.sleep(2)
                 res = await client.get(f"http://localhost:8080/result", params={"id": task_id}, timeout=20)
                 res_json = res.json()
                 if res_json.get("status") == "success":
-                    print("    - Captcha solved successfully.")
                     return res_json.get("value")
                 elif res_json.get("status") == "error":
-                    raise RuntimeError(f"Solver API returned an error: {res_json.get('value')}")
-            raise RuntimeError("Captcha solving timed out after 120 seconds")
+                    raise RuntimeError(f"Solver error: {res_json.get('value')}")
+            raise RuntimeError("Captcha solving timed out")
     except httpx.ConnectError as e:
-        raise RuntimeError(f"Could not connect to the API server at {api_url}. Is api_server.py running? Error: {e}")
-    except httpx.TimeoutException:
-        raise RuntimeError(f"Request to the API server timed out. The server might be slow or hanging.")
+        raise RuntimeError(f"Captcha solver failed: Could not connect to the API server at {api_url}. Is api_server.py running? Error: {e}")
     except Exception as e:
-        raise RuntimeError(f"An unexpected error occurred in get_solved_token: {e}")
+        raise RuntimeError(f"Captcha solver failed: {e}")
 
+# ===================== LOGIN (ASYNC) =====================
 async def login_once(email, password, recovery_email=None):
     print(f"[{email}] 1. Getting captcha token (using proxy)...")
     token = await get_solved_token()
@@ -197,6 +161,8 @@ async def login_once(email, password, recovery_email=None):
         await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
         
         print(f"[{email}] 7. Clicking 'Next' after email...")
+        # Bring window to front to ensure click registers (unfortunately sometimes fails if you don't do)
+        await page.bring_to_front()
         await email_frame.locator('#identifierNext').click()
         
         print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
@@ -221,17 +187,21 @@ async def login_once(email, password, recovery_email=None):
         await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
         
         print(f"[{email}] 10. Clicking 'Next' after password...")
+        await page.bring_to_front()
         await password_frame.locator('#passwordNext').click()
 
+        # --- NEW UNIFIED POST-LOGIN LOOP ---
         print(f"[{email}] 11. Waiting for post-login transition...")
-        total_wait_time = 60
+        total_wait_time = 60  # Wait up to 60 seconds for the entire post-login flow
         start_time = asyncio.get_event_loop().time()
 
         while asyncio.get_event_loop().time() - start_time < total_wait_time:
+            # Priority 1: Check for SUCCESSFUL redirect (highest priority)
             if "accounts.google.com" not in page.url:
                 print(f"[{email}] Successfully redirected.")
-                break
+                break  # Exit the loop on success
 
+            # Priority 2: Check for RECOVERY challenge
             recovery_challenge_selector = 'div[data-challengetype="12"]'
             recovery_frame = await find_visible_element_in_frames(page, recovery_challenge_selector)
             if recovery_frame:
@@ -239,6 +209,7 @@ async def login_once(email, password, recovery_email=None):
                 if not recovery_email:
                     raise AccountFailedLoginError(f"Account '{email}' requires verification, but no recovery email was provided.")
                 
+                await page.bring_to_front()
                 await recovery_frame.locator(recovery_challenge_selector).click()
                 
                 recovery_email_selector = 'input[type="email"]'
@@ -260,20 +231,26 @@ async def login_once(email, password, recovery_email=None):
 
                 next_button = next_button_frame.locator(next_button_selector)
                 print(f"[{email}] Clicking 'Next' after recovery email.")
+                await page.bring_to_front()
                 await next_button.click()
                 
+                # Reset timer and continue loop to see what page comes next (e.g., consent or redirect)
                 start_time = asyncio.get_event_loop().time()
-                await asyncio.sleep(2)
+                await asyncio.sleep(2) # Give page time to transition
                 continue
 
+            # Priority 3: Check for CONSENT page
             consent_frame = await find_visible_element_in_frames(page, f'xpath={CONSENT_BTN_XPATH}')
             if consent_frame:
                 print(f"[{email}] Consent page detected. Clicking consent button.")
+                await page.bring_to_front()
                 await click_consent_xpath(consent_frame, timeout_s=10)
+                # Reset timer and continue loop to wait for redirect
                 start_time = asyncio.get_event_loop().time()
                 await asyncio.sleep(2)
                 continue
 
+            # Priority 4: Check for FAILURE conditions
             if await find_visible_element_in_frames(page, 'input[type="tel"]'):
                 raise AccountFailedLoginError(f"Account '{email}' requires phone number verification, which cannot be automated.")
             
@@ -281,8 +258,10 @@ async def login_once(email, password, recovery_email=None):
             if await find_visible_element_in_frames(page, disabled_selector):
                 raise AccountFailedLoginError(f"Account '{email}' is disabled or suspended (post-password).")
 
+            # If nothing found, wait and retry
             await asyncio.sleep(1)
 
+        # After the loop, check if we successfully redirected. If not, we're stuck.
         if "accounts.google.com" in page.url:
             raise AccountFailedLoginError(f"Account '{email}' got stuck on a Google page after login attempt. Final URL: {page.url}")
 
@@ -291,6 +270,7 @@ async def login_once(email, password, recovery_email=None):
         print(f"[{email}] 14. Login sequence complete.")
         return cookie
 
+# ===================== EMAIL & STATE HANDLING =====================
 def remove_user_from_emails_file(email_to_remove, path=EMAILS_FILE):
     p = pathlib.Path(path)
     if not p.exists(): return
@@ -305,6 +285,28 @@ def remove_user_from_emails_file(email_to_remove, path=EMAILS_FILE):
         print(f"[INFO] Removed {email_to_remove} from {path}")
     except Exception as e:
         print(f"[ERROR] Could not remove user from emails file: {e}")
+
+def parse_emails_file(path=EMAILS_FILE):
+    p = pathlib.Path(path)
+    if not p.exists():
+        print(f"[ERROR] file not found: {path}"); sys.exit(1)
+    pairs = []
+    for ln in p.read_text(encoding="utf-8").splitlines():
+        s = ln.strip()
+        if not s or s.startswith("#"):
+            continue
+        
+        parts = s.split("|")
+        if len(parts) == 2:
+            email, password = parts
+            pairs.append((email.strip(), password.strip(), None))
+        elif len(parts) == 3:
+            email, password, recovery_email = parts
+            pairs.append((email.strip(), password.strip(), recovery_email.strip()))
+            
+    if not pairs:
+        print("[ERROR] no valid credentials found"); sys.exit(1)
+    return pairs
 
 def load_state():
     if pathlib.Path(STATE_FILE).exists():
@@ -324,6 +326,7 @@ def save_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
     os.replace(tmp, STATE_FILE)
 
+# ===================== TOR HELPERS (ASYNC WRAPPER) =====================
 def _sync_tor_newnym(host=CTRL_HOST, port=CTRL_PORT):
     try:
         with Controller.from_port(address=host, port=port) as c:
@@ -340,6 +343,7 @@ def _sync_tor_newnym(host=CTRL_HOST, port=CTRL_PORT):
 async def tor_newnym():
     await asyncio.to_thread(_sync_tor_newnym)
 
+# ===================== ACCOUNT PROCESSING (ASYNC) =====================
 async def process_account(state, idx):
     acc = state["accounts"][idx]
     state["cursor"]["next_index"] = idx
@@ -381,6 +385,7 @@ def indices_by_status(state, statuses: set[str]) -> list[int]:
             out.append(i)
     return out
 
+# ===================== MAIN (ASYNC) =====================
 async def main():
     state = load_state()
     q = indices_by_status(state, {"error", "errored"}) + indices_by_status(state, {"pending"})
