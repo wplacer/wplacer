@@ -1,11 +1,11 @@
 {
   "name": "wplacer",
-  "version": "5.5.0",
+  "version": "5.6.0",
   "main": "server.js",
   "type": "module",
-  "author": "luluwaffless and JinxTheCatto",
+  "author": "JinxTheCatto and luluwaffless",
   "license": "AGPL-3.0-only",
-  "funding": "https://ko-fi.com/luluwaffless and https://ko-fi.com/jinxthecat",
+  "funding": "https://ko-fi.com/jinxthecat and https://ko-fi.com/luluwaffless",
   "scripts": {
     "start": "node --env-file=.env ."
   },

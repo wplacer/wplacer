@@ -1194,7 +1194,7 @@ openManageUsers.addEventListener('click', () => {
                         Droplets: <b>${droplets}</b>
                     </div>
                 </div>
-                <div class="user-actions">
+                <div class="user-card-actions">
                     <button class="delete-btn" title="Delete User"><img src="icons/remove.svg"></button>
                     <button class="info-btn" title="Get User Info"><img src="icons/code.svg"></button>
                 </div>`;

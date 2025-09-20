@@ -312,14 +312,14 @@ label {
     color: var(--text-secondary);
 }
 
-.user .user-actions {
+.user-card-actions {
     display: flex;
     flex-direction: column;
     gap: 8px;
     align-items: flex-end;
 }
 
-.user .user-actions button {
+.user-card-actions button {
     padding: 8px;
     display: inline-flex;
     background: none;
@@ -327,13 +327,13 @@ label {
     margin: 0;
 }
 
-.user-actions button img {
+.user-card-actions button img {
     filter: none;
     opacity: 0.6;
     transition: opacity 0.2s ease;
 }
 
-.user-actions button:hover img {
+.user-card-actions button:hover img {
     opacity: 1;
 }
 
@@ -661,6 +661,23 @@ input:checked + .slider:before {
     background-color: var(--background-secondary);
     position: relative;
     overflow: hidden;
+}
+
+.color-item:hover {
+    transform: scale(1.05);
+    border-color: var(--accent-primary);
+}
+
+.color-item.dragging {
+    opacity: 0.5;
+    transform: rotate(5deg) scale(1.1);
+    z-index: 1000;
+    border-color: var(--accent-primary);
+}
+
+.color-item.drag-over {
+    border: 3px solid var(--accent-hover);
+    transform: scale(1.1);
 }
 
 .color-swatch {
