@@ -92,7 +92,7 @@ async def poll_cookie_any_context(browser, name="j", timeout_s=180):
     return None
 
 # ===================== TURNSTILE SOLVER (ASYNC) =====================
-async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL_nmG"):
+async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL0nmG"):
     proxy = next(proxy_pool)
     try:
         async with httpx.AsyncClient() as client:
