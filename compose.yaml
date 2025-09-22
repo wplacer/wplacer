@@ -1,0 +1,14 @@
+services:
+  wplacer:
+    build:
+      context: .
+    image: miacx/wplacer
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3030
+      HOST: "0.0.0.0"
+    ports:
+      - 3030:3030
+    volumes:
+      - "./data:/usr/src/app/data"
