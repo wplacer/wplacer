@@ -1,0 +1,3 @@
+SocksPort 9150
+ControlPort 9151
+CookieAuthentication 1

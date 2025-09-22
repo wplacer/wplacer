@@ -1468,16 +1468,17 @@ class TemplateManager {
                                 try {
                                     const userInfo = await wplacer.login(users[userId].cookies);
                                     this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
-                                    
-                                    await this.handleUpgrades(wplacer);
+
                                     await this.handleChargePurchases(wplacer);
+
+                                    const chargesBeforePaint = wplacer.userInfo.charges;
+                                    log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Best user selected. Ready with charges: ${Math.floor(chargesBeforePaint.count)}/${chargesBeforePaint.max}.`);
+
+                                    await this._performPaintTurn(wplacer, color);
+                                    await this.handleUpgrades(wplacer);
 
                                     users[userId].droplets = wplacer.userInfo.droplets;
 
-                                    const currentCharges = wplacer.userInfo.charges;
-                                    log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Best user selected. Ready with charges: ${Math.floor(currentCharges.count)}/${currentCharges.max}.`);
-                                    
-                                    await this._performPaintTurn(wplacer, color);
                                 } catch (error) {
                                     if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
                                 } finally {
@@ -1485,7 +1486,6 @@ class TemplateManager {
                                     this.userQueue.push(this.userQueue.splice(this.userQueue.indexOf(userId), 1)[0]);
                                 }
 
-                                // After a successful turn, check if the pass is complete
                                 const postPaintCheck = await this._findWorkingUserAndCheckPixels();
                                 if (postPaintCheck) {
                                     const remainingPassPixels = postPaintCheck.mismatchedPixels.filter(p => (color === null || p.color === color) && (p.localX + p.localY) % this.currentPixelSkip === 0);
