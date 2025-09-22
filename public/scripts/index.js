@@ -9,6 +9,7 @@ const userForm = $('userForm');
 const scookie = $('scookie');
 const jcookie = $('jcookie');
 const submitUser = $('submitUser');
+const deleteBannedUsersBtn = $('deleteBannedUsersBtn');
 const manageUsers = $('manageUsers');
 const manageUsersTitle = $('manageUsersTitle');
 const userList = $('userList');
@@ -438,6 +439,53 @@ userForm.addEventListener('submit', async (e) => {
             userForm.reset();
             openManageUsers.click(); // Refresh the view
         }
+    } catch (error) {
+        handleError(error);
+    }
+});
+
+deleteBannedUsersBtn.addEventListener('click', async () => {
+    try {
+        const response = await axios.get('/users');
+        const users = response.data;
+        
+        const bannedUsers = Object.entries(users).filter(([id, user]) => {
+            return user.suspendedUntil && user.suspendedUntil > Date.now() + 3153600000000;
+        });
+
+        if (bannedUsers.length === 0) {
+            showMessage('No Banned Accounts', 'No permanently banned accounts were found.');
+            return;
+        }
+
+        const userListHtml = bannedUsers.map(([id, user]) => `<li>${escapeHtml(user.name)} (#${id})</li>`).join('');
+        const confirmationMessage = `
+            <p>Are you sure you want to delete the following ${bannedUsers.length} permanently banned account(s)?</p>
+            <ul style="text-align: left; max-height: 150px; overflow-y: auto;">${userListHtml}</ul>
+            <p>This action cannot be undone.</p>
+        `;
+
+        showConfirmation('Confirm Deletion', confirmationMessage, async () => {
+            let successCount = 0;
+            let failCount = 0;
+            
+            const deletionPromises = bannedUsers.map(([id, user]) => {
+                return axios.delete(`/user/${id}`)
+                    .then(() => {
+                        successCount++;
+                    })
+                    .catch(err => {
+                        failCount++;
+                        console.error(`Failed to delete user ${id}:`, err);
+                    });
+            });
+
+            await Promise.all(deletionPromises);
+
+            showMessage('Deletion Complete', `Successfully deleted ${successCount} account(s).<br>${failCount > 0 ? `Failed to delete ${failCount} account(s). Check console for details.` : ''}`);
+            openManageUsers.click(); // Refresh the user list
+        }, true);
+
     } catch (error) {
         handleError(error);
     }
