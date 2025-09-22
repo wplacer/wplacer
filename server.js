@@ -211,9 +211,17 @@ const ChargeCache = {
     markFromUserInfo(userInfo, now = Date.now()) {
         if (!userInfo?.id || !userInfo?.charges) return;
         const k = this._key(userInfo.id);
-        const base = Math.floor(userInfo.charges.count ?? 0);
+        
+        const count = Math.floor(userInfo.charges.count ?? 0);
         const max = Math.floor(userInfo.charges.max ?? 0);
-        this._m.set(k, { base, max, lastSync: now });
+
+        let sanitizedCount = count;
+        if (count > max) {
+            console.log(`[ChargeCache] Correcting optimistic charge count for user ${userInfo.id}. Server sent ${count}, capping to max ${max}.`);
+            sanitizedCount = max;
+        }
+        
+        this._m.set(k, { base: sanitizedCount, max, lastSync: now });
     },
     predict(id, now = Date.now()) {
         const u = this._m.get(this._key(id));
@@ -232,6 +240,13 @@ const ChargeCache = {
         u.base = newCount;
         // align to last regen tick
         u.lastSync = now - ((now - u.lastSync) % this.REGEN_MS);
+        this._m.set(k, u);
+    },
+    forceResync(id, newCount = 0, now = Date.now()) {
+        const k = this._key(id);
+        const u = this._m.get(k) || { max: 0 }; // Get existing or create a shell
+        u.base = newCount;
+        u.lastSync = now; // Reset the timer from this exact moment
         this._m.set(k, u);
     },
 };
@@ -550,9 +565,10 @@ class WPlacer {
     }
 
     async _executePaint(tx, ty, body) {
-        if (body.colors.length === 0) return { painted: 0 };
+        if (body.colors.length === 0) return { painted: 0, success: true };
         const response = await this.post(WPLACE_PIXEL(tx, ty), body);
 
+        // Success Case
         if (response.data.painted && response.data.painted === body.colors.length) {
             log(
                 this.userInfo.id,
@@ -571,10 +587,14 @@ class WPlacer {
                     }
                 }
             }
-            return { painted: body.colors.length };
+            return { painted: response.data.painted, success: true };
         }
 
-        // classify
+        if (response.data.painted === 0 && body.colors.length > 0) {
+            return { painted: 0, success: false, reason: 'NO_CHARGES' };
+        }
+
+        // classify other errors
         if (response.status === HTTP_STATUS.UNAUTH && response.data.error === 'Unauthorized')
             throw new NetworkError('(401) Unauthorized during paint. The cookie may be invalid or the current IP/proxy is rate-limited.');
         if (
@@ -587,7 +607,7 @@ class WPlacer {
         if (response.status === HTTP_STATUS.SRV_ERR) {
             log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⏱️ Server error (500). Wait 40s.`);
             await sleep(MS.FORTY_SEC);
-            return { painted: 0 };
+            return { painted: 0, success: true }; // Treat as a temporary server issue, not a charge mismatch
         }
         if (
             response.status === HTTP_STATUS.TOO_MANY ||
@@ -744,7 +764,15 @@ class WPlacer {
             const [tx, ty] = k.split(',').map(Number);
             const body = { ...byTile[k], t: this.token };
             if (globalThis.__wplacer_last_fp) body.fp = globalThis.__wplacer_last_fp;
+            
             const r = await this._executePaint(tx, ty, body);
+
+            if (!r.success && r.reason === 'NO_CHARGES') {
+                log(this.userInfo.id, this.userInfo.name, `[${this.templateName}] ⚠️ Prediction mismatch. Server reports no charges. Resyncing cache.`);
+                ChargeCache.forceResync(this.userInfo.id, 0);
+                break;
+            }
+            
             total += r.painted;
         }
 
@@ -1196,19 +1224,23 @@ class TemplateManager {
 
     async handleChargePurchases(wplacer) {
         if (!this.canBuyCharges) return;
-        await wplacer.loadUserInfo();
-        const charges = wplacer.userInfo.charges;
-        if (charges.count < charges.max && wplacer.userInfo.droplets > currentSettings.dropletReserve) {
-            const affordableDroplets = wplacer.userInfo.droplets - currentSettings.dropletReserve;
-            const amountToBuy = Math.floor(affordableDroplets / 500);
-            if (amountToBuy > 0) {
-                try {
-                    await wplacer.buyProduct(80, amountToBuy);
-                    await sleep(currentSettings.purchaseCooldown);
-                    await wplacer.loadUserInfo();
-                } catch (error) {
-                    logUserError(error, wplacer.userInfo.id, wplacer.userInfo.name, 'purchase charges');
-                }
+        const userInfo = wplacer.userInfo;
+        const affordableDroplets = userInfo.droplets - currentSettings.dropletReserve;
+
+        if (affordableDroplets < 500) {
+            return;
+        }
+        
+        const amountToBuy = Math.floor(affordableDroplets / 500);
+
+        if (amountToBuy > 0) {
+            try {
+                log(userInfo.id, userInfo.name, `[${this.name}] 💰 Attempting to buy ${amountToBuy} charge pack(s) based on available droplets...`);
+                await wplacer.buyProduct(80, amountToBuy);
+                await sleep(currentSettings.purchaseCooldown);
+                await wplacer.loadUserInfo(); 
+            } catch (error) {
+                logUserError(error, userInfo.id, userInfo.name, 'purchase charges');
             }
         }
     }
@@ -1372,14 +1404,18 @@ class TemplateManager {
                         
                         let passComplete = false;
                         while (this.running && !passComplete) {
-                            let foundUserForTurn = false;
-                            const queueSize = this.userQueue.length;
-                            for (let i = 0; i < queueSize; i++) {
-                                const userId = this.userQueue.shift();
-                                const now = Date.now();
+                            if (this.userQueue.length === 0) {
+                                log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No valid users in queue. Waiting...`);
+                                await this.cancellableSleep(5000);
+                                this.userQueue = [...this.userIds];
+                                continue;
+                            }
 
+                            const readyUsers = [];
+                            const now = Date.now();
+
+                            for (const userId of this.userQueue) {
                                 if (!users[userId] || (users[userId].suspendedUntil && now < users[userId].suspendedUntil)) {
-                                    this.userQueue.push(userId);
                                     continue;
                                 }
 
@@ -1387,37 +1423,69 @@ class TemplateManager {
                                     if (!activeBrowserUsers.has(userId)) {
                                         activeBrowserUsers.add(userId);
                                         const w = new WPlacer({});
-                                        try { await w.login(users[userId].cookies); } catch (e) { logUserError(e, userId, users[userId].name, 'opportunistic resync'); } finally { activeBrowserUsers.delete(userId); }
+                                        try { 
+                                            const info = await w.login(users[userId].cookies);
+                                            users[userId].droplets = info.droplets;
+                                        } catch (e) { 
+                                            logUserError(e, userId, users[userId].name, 'opportunistic resync'); 
+                                        } finally { 
+                                            activeBrowserUsers.delete(userId); 
+                                        }
                                     }
                                 }
 
                                 const predicted = ChargeCache.predict(userId, now);
-                                const threshold = predicted ? Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold)) : 1;
+                                if (!predicted) continue;
 
-                                if (predicted && predicted.count >= threshold) {
-                                    foundUserForTurn = true;
-                                    activeBrowserUsers.add(userId);
-                                    const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
-                                    try {
-                                        const userInfo = await wplacer.login(users[userId].cookies);
-                                        this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
-                                        log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Predicted charges: ${Math.floor(predicted.count)}/${predicted.max}.`);
-                                        await this._performPaintTurn(wplacer, color);
-                                        await this.handleUpgrades(wplacer);
-                                        await this.handleChargePurchases(wplacer);
-                                    } catch (error) {
-                                        if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
-                                    } finally {
-                                        activeBrowserUsers.delete(userId);
-                                        this.userQueue.push(userId);
+                                const threshold = Math.max(1, Math.floor(predicted.max * currentSettings.chargeThreshold));
+                                let potentialCharges = predicted.count;
+
+                                // Factor in purchasable charges
+                                if (this.canBuyCharges && users[userId].droplets) {
+                                    const affordableDroplets = users[userId].droplets - currentSettings.dropletReserve;
+                                    if (affordableDroplets >= 500) {
+                                        const purchasable = Math.floor(affordableDroplets / 500) * 30;
+                                        potentialCharges += purchasable;
                                     }
-                                    break; 
-                                } else {
-                                    this.userQueue.push(userId);
+                                }
+                                
+                                if (potentialCharges >= threshold) {
+                                    readyUsers.push({ userId, potentialCharges: Math.min(predicted.max, potentialCharges) });
                                 }
                             }
 
-                            if (foundUserForTurn) {
+                            let bestUser = null;
+                            if (readyUsers.length > 0) {
+                                readyUsers.sort((a, b) => b.potentialCharges - a.potentialCharges);
+                                bestUser = readyUsers[0];
+                            }
+                            
+                            if (bestUser) {
+                                const { userId } = bestUser;
+                                activeBrowserUsers.add(userId);
+                                const wplacer = new WPlacer({ template: this.template, coords: this.coords, globalSettings: currentSettings, templateSettings: this, templateName: this.name });
+                                
+                                try {
+                                    const userInfo = await wplacer.login(users[userId].cookies);
+                                    this.status = `Running user ${userInfo.name} | Pass (1/${this.currentPixelSkip})`;
+                                    
+                                    await this.handleUpgrades(wplacer);
+                                    await this.handleChargePurchases(wplacer);
+
+                                    users[userId].droplets = wplacer.userInfo.droplets;
+
+                                    const currentCharges = wplacer.userInfo.charges;
+                                    log(userInfo.id, userInfo.name, `[${this.name}] 🔋 Best user selected. Ready with charges: ${Math.floor(currentCharges.count)}/${currentCharges.max}.`);
+                                    
+                                    await this._performPaintTurn(wplacer, color);
+                                } catch (error) {
+                                    if (error.name !== 'SuspensionError') logUserError(error, userId, users[userId].name, 'perform paint turn');
+                                } finally {
+                                    activeBrowserUsers.delete(userId);
+                                    this.userQueue.push(this.userQueue.splice(this.userQueue.indexOf(userId), 1)[0]);
+                                }
+
+                                // After a successful turn, check if the pass is complete
                                 const postPaintCheck = await this._findWorkingUserAndCheckPixels();
                                 if (postPaintCheck) {
                                     const remainingPassPixels = postPaintCheck.mismatchedPixels.filter(p => (color === null || p.color === color) && (p.localX + p.localY) % this.currentPixelSkip === 0);
@@ -1430,15 +1498,25 @@ class TemplateManager {
                                     log('SYSTEM', 'wplacer', `[${this.name}] ⏱️ Waiting for cooldown (${duration(currentSettings.accountCooldown)}).`);
                                     await this.cancellableSleep(currentSettings.accountCooldown);
                                 }
+
                             } else {
-                                const now = Date.now();
                                 const cooldowns = this.userQueue.map(id => {
                                     const p = ChargeCache.predict(id, now);
                                     if (!p || p.count >= p.max) return Infinity;
                                     const th = Math.max(1, Math.floor(p.max * currentSettings.chargeThreshold));
+
+                                    if (p.count >= th) {
+                                        return Math.max(0, (p.max - p.count)) * (p.cooldownMs ?? 30_000);
+                                    }
                                     return Math.max(0, (th - p.count) * (p.cooldownMs ?? 30_000));
                                 });
-                                const waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
+
+                                let waitTime = (cooldowns.length > 0 ? Math.min(...cooldowns) : 60_000) + 2000;
+                                if (waitTime < currentSettings.accountCooldown) {
+                                    log('SYSTEM', 'wplacer', `[${this.name}] ⚠️ Calculated wait time (${duration(waitTime)}) is unusually short. Defaulting to account cooldown to prevent rapid looping.`);
+                                    waitTime = currentSettings.accountCooldown;
+                                }
+
                                 this.status = 'Waiting for charges.';
                                 log('SYSTEM', 'wplacer', `[${this.name}] ⏳ No users ready. Waiting ~${duration(waitTime)}.`);
                                 await this.cancellableSleep(waitTime);

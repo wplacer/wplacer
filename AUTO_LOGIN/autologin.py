@@ -18,7 +18,7 @@ CONSENT_BTN_XPATH = '/html/body/div[2]/div[1]/div[2]/c-wiz/main/div[3]/div/div/d
 STATE_FILE = "data.json"
 EMAILS_FILE = "emails.txt"
 PROXIES_FILE = "proxies.txt"
-POST_URL = "http://127.0.0.1:80/user"
+POST_URL = "http://127.0.0.1:80/user"  # IMPORTANT: Update this to your wplacer controller's port (e.g., 3000)
 CTRL_HOST, CTRL_PORT = "127.0.0.1", 9151
 SOCKS_HOST, SOCKS_PORT = "127.0.0.1", 9150
 
@@ -92,32 +92,38 @@ async def poll_cookie_any_context(browser, name="j", timeout_s=180):
     return None
 
 # ===================== TURNSTILE SOLVER (ASYNC) =====================
-async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL0nmG"):
+async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url="https://backend.wplace.live", sitekey="0x4AAAAAABpHqZ-6i7uL0nmG"): # CORRECTED sitekey
     proxy = next(proxy_pool)
     try:
         async with httpx.AsyncClient() as client:
             params = {"url": target_url, "sitekey": sitekey, "proxy": proxy}
+            print("    - Requesting captcha task from API server...")
             r = await client.get(api_url, params=params, timeout=30)
             if r.status_code != 202:
-                raise RuntimeError(f"Bad status {r.status_code}: {r.text}")
-            
+                raise RuntimeError(f"API server returned bad status {r.status_code}: {r.text}")
+
             task_id = r.json().get("task_id")
             if not task_id:
-                raise RuntimeError("No task_id returned")
+                raise RuntimeError("API server did not return a task_id")
+            
+            print(f"    - Got task ID: {task_id}. Polling for result (up to 120s)...")
 
-            for _ in range(60):
+            for i in range(60):
                 await asyncio.sleep(2)
                 res = await client.get(f"http://localhost:8080/result", params={"id": task_id}, timeout=20)
                 res_json = res.json()
                 if res_json.get("status") == "success":
+                    print("    - Captcha solved successfully.")
                     return res_json.get("value")
                 elif res_json.get("status") == "error":
-                    raise RuntimeError(f"Solver error: {res_json.get('value')}")
-            raise RuntimeError("Captcha solving timed out")
+                    raise RuntimeError(f"Solver API returned an error: {res_json.get('value')}")
+            raise RuntimeError("Captcha solving timed out after 120 seconds")
     except httpx.ConnectError as e:
-        raise RuntimeError(f"Captcha solver failed: Could not connect to the API server at {api_url}. Is api_server.py running? Error: {e}")
+        raise RuntimeError(f"Could not connect to the API server at {api_url}. Is api_server.py running? Error: {e}")
+    except httpx.TimeoutException:
+        raise RuntimeError(f"Request to the API server timed out. The server might be slow or hanging.")
     except Exception as e:
-        raise RuntimeError(f"Captcha solver failed: {e}")
+        raise RuntimeError(f"An unexpected error occurred in get_solved_token: {e}")
 
 # ===================== LOGIN (ASYNC) =====================
 async def login_once(email, password, recovery_email=None):
@@ -161,8 +167,6 @@ async def login_once(email, password, recovery_email=None):
         await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
         
         print(f"[{email}] 7. Clicking 'Next' after email...")
-        # Bring window to front to ensure click registers (unfortunately sometimes fails if you don't do)
-        await page.bring_to_front()
         await email_frame.locator('#identifierNext').click()
         
         print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
@@ -187,21 +191,17 @@ async def login_once(email, password, recovery_email=None):
         await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
         
         print(f"[{email}] 10. Clicking 'Next' after password...")
-        await page.bring_to_front()
         await password_frame.locator('#passwordNext').click()
 
-        # --- NEW UNIFIED POST-LOGIN LOOP ---
         print(f"[{email}] 11. Waiting for post-login transition...")
-        total_wait_time = 60  # Wait up to 60 seconds for the entire post-login flow
+        total_wait_time = 60
         start_time = asyncio.get_event_loop().time()
 
         while asyncio.get_event_loop().time() - start_time < total_wait_time:
-            # Priority 1: Check for SUCCESSFUL redirect (highest priority)
             if "accounts.google.com" not in page.url:
                 print(f"[{email}] Successfully redirected.")
-                break  # Exit the loop on success
+                break
 
-            # Priority 2: Check for RECOVERY challenge
             recovery_challenge_selector = 'div[data-challengetype="12"]'
             recovery_frame = await find_visible_element_in_frames(page, recovery_challenge_selector)
             if recovery_frame:
@@ -209,7 +209,6 @@ async def login_once(email, password, recovery_email=None):
                 if not recovery_email:
                     raise AccountFailedLoginError(f"Account '{email}' requires verification, but no recovery email was provided.")
                 
-                await page.bring_to_front()
                 await recovery_frame.locator(recovery_challenge_selector).click()
                 
                 recovery_email_selector = 'input[type="email"]'
@@ -231,26 +230,20 @@ async def login_once(email, password, recovery_email=None):
 
                 next_button = next_button_frame.locator(next_button_selector)
                 print(f"[{email}] Clicking 'Next' after recovery email.")
-                await page.bring_to_front()
                 await next_button.click()
-                
-                # Reset timer and continue loop to see what page comes next (e.g., consent or redirect)
-                start_time = asyncio.get_event_loop().time()
-                await asyncio.sleep(2) # Give page time to transition
-                continue
 
-            # Priority 3: Check for CONSENT page
-            consent_frame = await find_visible_element_in_frames(page, f'xpath={CONSENT_BTN_XPATH}')
-            if consent_frame:
-                print(f"[{email}] Consent page detected. Clicking consent button.")
-                await page.bring_to_front()
-                await click_consent_xpath(consent_frame, timeout_s=10)
-                # Reset timer and continue loop to wait for redirect
                 start_time = asyncio.get_event_loop().time()
                 await asyncio.sleep(2)
                 continue
 
-            # Priority 4: Check for FAILURE conditions
+            consent_frame = await find_visible_element_in_frames(page, f'xpath={CONSENT_BTN_XPATH}')
+            if consent_frame:
+                print(f"[{email}] Consent page detected. Clicking consent button.")
+                await click_consent_xpath(consent_frame, timeout_s=10)
+                start_time = asyncio.get_event_loop().time()
+                await asyncio.sleep(2)
+                continue
+
             if await find_visible_element_in_frames(page, 'input[type="tel"]'):
                 raise AccountFailedLoginError(f"Account '{email}' requires phone number verification, which cannot be automated.")
             
@@ -258,10 +251,8 @@ async def login_once(email, password, recovery_email=None):
             if await find_visible_element_in_frames(page, disabled_selector):
                 raise AccountFailedLoginError(f"Account '{email}' is disabled or suspended (post-password).")
 
-            # If nothing found, wait and retry
             await asyncio.sleep(1)
 
-        # After the loop, check if we successfully redirected. If not, we're stuck.
         if "accounts.google.com" in page.url:
             raise AccountFailedLoginError(f"Account '{email}' got stuck on a Google page after login attempt. Final URL: {page.url}")
 
