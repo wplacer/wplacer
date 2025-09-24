@@ -1,11 +1,45 @@
 # Auto Login
 
-1. Install the required Python dependencies. `install.bat`
-2. Install camoufox. `camoufox fetch`
-3. Create a list of email addresses and passwords to be used for auto-login. `emails.txt`
-4. Create a list of proxy servers to be used for the auto-login process. `proxies.txt`
-5. (If still on upstream) Fix `autologin.py`
-    `autologin.py#L138`
+This script does NOT work (automatically) with google accounts that have 2FA turned on, as 2FA requires human interaction.
+
+## Dependencies
+
+- Python 3
+- Packages:
+    - `fastapi`
+    - `uvicorn[standard]`
+    - `loguru`
+    - `camoufox`
+    - `browserforge`
+    - `playwright`
+    - `stem`
+    - `httpx`
+
+Install these dependencies using the following commands:
+
+### Install Python
+
+Windows:
+
+```pwsh
+winget.exe install --id "Python.Python.3.13" --exact --source winget --accept-source-agreements --disable-interactivity --silent --accept-package-agreements --force
+```
+
+### Install Python dependencies
+
+from `/AUTO_LOGIN`
+
+```sh
+python -m pip install -r requirements.txt
+python -m camoufox fetch
+```
+
+## Usage
+
+1. Create a list of email addresses and passwords to be used for auto-login. [`emails.txt`](#emailstxt)
+2. Create a list of proxy servers to be used for the auto-login process. [`proxies.txt`](#proxiestxt)
+3. (If upstream still broken), Fix `autologin.py`
+   `autologin.py#L138`
 
     ```diff
     ...
@@ -16,8 +50,9 @@
     ...
     ```
 
-6. Run the auto-login server. `python api_server.py`
-7. Run the auto-login client. `python autologin.py`
+4. From `/AUTOLOGIN/tor`, run `./start.bat`
+5. From `/AUTO_LOGIN`, run the auto-login server. `./startserver.bat` (or `python api_server.py`)
+6. From `/AUTO_LOGIN`, run the auto-login client. `./starttool.bat` (or `python autologin.py`)
 
 ## install.bat
 
@@ -54,9 +89,11 @@ socks5://user:pass@127.0.0.1:9050
 http://user:pass@127.0.0.1:80
 ```
 
-## api_server.py
+Note: the Camoufox Client does not support socks5 proxies. To simplify everything, just use http:// proxies.
 
-The `api_server.py` file is a FastAPI server that exposes a local API to solve Cloudflare Turnstile challenges.
+<!-- ## api_server.py
+
+The `api_server.py` file is a FastAPI server that exposes a local API to solve Cloudflare Turnstile challenges. -->
 
 ## autologin.py
 
