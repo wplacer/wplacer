@@ -105,7 +105,7 @@ async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url
             task_id = r.json().get("task_id")
             if not task_id:
                 raise RuntimeError("API server did not return a task_id")
-            
+
             print(f"    - Got task ID: {task_id}. Polling for result (up to 120s)...")
 
             for i in range(60):
@@ -135,7 +135,7 @@ async def login_once(email, password, recovery_email=None):
     proxy_http = next(proxy_pool)
     proxies = {"http://": proxy_http, "https://": proxy_http}
     try:
-        async with httpx.AsyncClient(proxies=proxies, follow_redirects=True) as client:
+        async with httpx.AsyncClient(proxy=proxy_http, follow_redirects=True) as client:
             r = await client.get(backend_url, timeout=15)
             google_login_url = str(r.url)
     except Exception as e:
@@ -143,7 +143,7 @@ async def login_once(email, password, recovery_email=None):
 
     print(f"[{email}] 3. Launching browser on YOUR LOCAL IP...")
     custom_fonts = ["Arial", "Helvetica", "Times New Roman"]
-    
+
     async with AsyncCamoufox(
         headless=False,
         humanize=True,
@@ -157,7 +157,7 @@ async def login_once(email, password, recovery_email=None):
     ) as browser:
         page = await browser.new_page()
         page.set_default_timeout(120000)
-        
+
         print(f"[{email}] 5. Navigating to Google login page...")
         await page.goto(google_login_url, wait_until="domcontentloaded")
 
@@ -165,10 +165,10 @@ async def login_once(email, password, recovery_email=None):
         email_frame = await find_visible_element_in_frames(page, 'input[type="email"]')
         if not email_frame: raise RuntimeError("Could not find email input field.")
         await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
-        
+
         print(f"[{email}] 7. Clicking 'Next' after email...")
         await email_frame.locator('#identifierNext').click()
-        
+
         print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
         password_selector = 'input[type="password"]'
         password_frame = None
@@ -186,10 +186,10 @@ async def login_once(email, password, recovery_email=None):
 
         if not password_frame:
             raise RuntimeError(f"Timed out after {total_wait_time} seconds waiting for password field.")
-        
+
         print(f"[{email}] 9. Typing password...")
         await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
-        
+
         print(f"[{email}] 10. Clicking 'Next' after password...")
         await password_frame.locator('#passwordNext').click()
 
@@ -208,9 +208,9 @@ async def login_once(email, password, recovery_email=None):
                 print(f"[{email}] Verification page detected. Handling recovery email.")
                 if not recovery_email:
                     raise AccountFailedLoginError(f"Account '{email}' requires verification, but no recovery email was provided.")
-                
+
                 await recovery_frame.locator(recovery_challenge_selector).click()
-                
+
                 recovery_email_selector = 'input[type="email"]'
                 recovery_input_frame = None
                 for _ in range(10):
@@ -220,9 +220,9 @@ async def login_once(email, password, recovery_email=None):
 
                 if not recovery_input_frame:
                     raise RuntimeError("Could not find recovery email input field after clicking verification option.")
-                
+
                 await recovery_input_frame.type(recovery_email_selector, recovery_email, delay=random.uniform(50, 120))
-                
+
                 next_button_selector = 'button[jsname="LgbsSe"].VfPpkd-LgbsSe-OWXEXe-k8QpJ'
                 next_button_frame = await find_visible_element_in_frames(page, next_button_selector)
                 if not next_button_frame:
@@ -246,7 +246,7 @@ async def login_once(email, password, recovery_email=None):
 
             if await find_visible_element_in_frames(page, 'input[type="tel"]'):
                 raise AccountFailedLoginError(f"Account '{email}' requires phone number verification, which cannot be automated.")
-            
+
             disabled_selector = 'text=/Couldn\'t sign you in|account disabled|unusual activity/i'
             if await find_visible_element_in_frames(page, disabled_selector):
                 raise AccountFailedLoginError(f"Account '{email}' is disabled or suspended (post-password).")
@@ -268,7 +268,7 @@ def remove_user_from_emails_file(email_to_remove, path=EMAILS_FILE):
     try:
         lines = p.read_text(encoding="utf-8").splitlines()
         updated_lines = [line for line in lines if not line.strip().startswith(email_to_remove)]
-        
+
         tmp_path = p.with_suffix(f"{p.suffix}.tmp")
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write("\n".join(updated_lines))
@@ -286,7 +286,7 @@ def parse_emails_file(path=EMAILS_FILE):
         s = ln.strip()
         if not s or s.startswith("#"):
             continue
-        
+
         parts = s.split("|")
         if len(parts) == 2:
             email, password = parts
@@ -294,7 +294,7 @@ def parse_emails_file(path=EMAILS_FILE):
         elif len(parts) == 3:
             email, password, recovery_email = parts
             pairs.append((email.strip(), password.strip(), recovery_email.strip()))
-            
+
     if not pairs:
         print("[ERROR] no valid credentials found"); sys.exit(1)
     return pairs
@@ -344,11 +344,11 @@ async def process_account(state, idx):
         c = await login_once(acc["email"], acc["password"], acc.get("recovery_email"))
         if not c:
             raise RuntimeError("cookie_not_found")
-        
+
         payload = {"cookies": {"j": c.get("value", "")}, "expirationDate": 999999999}
         async with httpx.AsyncClient() as client:
             await client.post(POST_URL, json=payload, timeout=10)
-            
+
         acc["status"] = "ok"
         acc["last_error"] = ""
         acc["result"] = {"domain": c.get("domain", ""), "value": c.get("value", "")}
