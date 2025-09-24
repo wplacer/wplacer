@@ -17,10 +17,15 @@ from stem.control import Controller
 CONSENT_BTN_XPATH = '/html/body/div[2]/div[1]/div[2]/c-wiz/main/div[3]/div/div/div[2]/div/div/button'
 STATE_FILE = "data.json"
 EMAILS_FILE = "emails.txt"
+# MFA_EMAILS_FILE = "mfa_emails.txt"
 PROXIES_FILE = "proxies.txt"
-POST_URL = "http://127.0.0.1:80/user"  # IMPORTANT: Update this to your wplacer controller's port (e.g., 3000)
+POST_URL = "http://10.0.1.3:3031/user"  # IMPORTANT: Update this to your wplacer controller's port (e.g., 3000)
 CTRL_HOST, CTRL_PORT = "127.0.0.1", 9151
 SOCKS_HOST, SOCKS_PORT = "127.0.0.1", 9150
+
+ADDONS = []
+
+ADDONS_ABS = [os.path.abspath(addon) for addon in ADDONS]
 
 # --- Custom Exceptions ---
 class AccountFailedLoginError(Exception):
@@ -125,14 +130,26 @@ async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url
     except Exception as e:
         raise RuntimeError(f"An unexpected error occurred in get_solved_token: {e}")
 
+
+
+# ===================== LOGIN FLOW UTILS =====================
+async def try_another_way(page: Page, email: str):
+    print(f"[{email}]   - Clicking 'Try another way' button...")
+    # await page.locator('button:has-text("Continue")').click()
+    await page.locator('button:has-text("Try another way")').click()
+
+async def switch_to_password(page: Page, email: str):
+    print(f"[{email}]   - Switching to password login...")
+    await page.locator('text=/Enter your password/i').click()
+
 # ===================== LOGIN (ASYNC) =====================
 async def login_once(email, password, recovery_email=None):
     print(f"[{email}] 1. Getting captcha token (using proxy)...")
     token = await get_solved_token()
     backend_url = f"https://backend.wplace.live/auth/google?token={token}"
 
-    print(f"[{email}] 2. Getting Google login URL (using proxy)...")
     proxy_http = next(proxy_pool)
+    print(f"[{email}] 2. Getting Google login URL (using proxy {proxy_http})...")
     proxies = {"http://": proxy_http, "https://": proxy_http}
     try:
         async with httpx.AsyncClient(proxy=proxy_http, follow_redirects=True) as client:
@@ -141,19 +158,35 @@ async def login_once(email, password, recovery_email=None):
     except Exception as e:
         raise RuntimeError(f"Failed to get Google login URL via proxy {proxy_http}: {e}")
 
-    print(f"[{email}] 3. Launching browser on YOUR LOCAL IP...")
+
     custom_fonts = ["Arial", "Helvetica", "Times New Roman"]
 
+
+    # turn socks5://wujnqbda-NL-2:9rsllkbfvfru@p.webshare.io:80 into { "server": "socks5://p.webshare.io:80", "username": "wujnqbda-NL-2", "password": "9rsllkbfvfru" }
+
+    proxy_protocol = proxy_http.split("://")[0] + "://"
+    proxy_server = proxy_protocol + proxy_http.split("://")[1].split("@")[1]
+    proxy_username = proxy_http.split("://")[1].split(":")[0]
+    proxy_password = proxy_http.split("://")[1].split(":")[1].split("@")[0]
+
+    proxy = {"server": proxy_server, "username": proxy_username, "password": proxy_password}
+
+    print(f"[{email}] 3. Launching browser using proxy {proxy_http}...")
+    # print(f"[{email}] 3. Launching browser...")
+
     async with AsyncCamoufox(
+        # addons=ADDONS_ABS,
         headless=False,
         humanize=True,
         block_images=False,
         disable_coop=True,
         screen=Screen(min_width=1920, max_width=1920, min_height=1080, max_height=1080),
         fonts=custom_fonts,
-        os=["windows", "macos", "linux"],
+        os=["windows"],
         geoip=True,
-        i_know_what_im_doing=True
+        locale="en-NL",
+        i_know_what_im_doing=True,
+        proxy=proxy
     ) as browser:
         page = await browser.new_page()
         page.set_default_timeout(120000)
@@ -161,39 +194,59 @@ async def login_once(email, password, recovery_email=None):
         print(f"[{email}] 5. Navigating to Google login page...")
         await page.goto(google_login_url, wait_until="domcontentloaded")
 
-        print(f"[{email}] 6. Finding and typing email...")
+        print(f"[{email}] 6. Switching to English...")
+        # append &hl=en to the end of the currently open URL
+        await page.evaluate("window.location.href = window.location.href + '&hl=en';")
+
+        print(f"[{email}] 7. Finding and typing email...")
         email_frame = await find_visible_element_in_frames(page, 'input[type="email"]')
         if not email_frame: raise RuntimeError("Could not find email input field.")
         await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
 
-        print(f"[{email}] 7. Clicking 'Next' after email...")
-        await email_frame.locator('#identifierNext').click()
+        # print(f"[{email}] 8. Clicking 'Next' after email...")
+        # await email_frame.locator('#identifierNext').click()
+        print(f"[{email}] 8. Pressing enter after email...")
+        await page.keyboard.press(key='Enter', delay=random.uniform(50, 120))
 
-        print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
+        start_time = asyncio.get_event_loop().time()
+        total_wait_time = 120
+
         password_selector = 'input[type="password"]'
         password_frame = None
-        total_wait_time = 120
-        start_time = asyncio.get_event_loop().time()
 
+        print(f"[{email}] 9. Waiting for next page...")
         while asyncio.get_event_loop().time() - start_time < total_wait_time:
+            # Account has been disabled
             if await find_visible_element_in_frames(page, 'text=/Your account has been disabled/i'):
                 raise AccountFailedLoginError(f"Account '{email}' is disabled (pre-password).")
+            # Passkey page
+            if await find_visible_element_in_frames(page, 'text=/Use your passkey to confirm it’s really you/i'):
+                print(f"[{email}] > Passkey page detected. Trying another way.")
+                await try_another_way(page, email)
+            # Try different methods page
+            if await find_visible_element_in_frames(page, 'text=/Choose how you want to sign in:/i'):
+                print(f"[{email}] > Try different methods page detected. Switching to password login.")
+                await switch_to_password(page, email)
+            # Password field
             password_frame = await find_visible_element_in_frames(page, password_selector)
             if password_frame:
-                print(f"[{email}] VISIBLE password field detected. Continuing automatically.")
+                print(f"[{email}] > Password field detected. Continuing...")
                 break
             await asyncio.sleep(1)
 
         if not password_frame:
             raise RuntimeError(f"Timed out after {total_wait_time} seconds waiting for password field.")
 
-        print(f"[{email}] 9. Typing password...")
+        print(f"[{email}] 10. Typing password...")
         await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
 
-        print(f"[{email}] 10. Clicking 'Next' after password...")
-        await password_frame.locator('#passwordNext').click()
+        print(f"[{email}] 11. Pressing enter after password...")
+        await page.keyboard.press(key='Enter', delay=random.uniform(50, 120))
 
-        print(f"[{email}] 11. Waiting for post-login transition...")
+        # print(f"[{email}] 10. Clicking 'Next' after password...")
+        # await password_frame.locator('#passwordNext').click()
+
+        print(f"[{email}] 12. Waiting for post-login transition...")
         total_wait_time = 60
         start_time = asyncio.get_event_loop().time()
 
@@ -263,16 +316,35 @@ async def login_once(email, password, recovery_email=None):
 
 # ===================== EMAIL & STATE HANDLING =====================
 def remove_user_from_emails_file(email_to_remove, path=EMAILS_FILE):
-    p = pathlib.Path(path)
-    if not p.exists(): return
+    emails = pathlib.Path(path)
+    # mfa_emails = pathlib.Path(mfa_emails)
+    if not emails.exists(): return
+    # if not mfa_emails.exists():
+    #     mfa_emails.touch()
     try:
-        lines = p.read_text(encoding="utf-8").splitlines()
-        updated_lines = [line for line in lines if not line.strip().startswith(email_to_remove)]
+        lines = emails.read_text(encoding="utf-8").splitlines()
+        # mfa_lines = mfa_emails.read_text(encoding="utf-8").splitlines()
 
-        tmp_path = p.with_suffix(f"{p.suffix}.tmp")
+        updated_lines = []
+
+        for line in lines:
+            if line.strip().startswith(email_to_remove):
+                continue
+                # mfa_lines.append(line)
+            else:
+                updated_lines.append(line)
+
+        # if mfa_lines:
+        #     tmp_mfa_emails = mfa_emails.with_suffix(f"{mfa_emails.suffix}.tmp")
+        #     with open(tmp_mfa_emails, "w", encoding="utf-8") as f:
+        #         f.write("\n".join(mfa_lines))
+        #     os.replace(tmp_mfa_emails, mfa_emails)
+        #     print(f"[INFO] Wrote {email_to_remove} to {mfa_emails_path}")
+
+        tmp_path = emails.with_suffix(f"{emails.suffix}.tmp")
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write("\n".join(updated_lines))
-        os.replace(tmp_path, p)
+        os.replace(tmp_path, emails)
         print(f"[INFO] Removed {email_to_remove} from {path}")
     except Exception as e:
         print(f"[ERROR] Could not remove user from emails file: {e}")
