@@ -13,44 +13,45 @@ document.addEventListener('keydown', (e) => {
         switch (e.key) {
             case '1':
                 e.preventDefault();
-                if (currentTab !== 'main') changeTab('main');
+                if (window.currentTab !== 'main') window.changeTab('main');
                 break;
             case '2':
                 e.preventDefault();
-                openManageUsers.click();
+                document.getElementById('openManageUsers')?.click();
                 break;
             case '3':
                 e.preventDefault();
-                openAddTemplate.click();
+                document.getElementById('openAddTemplate')?.click();
                 break;
             case '4':
                 e.preventDefault();
-                openManageTemplates.click();
+                document.getElementById('openManageTemplates')?.click();
                 break;
             case '5':
                 e.preventDefault();
-                openLogsViewer.click();
+                document.getElementById('openLogsViewer')?.click();
                 break;
             case '6':
                 e.preventDefault();
-                openSettings.click();
+                document.getElementById('openSettings')?.click();
                 break;
         }
     }
 
     // ESC key to go back to main or close modals
     if (e.key === 'Escape') {
-        if (!messageBoxOverlay.classList.contains('hidden')) {
-            messageBoxCancel.click();
-        } else if (currentTab !== 'main') {
-            changeTab('main');
+        const messageBoxOverlay = document.getElementById('messageBoxOverlay');
+        if (messageBoxOverlay && !messageBoxOverlay.classList.contains('hidden')) {
+            document.getElementById('messageBoxCancel')?.click();
+        } else if (window.currentTab !== 'main') {
+            window.changeTab('main');
         }
     }
 
     // ? key to show help
     if (e.key === '?' && !e.shiftKey) {
         e.preventDefault();
-        showMessage('Keyboard Shortcuts', `
+        window.showMessage('Keyboard Shortcuts', `
             <div style="text-align: left; line-height: 1.8;">
                 <b>Navigation:</b><br>
                 Ctrl+1: Main Menu<br>
@@ -72,7 +73,7 @@ document.addEventListener('keydown', (e) => {
 // Enhanced main menu reset function
 const enhancedResetMainMenu = () => {
     const mainElement = document.getElementById('main');
-    if (mainElement && currentTab === 'main') {
+    if (mainElement && window.currentTab === 'main') {
         // Force reset any external modifications
         mainElement.removeAttribute('style');
 
@@ -130,7 +131,7 @@ const layoutObserver = new MutationObserver((mutations) => {
     mutations.forEach((mutation) => {
         if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
             const target = mutation.target;
-            if (target.id === 'main' && currentTab === 'main') {
+            if (target.id === 'main' && window.currentTab === 'main') {
                 // Main element style was modified, fix it
                 setTimeout(() => {
                     enhancedResetMainMenu();
@@ -151,7 +152,7 @@ if (mainElement) {
 
 // Periodic layout check (fallback)
 setInterval(() => {
-    if (currentTab === 'main') {
+    if (window.currentTab === 'main') {
         const mainEl = document.getElementById('main');
         if (mainEl) {
             const computedStyle = window.getComputedStyle(mainEl);
