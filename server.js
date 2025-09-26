@@ -176,18 +176,18 @@ const palette = {
 const VALID_COLOR_IDS = new Set([-1, 0, ...Object.values(palette)]);
 const COLOR_NAMES = {
     1: 'Black', 2: 'Dark Gray', 3: 'Gray', 4: 'Light Gray', 5: 'White',
-    6: 'Dark Red', 7: 'Red', 8: 'Orange', 9: 'Light Orange', 10: 'Yellow', 11: 'Light Yellow',
+    6: 'Deep Red', 7: 'Red', 8: 'Orange', 9: 'Gold', 10: 'Yellow', 11: 'Light Yellow',
     12: 'Dark Green', 13: 'Green', 14: 'Light Green', 15: 'Dark Teal', 16: 'Teal', 17: 'Light Teal',
-    18: 'Dark Blue', 19: 'Blue', 20: 'Light Blue', 21: 'Indigo', 22: 'Periwinkle',
-    23: 'Dark Purple', 24: 'Purple', 25: 'Lavender', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
-    29: 'Dark Brown', 30: 'Brown', 31: 'Light Brown',
-    32: '★ Gray', 33: '★ Maroon', 34: '★ Salmon', 35: '★ Burnt Orange', 36: '★ Tan',
-    37: '★ Dark Gold', 38: '★ Gold', 39: '★ Light Gold', 40: '★ Olive', 41: '★ Forest Green',
-    42: '★ Lime Green', 43: '★ Dark Aqua', 44: '★ Cyan', 45: '★ Sky Blue', 46: '★ Royal Blue',
-    47: '★ Navy', 48: '★ Light Purple', 49: '★ Lilac', 50: '★ Ochre', 51: '★ Terracotta',
-    52: '★ Peach', 53: '★ Dark Rose', 54: '★ Rose', 55: '★ Light Rose', 56: '★ Taupe',
-    57: '★ Light Taupe', 58: '★ Charcoal', 59: '★ Slate', 60: '★ Light Slate', 61: '★ Khaki',
-    62: '★ Light Khaki', 63: '★ Beige'
+    18: 'Dark Blue', 19: 'Blue', 20: 'Cyan', 21: 'Indigo', 22: 'Light Indigo',
+    23: 'Dark Purple', 24: 'Purple', 25: 'Light Purple', 26: 'Dark Pink', 27: 'Pink', 28: 'Light Pink',
+    29: 'Dark Brown', 30: 'Brown', 31: 'Beige',
+    32: '★ Medium Gray', 33: '★ Dark Red', 34: '★ Light Red', 35: '★ Dark Orange', 36: '★ Light Tan',
+    37: '★ Dark Goldenrod', 38: '★ Goldenrod', 39: '★ Light Goldenrod', 40: '★ Dark Olive', 41: '★ Olive',
+    42: '★ Light Olive', 43: '★ Dark Cyan', 44: '★ Light Cyan', 45: '★ Light Blue', 46: '★ Dark Indigo',
+    47: '★ Dark Slate Blue', 48: '★ Slate Blue', 49: '★ Light Slate Blue', 50: '★ Light Brown', 51: '★ Dark Beige',
+    52: '★ Light Beige', 53: '★ Dark Peach', 54: '★ Peach', 55: '★ Light Peach', 56: '★ Dark Tan',
+    57: '★ Tan', 58: '★ Dark Slate', 59: '★ Slate', 60: '★ Light Slate', 61: '★ Dark Stone',
+    62: '★ Stone', 63: '★ Light Stone'
 };
 
 // ---------- Charge prediction cache ----------
