@@ -94,8 +94,8 @@ One of your modules are missing. To install them, simply use `npm i`.
 
 ### Credits 🙏
 
--   [Lulu](https://github.com/luluwaffless) [(donate here to help us develop the project!)](https://ko-fi.com/luluwaffless)
 -   [Jinx](https://github.com/JinxTheCatto) [(Donate here to help us develop the project :3)](https://ko-fi.com/jinxthecat)
+-   [Lulu](https://github.com/luluwaffless) [(donate here to help us develop the project!)](https://ko-fi.com/luluwaffless)
 
 And to our amazing contributors!
 <p align="center"><img src="https://contrib.rocks/image?repo=wplacer/wplacer"></p>

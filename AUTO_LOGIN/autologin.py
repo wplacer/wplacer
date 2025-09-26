@@ -8,7 +8,7 @@ import httpx
 import random
 
 from camoufox.async_api import AsyncCamoufox
-from playwright.async_api import TimeoutError as PWTimeout, Page
+from playwright.async_api import TimeoutError as PWTimeout, Page, BrowserContext
 from browserforge.fingerprints import Screen
 from stem import Signal
 from stem.control import Controller
@@ -18,6 +18,7 @@ CONSENT_BTN_XPATH = '/html/body/div[2]/div[1]/div[2]/c-wiz/main/div[3]/div/div/d
 STATE_FILE = "data.json"
 EMAILS_FILE = "emails.txt"
 PROXIES_FILE = "proxies.txt"
+SESSIONS_DIR = pathlib.Path("sessions") # Directory to store session cookies
 POST_URL = "http://127.0.0.1:80/user"  # IMPORTANT: Update this to your wplacer controller's port (e.g., 3000)
 CTRL_HOST, CTRL_PORT = "127.0.0.1", 9151
 SOCKS_HOST, SOCKS_PORT = "127.0.0.1", 9150
@@ -78,15 +79,17 @@ async def click_consent_xpath(gpage, timeout_s=20):
     except Exception:
         return False
 
-async def poll_cookie_any_context(browser, name="j", timeout_s=180):
+async def poll_cookie_in_context(context: BrowserContext, name="j", timeout_s=180):
+    """Polls for a specific cookie within a given browser context."""
     t0 = asyncio.get_event_loop().time()
     while asyncio.get_event_loop().time() - t0 < timeout_s:
         try:
-            for ctx in browser.contexts:
-                for c in await ctx.cookies():
-                    if c.get("name") == name:
-                        return c
+            cookies = await context.cookies()
+            for c in cookies:
+                if c.get("name") == name:
+                    return c
         except Exception:
+            # Context might have closed unexpectedly
             pass
         await asyncio.sleep(0.05)
     return None
@@ -127,20 +130,8 @@ async def get_solved_token(api_url="http://localhost:8080/turnstile", target_url
 
 # ===================== LOGIN (ASYNC) =====================
 async def login_once(email, password, recovery_email=None):
-    print(f"[{email}] 1. Getting captcha token (using proxy)...")
-    token = await get_solved_token()
-    backend_url = f"https://backend.wplace.live/auth/google?token={token}"
-
-    print(f"[{email}] 2. Getting Google login URL (using proxy)...")
-    proxy_http = next(proxy_pool)
-    proxies = {"http://": proxy_http, "https://": proxy_http}
-    try:
-        async with httpx.AsyncClient(proxies=proxies, follow_redirects=True) as client:
-            r = await client.get(backend_url, timeout=15)
-            google_login_url = str(r.url)
-    except Exception as e:
-        raise RuntimeError(f"Failed to get Google login URL via proxy {proxy_http}: {e}")
-
+    session_path = SESSIONS_DIR / f"{email}.session.json"
+    
     print(f"[{email}] 3. Launching browser on YOUR LOCAL IP...")
     custom_fonts = ["Arial", "Helvetica", "Times New Roman"]
     
@@ -155,111 +146,147 @@ async def login_once(email, password, recovery_email=None):
         geoip=True,
         i_know_what_im_doing=True
     ) as browser:
-        page = await browser.new_page()
-        page.set_default_timeout(120000)
         
-        print(f"[{email}] 5. Navigating to Google login page...")
-        await page.goto(google_login_url, wait_until="domcontentloaded")
+        context_options = {}
+        if session_path.exists():
+            print(f"[{email}] 4. Found existing session file. Loading it.")
+            context_options['storage_state'] = str(session_path)
 
-        print(f"[{email}] 6. Finding and typing email...")
-        email_frame = await find_visible_element_in_frames(page, 'input[type="email"]')
-        if not email_frame: raise RuntimeError("Could not find email input field.")
-        await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
-        
-        print(f"[{email}] 7. Clicking 'Next' after email...")
-        await email_frame.locator('#identifierNext').click()
-        
-        print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
-        password_selector = 'input[type="password"]'
-        password_frame = None
-        total_wait_time = 120
-        start_time = asyncio.get_event_loop().time()
+        async with await browser.new_context(**context_options) as context:
+            page = await context.new_page()
+            page.set_default_timeout(120000)
 
-        while asyncio.get_event_loop().time() - start_time < total_wait_time:
-            if await find_visible_element_in_frames(page, 'text=/Your account has been disabled/i'):
-                raise AccountFailedLoginError(f"Account '{email}' is disabled (pre-password).")
-            password_frame = await find_visible_element_in_frames(page, password_selector)
-            if password_frame:
-                print(f"[{email}] VISIBLE password field detected. Continuing automatically.")
-                break
-            await asyncio.sleep(1)
+            # OPTIMIZATION: If session was loaded, try to see if we're already logged in.
+            if context_options:
+                print(f"[{email}] 4a. Checking if loaded session is still valid...")
+                await page.goto("https://backend.wplace.live/", wait_until="domcontentloaded")
+                # Check for the 'j' cookie immediately
+                j_cookie = await poll_cookie_in_context(context, name="j", timeout_s=10)
+                if j_cookie:
+                    print(f"[{email}] 4b. Session is valid! Login skipped.")
+                    return j_cookie
 
-        if not password_frame:
-            raise RuntimeError(f"Timed out after {total_wait_time} seconds waiting for password field.")
-        
-        print(f"[{email}] 9. Typing password...")
-        await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
-        
-        print(f"[{email}] 10. Clicking 'Next' after password...")
-        await password_frame.locator('#passwordNext').click()
+                print(f"[{email}] 4c. Session expired or invalid. Proceeding with full login.")
 
-        print(f"[{email}] 11. Waiting for post-login transition...")
-        total_wait_time = 60
-        start_time = asyncio.get_event_loop().time()
+            print(f"[{email}] 1. Getting captcha token (using proxy)...")
+            token = await get_solved_token()
+            backend_url = f"https://backend.wplace.live/auth/google?token={token}"
 
-        while asyncio.get_event_loop().time() - start_time < total_wait_time:
-            if "accounts.google.com" not in page.url:
-                print(f"[{email}] Successfully redirected.")
-                break
+            print(f"[{email}] 2. Getting Google login URL (using proxy)...")
+            proxy_http = next(proxy_pool)
+            proxies = {"http://": proxy_http, "https://": proxy_http}
+            try:
+                async with httpx.AsyncClient(proxies=proxies, follow_redirects=True) as client:
+                    r = await client.get(backend_url, timeout=15)
+                    google_login_url = str(r.url)
+            except Exception as e:
+                raise RuntimeError(f"Failed to get Google login URL via proxy {proxy_http}: {e}")
 
-            recovery_challenge_selector = 'div[data-challengetype="12"]'
-            recovery_frame = await find_visible_element_in_frames(page, recovery_challenge_selector)
-            if recovery_frame:
-                print(f"[{email}] Verification page detected. Handling recovery email.")
-                if not recovery_email:
-                    raise AccountFailedLoginError(f"Account '{email}' requires verification, but no recovery email was provided.")
-                
-                await recovery_frame.locator(recovery_challenge_selector).click()
-                
-                recovery_email_selector = 'input[type="email"]'
-                recovery_input_frame = None
-                for _ in range(10):
-                    recovery_input_frame = await find_visible_element_in_frames(page, recovery_email_selector)
-                    if recovery_input_frame: break
-                    await asyncio.sleep(1)
+            print(f"[{email}] 5. Navigating to Google login page...")
+            await page.goto(google_login_url, wait_until="domcontentloaded")
 
-                if not recovery_input_frame:
-                    raise RuntimeError("Could not find recovery email input field after clicking verification option.")
-                
-                await recovery_input_frame.type(recovery_email_selector, recovery_email, delay=random.uniform(50, 120))
-                
-                next_button_selector = 'button[jsname="LgbsSe"].VfPpkd-LgbsSe-OWXEXe-k8QpJ'
-                next_button_frame = await find_visible_element_in_frames(page, next_button_selector)
-                if not next_button_frame:
-                    raise RuntimeError("Could not find 'Next' button after entering recovery email.")
-
-                next_button = next_button_frame.locator(next_button_selector)
-                print(f"[{email}] Clicking 'Next' after recovery email.")
-                await next_button.click()
-
-                start_time = asyncio.get_event_loop().time()
-                await asyncio.sleep(2)
-                continue
-
-            consent_frame = await find_visible_element_in_frames(page, f'xpath={CONSENT_BTN_XPATH}')
-            if consent_frame:
-                print(f"[{email}] Consent page detected. Clicking consent button.")
-                await click_consent_xpath(consent_frame, timeout_s=10)
-                start_time = asyncio.get_event_loop().time()
-                await asyncio.sleep(2)
-                continue
-
-            if await find_visible_element_in_frames(page, 'input[type="tel"]'):
-                raise AccountFailedLoginError(f"Account '{email}' requires phone number verification, which cannot be automated.")
+            print(f"[{email}] 6. Finding and typing email...")
+            email_frame = await find_visible_element_in_frames(page, 'input[type="email"]')
+            if not email_frame: raise RuntimeError("Could not find email input field.")
+            await email_frame.type('input[type="email"]', email, delay=random.uniform(50, 120))
             
-            disabled_selector = 'text=/Couldn\'t sign you in|account disabled|unusual activity/i'
-            if await find_visible_element_in_frames(page, disabled_selector):
-                raise AccountFailedLoginError(f"Account '{email}' is disabled or suspended (post-password).")
+            print(f"[{email}] 7. Clicking 'Next' after email...")
+            await email_frame.locator('#identifierNext').click()
+            
+            print(f"[{email}] 8. Waiting for password field OR for you to solve captcha...")
+            password_selector = 'input[type="password"]'
+            password_frame = None
+            total_wait_time = 120
+            start_time = asyncio.get_event_loop().time()
 
-            await asyncio.sleep(1)
+            while asyncio.get_event_loop().time() - start_time < total_wait_time:
+                if await find_visible_element_in_frames(page, 'text=/Your account has been disabled/i'):
+                    raise AccountFailedLoginError(f"Account '{email}' is disabled (pre-password).")
+                password_frame = await find_visible_element_in_frames(page, password_selector)
+                if password_frame:
+                    print(f"[{email}] VISIBLE password field detected. Continuing automatically.")
+                    break
+                await asyncio.sleep(1)
 
-        if "accounts.google.com" in page.url:
-            raise AccountFailedLoginError(f"Account '{email}' got stuck on a Google page after login attempt. Final URL: {page.url}")
+            if not password_frame:
+                raise RuntimeError(f"Timed out after {total_wait_time} seconds waiting for password field.")
+            
+            print(f"[{email}] 9. Typing password...")
+            await password_frame.type(password_selector, password, delay=random.uniform(60, 150))
+            
+            print(f"[{email}] 10. Clicking 'Next' after password...")
+            await password_frame.locator('#passwordNext').click()
 
-        print(f"[{email}] 13. Polling for final cookie...")
-        cookie = await poll_cookie_any_context(browser, name="j", timeout_s=180)
-        print(f"[{email}] 14. Login sequence complete.")
-        return cookie
+            print(f"[{email}] 11. Waiting for post-login transition...")
+            total_wait_time = 60
+            start_time = asyncio.get_event_loop().time()
+
+            while asyncio.get_event_loop().time() - start_time < total_wait_time:
+                if "accounts.google.com" not in page.url:
+                    print(f"[{email}] Successfully redirected.")
+                    break
+
+                recovery_challenge_selector = 'div[data-challengetype="12"]'
+                recovery_frame = await find_visible_element_in_frames(page, recovery_challenge_selector)
+                if recovery_frame:
+                    print(f"[{email}] Verification page detected. Handling recovery email.")
+                    if not recovery_email:
+                        raise AccountFailedLoginError(f"Account '{email}' requires verification, but no recovery email was provided.")
+                    
+                    await recovery_frame.locator(recovery_challenge_selector).click()
+                    
+                    recovery_email_selector = 'input[type="email"]'
+                    recovery_input_frame = None
+                    for _ in range(10):
+                        recovery_input_frame = await find_visible_element_in_frames(page, recovery_email_selector)
+                        if recovery_input_frame: break
+                        await asyncio.sleep(1)
+
+                    if not recovery_input_frame:
+                        raise RuntimeError("Could not find recovery email input field after clicking verification option.")
+                    
+                    await recovery_input_frame.type(recovery_email_selector, recovery_email, delay=random.uniform(50, 120))
+                    
+                    next_button_selector = 'button[jsname="LgbsSe"].VfPpkd-LgbsSe-OWXEXe-k8QpJ'
+                    next_button_frame = await find_visible_element_in_frames(page, next_button_selector)
+                    if not next_button_frame:
+                        raise RuntimeError("Could not find 'Next' button after entering recovery email.")
+
+                    next_button = next_button_frame.locator(next_button_selector)
+                    print(f"[{email}] Clicking 'Next' after recovery email.")
+                    await next_button.click()
+
+                    start_time = asyncio.get_event_loop().time()
+                    await asyncio.sleep(2)
+                    continue
+
+                consent_frame = await find_visible_element_in_frames(page, f'xpath={CONSENT_BTN_XPATH}')
+                if consent_frame:
+                    print(f"[{email}] Consent page detected. Clicking consent button.")
+                    await click_consent_xpath(consent_frame, timeout_s=10)
+                    start_time = asyncio.get_event_loop().time()
+                    await asyncio.sleep(2)
+                    continue
+
+                if await find_visible_element_in_frames(page, 'input[type="tel"]'):
+                    raise AccountFailedLoginError(f"Account '{email}' requires phone number verification, which cannot be automated.")
+                
+                disabled_selector = 'text=/Couldn\'t sign you in|account disabled|unusual activity/i'
+                if await find_visible_element_in_frames(page, disabled_selector):
+                    raise AccountFailedLoginError(f"Account '{email}' is disabled or suspended (post-password).")
+
+                await asyncio.sleep(1)
+
+            if "accounts.google.com" in page.url:
+                raise AccountFailedLoginError(f"Account '{email}' got stuck on a Google page after login attempt. Final URL: {page.url}")
+
+            print(f"[{email}] 12. Saving session state for future use...")
+            await context.storage_state(path=session_path)
+
+            print(f"[{email}] 13. Polling for final cookie...")
+            cookie = await poll_cookie_in_context(context, name="j", timeout_s=180)
+            print(f"[{email}] 14. Login sequence complete.")
+            return cookie
 
 # ===================== EMAIL & STATE HANDLING =====================
 def remove_user_from_emails_file(email_to_remove, path=EMAILS_FILE):
@@ -378,6 +405,9 @@ def indices_by_status(state, statuses: set[str]) -> list[int]:
 
 # ===================== MAIN (ASYNC) =====================
 async def main():
+    # Create the sessions directory if it doesn't exist
+    SESSIONS_DIR.mkdir(exist_ok=True)
+    
     state = load_state()
     q = indices_by_status(state, {"error", "errored"}) + indices_by_status(state, {"pending"})
     seen = set()
