@@ -90,6 +90,30 @@ let currentTab = 'main';
 let currentTemplate = { width: 0, height: 0, data: [] };
 let showCanvasPreview = true;
 
+// Toast notification system
+let toastCounter = 0;
+const showToast = (message, type = 'info', duration = 3000) => {
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <span>${message}</span>
+            <button onclick="this.parentElement.parentElement.remove()" style="background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 0; margin-left: 10px;">×</button>
+        </div>
+    `;
+    toast.style.zIndex = 1000 + toastCounter++;
+    document.body.appendChild(toast);
+
+    // Show toast
+    setTimeout(() => toast.classList.add('show'), 100);
+
+    // Auto remove
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 400);
+    }, duration);
+};
+
 
 let logsWs = null;
 let logsMode = 'logs'; // 'logs' or 'errors'
@@ -148,13 +172,20 @@ const tabs = {
     };
 })();
 
-const showMessage = (title, content) => {
+const showMessage = (title, content, showToastAlso = false) => {
     messageBoxTitle.innerHTML = title;
     messageBoxContent.innerHTML = content;
     messageBoxCancel.classList.add('hidden');
     messageBoxConfirm.textContent = 'OK';
     messageBoxOverlay.classList.remove('hidden');
     confirmCallback = { close: true };
+
+    // Also show a toast for quick feedback
+    if (showToastAlso) {
+        const type = title.toLowerCase().includes('error') ? 'error' :
+                    title.toLowerCase().includes('success') ? 'success' : 'info';
+        showToast(content.replace(/<[^>]*>/g, ''), type, 2000);
+    }
 };
 
 const showConfirmation = (title, content, onConfirm, closeOnConfirm) => {
@@ -214,18 +245,68 @@ const handleError = (error) => {
 };
 
 const changeTab = (tabName) => {
+    // Clear any existing intervals
     if (templateUpdateInterval) {
         clearInterval(templateUpdateInterval);
         templateUpdateInterval = null;
     }
-    Object.values(tabs).forEach((tab) => (tab.style.display = 'none'));
+
+    // Clean up dynamic elements from previous tabs
+    const dynamicElements = document.querySelectorAll('.template-actions-all, .toast');
+    dynamicElements.forEach(el => el.remove());
+
+    // Reset import share code flag when leaving manage templates
+    if (currentTab === 'manageTemplates') {
+        importShareCode = false;
+    }
+
+    // Ensure main menu buttons are properly reset
+    if (tabName === 'main') {
+        resetMainMenuButtons();
+    }
+
+    // Hide all tabs
+    Object.values(tabs).forEach((tab) => {
+        tab.style.display = 'none';
+        // Remove any transition classes
+        tab.classList.remove('tab-fade-in', 'tab-fade-out');
+    });
+
+    // Show target tab with fade effect
     tabs[tabName].style.display = 'block';
+    tabs[tabName].classList.add('tab-fade-in');
     currentTab = tabName;
+
+    // Handle logs viewer
     if (tabName === 'logsViewer') {
         startLogsViewer();
     } else {
         stopLogsViewer();
     }
+};
+
+// Reset main menu buttons to their original state
+const resetMainMenuButtons = () => {
+    const mainButtons = main.querySelectorAll('button');
+    mainButtons.forEach(button => {
+        // Remove any loading or disabled states
+        button.disabled = false;
+        button.classList.remove('loading', 'success-feedback', 'error-feedback');
+
+        // Reset button content if it was modified
+        const originalContent = {
+            'openManageUsers': '<img src="icons/manageUsers.svg" alt="">Manage Users',
+            'openAddTemplate': '<img src="icons/addTemplate.svg" alt="">Add Template',
+            'openManageTemplates': '<img src="icons/manageTemplates.svg" alt="">Manage Templates',
+            'openLogsViewer': '<img src="icons/code.svg" alt="">View Logs',
+            'openSettings': '<img src="icons/settings.svg" alt="">Settings'
+        };
+
+        const buttonId = button.id;
+        if (originalContent[buttonId]) {
+            button.innerHTML = originalContent[buttonId];
+        }
+    });
 };
 
 
@@ -1188,6 +1269,12 @@ importJTokensInput.addEventListener('change', async (event) => { //CREDITS - Mot
 });
 
 openManageUsers.addEventListener('click', () => {
+    // Add loading state to button
+    const button = openManageUsers;
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<img src="icons/restart.svg" alt="" class="spin"> Loading...';
+    button.disabled = true;
+
     userList.innerHTML = '';
     userForm.reset();
     totalCharges.textContent = '?';
@@ -1314,6 +1401,10 @@ openManageUsers.addEventListener('click', () => {
         totalMaxCharges.textContent = totalMaxChargesCount.toFixed(0);
         totalDroplets.textContent = totalDropletsCount.toFixed(0);
         totalPPH.textContent = totalPixelsPerHour.toFixed(1);
+
+        // Reset button state
+        button.innerHTML = originalContent;
+        button.disabled = false;
     });
     changeTab('manageUsers');
 });
@@ -1394,6 +1485,12 @@ checkUserStatus.addEventListener('click', async () => {
 });
 
 openAddTemplate.addEventListener('click', () => {
+    // Add loading state
+    const button = openAddTemplate;
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<img src="icons/restart.svg" alt="" class="spin"> Loading...';
+    button.disabled = true;
+
     resetTemplateForm();
     userSelectList.innerHTML = '';
     loadUsers((users) => {
@@ -1416,6 +1513,10 @@ openAddTemplate.addEventListener('click', () => {
             userDiv.appendChild(label);
             userSelectList.appendChild(userDiv);
         }
+
+        // Reset button state
+        button.innerHTML = originalContent;
+        button.disabled = false;
     });
 
     changeTab('addTemplate');
@@ -1665,6 +1766,12 @@ const createTemplateCard = (t, id) => {
 
 let importShareCode = false;
 openManageTemplates.addEventListener('click', () => {
+    // Add loading state
+    const button = openManageTemplates;
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<img src="icons/restart.svg" alt="" class="spin"> Loading...';
+    button.disabled = true;
+
     templateList.innerHTML = '';
     if (templateUpdateInterval) clearInterval(templateUpdateInterval);
 
@@ -1707,12 +1814,22 @@ openManageTemplates.addEventListener('click', () => {
             templateList.appendChild(card);
         }
         templateUpdateInterval = setInterval(updateTemplateStatus, 2000);
+
+        // Reset button state
+        button.innerHTML = originalContent;
+        button.disabled = false;
     });
 
     changeTab('manageTemplates');
 });
 
 openSettings.addEventListener('click', async () => {
+    // Add loading state
+    const button = openSettings;
+    const originalContent = button.innerHTML;
+    button.innerHTML = '<img src="icons/restart.svg" alt="" class="spin"> Loading...';
+    button.disabled = true;
+
     try {
         const response = await axios.get('/settings');
         const currentSettings = response.data;
@@ -1736,6 +1853,10 @@ openSettings.addEventListener('click', async () => {
     } catch (error) {
         handleError(error);
     }
+
+    // Reset button state
+    button.innerHTML = originalContent;
+    button.disabled = false;
     changeTab('settings');
 });
 

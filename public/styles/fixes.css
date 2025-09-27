@@ -1,0 +1,156 @@
+/* CSS Fixes for Browser Extension Conflicts */
+/* High specificity selectors to override external styles */
+
+/* Main Menu Layout Fix */
+html body .container #main {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+    gap: 16px !important;
+    margin: 32px 0 !important;
+    max-width: 900px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
+    /* Override any flex properties that might be applied */
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: stretch !important;
+    justify-content: stretch !important;
+}
+
+/* Main Menu Buttons Fix */
+html body .container #main button {
+    margin-bottom: 0 !important;
+    min-height: 60px !important;
+    font-size: 1.1rem !important;
+    position: relative !important;
+    overflow: hidden !important;
+    width: 100% !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.75em !important;
+    /* Prevent external flex manipulation */
+    flex: none !important;
+    flex-grow: 0 !important;
+    flex-shrink: 0 !important;
+    max-width: none !important;
+    /* Force our styles */
+    background-color: var(--accent-primary) !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 10px !important;
+    font-family: var(--font-family) !important;
+    font-weight: 500 !important;
+    padding: 12px 20px !important;
+    cursor: pointer !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    /* Reset any transforms */
+    transform: none !important;
+}
+
+/* Button Images Fix */
+html body .container #main button img {
+    width: 1.5em !important;
+    height: 1.5em !important;
+    filter: brightness(0) invert(1) !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    vertical-align: middle !important;
+}
+
+/* Hover Effects Fix */
+html body .container #main button:hover:not(:disabled) {
+    background-color: var(--accent-hover) !important;
+    transform: translateY(-3px) !important;
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3), 0 0 20px hsla(25, 95%, 55%, 0.3) !important;
+    scale: 1.02 !important;
+}
+
+/* Loading State Fix */
+html body .container #main button.loading {
+    opacity: 0.7 !important;
+    pointer-events: none !important;
+}
+
+/* Success/Error Feedback Fix */
+html body .container #main button.success-feedback {
+    background: linear-gradient(135deg, var(--success-color), hsl(145, 63%, 38%)) !important;
+    color: white !important;
+    animation: successPulse 0.6s ease-out !important;
+}
+
+html body .container #main button.error-feedback {
+    background: linear-gradient(135deg, var(--error-color), hsl(0, 65%, 47%)) !important;
+    color: white !important;
+    animation: errorShake 0.6s ease-out !important;
+}
+
+/* Container Layout Protection */
+html body .container {
+    width: 100% !important;
+    max-width: 1360px !important;
+    background: var(--background-secondary) !important;
+    border-radius: 16px !important;
+    border: 1px solid var(--border-color) !important;
+    padding: 40px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.05) !important;
+    text-align: center !important;
+    backdrop-filter: blur(10px) !important;
+    position: relative !important;
+    overflow: visible !important;
+}
+
+/* Mobile Responsive Fix */
+@media (max-width: 768px) {
+    html body .container #main {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+        margin: 24px 0 !important;
+    }
+
+    html body .container #main button {
+        min-height: 56px !important;
+        font-size: 1rem !important;
+        padding: 16px !important;
+    }
+}
+
+@media (max-width: 480px) {
+    html body .container #main button {
+        padding: 16px !important;
+        min-height: 52px !important;
+    }
+}
+
+/* Reset any external positioning */
+html body .container #main button {
+    position: relative !important;
+    top: auto !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Override any external z-index */
+html body .container,
+html body .container #main,
+html body .container #main button {
+    z-index: auto !important;
+}
+
+/* Ensure grid doesn't get overridden by flexbox */
+html body .container #main[style*="display: flex"],
+html body .container #main[style*="display: inline-flex"] {
+    display: grid !important;
+}
+
+/* Override animation disruptions */
+html body .container #main button * {
+    animation: none !important;
+    transition: inherit !important;
+}
