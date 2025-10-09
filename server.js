@@ -254,6 +254,7 @@ const ChargeCache = {
 // ---------- Proxy loader ----------
 
 let loadedProxies = [];
+let failedProxies = new Set(); // 실패한 프록시 추적
 
 const loadProxies = () => {
     const proxyPath = path.join(DATA_DIR, 'proxies.txt');
@@ -290,7 +291,9 @@ const loadProxies = () => {
             try {
                 const u = new URL(line);
                 const host = u.hostname;
-                const port = u.port ? parseInt(u.port, 10) : NaN;
+                // URL 객체는 기본 포트(http:80, https:443)를 빈 문자열로 반환하므로 기본값 처리
+                const defaultPorts = { 'http': 80, 'https': 443, 'socks4': 1080, 'socks5': 1080 };
+                const port = u.port ? parseInt(u.port, 10) : (defaultPorts[protocol] || NaN);
                 const username = decodeURIComponent(u.username || '');
                 const password = decodeURIComponent(u.password || '');
                 if (!looksHostname(host) || !inRange(port)) return null;
@@ -365,19 +368,80 @@ let nextProxyIndex = 0;
 const getNextProxy = () => {
     const { proxyEnabled, proxyRotationMode } = currentSettings;
     if (!proxyEnabled || loadedProxies.length === 0) return null;
+
+    // 실패하지 않은 프록시만 필터링
+    const availableProxies = loadedProxies.filter(p => {
+        const key = `${p.protocol}://${p.host}:${p.port}`;
+        return !failedProxies.has(key);
+    });
+
+    if (availableProxies.length === 0) {
+        console.log('[SYSTEM] ⚠️ All proxies have failed. Clearing failed proxy list and retrying...');
+        failedProxies.clear();
+        return getNextProxy(); // 재귀 호출로 다시 시도
+    }
+
     let proxy;
     if (proxyRotationMode === 'random') {
-        proxy = loadedProxies[Math.floor(Math.random() * loadedProxies.length)];
+        proxy = availableProxies[Math.floor(Math.random() * availableProxies.length)];
     } else {
-        proxy = loadedProxies[nextProxyIndex];
-        nextProxyIndex = (nextProxyIndex + 1) % loadedProxies.length;
+        // Sequential 모드: nextProxyIndex를 availableProxies에 맞게 조정
+        const idx = nextProxyIndex % availableProxies.length;
+        proxy = availableProxies[idx];
+        nextProxyIndex = (nextProxyIndex + 1) % availableProxies.length;
     }
+
     let proxyUrl = `${proxy.protocol}://`;
     if (proxy.username && proxy.password) {
         proxyUrl += `${encodeURIComponent(proxy.username)}:${encodeURIComponent(proxy.password)}@`;
     }
     proxyUrl += `${proxy.host}:${proxy.port}`;
     return proxyUrl;
+};
+
+// 실패한 프록시를 블랙리스트에 추가하고 파일에서 삭제
+const markProxyAsFailed = (proxyUrl) => {
+    if (!proxyUrl) return;
+
+    try {
+        // proxyUrl에서 프로토콜, 호스트, 포트 추출
+        const url = new URL(proxyUrl);
+        const key = `${url.protocol.replace(':', '')}://${url.hostname}:${url.port || '80'}`;
+
+        // 이미 실패 리스트에 있으면 스킵
+        if (failedProxies.has(key)) return;
+
+        failedProxies.add(key);
+        console.log(`[SYSTEM] ❌ Proxy marked as failed: ${key}`);
+
+        // 파일에서 해당 프록시 제거
+        const proxyPath = path.join(DATA_DIR, 'proxies.txt');
+        if (existsSync(proxyPath)) {
+            const raw = readFileSync(proxyPath, 'utf8');
+            const lines = raw.split(/\r?\n/);
+            const filteredLines = lines.filter(line => {
+                const trimmed = line.trim();
+                if (!trimmed) return true; // 빈 줄 유지
+
+                // 현재 줄이 실패한 프록시와 일치하는지 확인
+                const matchesHost = trimmed.includes(url.hostname);
+                const matchesPort = trimmed.includes(`:${url.port || '80'}`);
+
+                return !(matchesHost && matchesPort);
+            });
+
+            writeFileSync(proxyPath, filteredLines.join('\n'), 'utf8');
+            console.log(`[SYSTEM] 🗑️ Removed failed proxy from proxies.txt`);
+
+            // loadedProxies 배열에서도 제거
+            loadedProxies = loadedProxies.filter(p => {
+                const pKey = `${p.protocol}://${p.host}:${p.port}`;
+                return pKey !== key;
+            });
+        }
+    } catch (error) {
+        console.error(`[SYSTEM] Error marking proxy as failed:`, error.message);
+    }
 };
 
 // Get the color ordoring for a given template, or global default.
@@ -407,6 +471,7 @@ class WPlacer {
         this.tiles = new Map();
         this.token = null;
         this.pawtect = null;
+        this.proxyUrl = null; // 사용 중인 프록시 URL 저장
     }
 
     async _fetch(url, options) {
@@ -420,9 +485,23 @@ class WPlacer {
                 'Referer': 'https://wplace.live/'
             };
             const mergedHeaders = { ...(defaultHeaders), ...(options?.headers || {}) };
-            const optsWithTimeout = { timeout: 30000, ...options, headers: mergedHeaders };
+            const optsWithTimeout = { timeout: 20000, ...options, headers: mergedHeaders };
             return await this.browser.fetch(url, optsWithTimeout);
         } catch (error) {
+            // 프록시 관련 에러 감지
+            const isProxyError =
+                error.message?.includes('ConnectionReset') ||
+                error.message?.includes('GenericFailure') ||
+                error.message?.includes('Connect') ||
+                error.message?.includes('timeout') ||
+                error.code === 'GenericFailure' ||
+                error.code === 'InvalidArg';
+
+            if (isProxyError && this.proxyUrl) {
+                console.log(`[SYSTEM] ⚠️ Proxy failed during fetch, marking as failed: ${this.proxyUrl.split('@').pop()}`);
+                markProxyAsFailed(this.proxyUrl);
+            }
+
             if (error.code === 'InvalidArg') {
                 throw new NetworkError(`Internal fetch error (InvalidArg) for URL: ${url}. This may be a temporary network issue or a problem with a proxy.`);
             }
@@ -440,14 +519,33 @@ class WPlacer {
         const sleepTime = Math.floor(Math.random() * MS.TWO_SEC) + MS.QUARTER_SEC;
         await sleep(sleepTime);
         const opts = { cookieJar: jar, browser: 'chrome', ignoreTlsErrors: true };
-        const proxyUrl = getNextProxy();
-        if (proxyUrl) {
-            opts.proxyUrl = proxyUrl;
-            if (currentSettings.logProxyUsage) log('SYSTEM', 'wplacer', `Using proxy: ${proxyUrl.split('@').pop()}`);
+        this.proxyUrl = getNextProxy();
+        if (this.proxyUrl) {
+            opts.proxyUrl = this.proxyUrl;
+            if (currentSettings.logProxyUsage) log('SYSTEM', 'wplacer', `Using proxy: ${this.proxyUrl.split('@').pop()}`);
         }
         this.browser = new Impit(opts);
-        await this.loadUserInfo();
-        return this.userInfo;
+
+        try {
+            await this.loadUserInfo();
+            return this.userInfo;
+        } catch (error) {
+            // 프록시 관련 에러인지 확인
+            const isProxyError =
+                error.message?.includes('ConnectionReset') ||
+                error.message?.includes('GenericFailure') ||
+                error.message?.includes('Connect') ||
+                error.message?.includes('timeout') ||
+                error.code === 'GenericFailure';
+
+            if (isProxyError && this.proxyUrl) {
+                console.log(`[SYSTEM] ⚠️ Proxy connection failed, marking as failed: ${this.proxyUrl.split('@').pop()}`);
+                markProxyAsFailed(this.proxyUrl);
+            }
+
+            // 에러를 다시 던져서 상위에서 처리하도록 함
+            throw error;
+        }
     }
 
     async switchUser(cookies) {
@@ -2045,8 +2143,8 @@ app.get('/canvas', async (req, res) => {
     const { tx, ty } = req.query;
     if (isNaN(parseInt(tx)) || isNaN(parseInt(ty))) return res.sendStatus(HTTP_STATUS.BAD_REQ);
     try {
-        const proxyUrl = getNextProxy();
-        const imp = new Impit({ ignoreTlsErrors: true, ...(proxyUrl ? { proxyUrl } : {}) });
+        // Canvas preview does not use proxy for faster direct access
+        const imp = new Impit({ ignoreTlsErrors: true });
         const r = await imp.fetch(TILE_URL(tx, ty));
         if (!r.ok) return res.sendStatus(r.status);
         const buffer = Buffer.from(await r.arrayBuffer());
